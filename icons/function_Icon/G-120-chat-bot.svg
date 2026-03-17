@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-120-chat-bot" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61 44)">
+      <path id="Path_108" data-name="Path 108" d="M17.216,21.23A8.407,8.407,0,0,1,10.2,17.467l2-1.331a6.014,6.014,0,0,0,10.024,0l2,1.331a8.407,8.407,0,0,1-7.016,3.763M22.028,8a2.406,2.406,0,1,0,2.406,2.406A2.381,2.381,0,0,0,22.028,8M12.406,8a2.406,2.406,0,1,0,2.405,2.406A2.381,2.381,0,0,0,12.406,8" transform="translate(-0.378 -0.784)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_109" data-name="Path 109" d="M20.926,35.677l-2.088-1.2,4.811-8.419h7.216a2.4,2.4,0,0,0,2.406-2.406V6.811a2.4,2.4,0,0,0-2.405-2.406H6.811A2.4,2.4,0,0,0,4.406,6.811V23.65a2.4,2.4,0,0,0,2.406,2.405H17.636v2.406H6.811A4.811,4.811,0,0,1,2,23.65V6.811A4.81,4.81,0,0,1,6.811,2H30.866a4.81,4.81,0,0,1,4.811,4.811V23.65a4.811,4.811,0,0,1-4.811,4.811H25.051Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

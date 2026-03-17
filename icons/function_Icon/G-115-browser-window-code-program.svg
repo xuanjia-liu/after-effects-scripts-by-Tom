@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-115-browser-window-code-program" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61 46.825)">
+      <path id="Path_118" data-name="Path 118" d="M22.564,19.857,19.419,23l1.724,1.712L26,19.857,21.143,15l-1.724,1.712Zm-10.127,0,3.145-3.145L13.857,15,9,19.857l4.857,4.857L15.581,23Z" transform="translate(-0.5 -1.643)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <ellipse id="Ellipse_6" data-name="Ellipse 6" cx="1.134" cy="1.201" rx="1.134" ry="1.201" transform="translate(7.319 3.662)" fill="currentColor"/>
+      <ellipse id="Ellipse_7" data-name="Ellipse 7" cx="1.134" cy="1.201" rx="1.134" ry="1.201" transform="translate(3.917 3.662)" fill="currentColor"/>
+      <path id="Path_119" data-name="Path 119" d="M33.571,4H4.429A2.432,2.432,0,0,0,2,6.429V30.714a2.431,2.431,0,0,0,2.429,2.429H33.571A2.431,2.431,0,0,0,36,30.714V6.429A2.432,2.432,0,0,0,33.571,4m0,2.429v4.857H4.429V6.429ZM4.429,30.714v-17H33.571v17Z" transform="translate(-2 -4)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

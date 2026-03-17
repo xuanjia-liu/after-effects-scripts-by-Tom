@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-135-help" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.259 44.259)">
+      <path id="Path_237" data-name="Path 237" d="M18.732,2A16.732,16.732,0,1,0,35.465,18.732,16.732,16.732,0,0,0,18.732,2m0,31.074A14.342,14.342,0,1,1,33.074,18.732,14.342,14.342,0,0,1,18.732,33.074" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <circle id="Ellipse_14" data-name="Ellipse 14" cx="1.793" cy="1.793" r="1.793" transform="translate(14.94 23.903)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_238" data-name="Path 238" d="M18.171,8H16.378A5.366,5.366,0,0,0,11,13.378v.6h2.39v-.6a2.988,2.988,0,0,1,2.988-2.988h1.793a2.988,2.988,0,1,1,0,5.976h-2.39v5.378h2.39V18.757A5.378,5.378,0,1,0,18.171,8" transform="translate(-0.243 -0.829)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-018-keyframe-add-multi" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_834" data-name="Path 834" d="M12.752,1.625A2.783,2.783,0,0,1,14.618.75c1.222,0,2.139,1.04,3.973,3.12L23.1,8.986c2.439,2.768,3.657,4.151,3.657,5.771s-1.219,3-3.657,5.771l-4.507,5.116c-1.833,2.08-2.75,3.12-3.973,3.12a2.783,2.783,0,0,1-1.866-.875" transform="translate(68.261 46.25)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+    <path id="Path_835" data-name="Path 835" d="M5.75,3.271C7.259,1.59,8.121.75,9.232.75c1.236,0,2.162,1.04,4.016,3.12l4.559,5.118c2.467,2.766,3.7,4.149,3.7,5.769s-1.233,3-3.7,5.771l-4.561,5.116c-1.854,2.08-2.78,3.12-4.016,3.12-1.112,0-1.973-.84-3.482-2.521" transform="translate(63.004 46.25)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+    <path id="Path_836" data-name="Path 836" d="M6.878,17.505V5.25M.75,11.378H13.005" transform="translate(59.25 49.628)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+  </g>
+</svg>

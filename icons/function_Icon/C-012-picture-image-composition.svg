@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-012-picture-image-composition" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_161" data-name="Path 161" d="M33.913,6H4.455A2.457,2.457,0,0,0,2,8.455V28.094a2.457,2.457,0,0,0,2.455,2.455H33.913a2.457,2.457,0,0,0,2.455-2.455V8.455A2.457,2.457,0,0,0,33.913,6M24.094,28.094H14.274V25.639A1.227,1.227,0,0,1,15.5,24.411h7.365a1.227,1.227,0,0,1,1.227,1.227Zm9.819,0H26.548V25.639a3.682,3.682,0,0,0-3.682-3.682H15.5a3.682,3.682,0,0,0-3.682,3.682v2.455H4.455V8.455H33.913Z" transform="translate(58.816 42.726)" fill="currentColor" stroke="currentColor" stroke-width="0.4"/>
+    <path id="Path_162" data-name="Path 162" d="M16.91,19.819A4.91,4.91,0,1,0,12,14.91a4.91,4.91,0,0,0,4.91,4.91m0-7.365a2.455,2.455,0,1,1-2.455,2.455,2.455,2.455,0,0,1,2.455-2.455" transform="translate(61.09 43.635)" fill="currentColor"/>
+  </g>
+</svg>

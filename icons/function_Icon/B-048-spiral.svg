@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-048-spiral" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M15.506,18.4a3.4,3.4,0,0,0,1.1,1.327c1.894,1.274,4.417.2,5.437-1.642,1.5-2.7-.039-6.017-2.725-7.29a7.156,7.156,0,0,0-9.362,3.727C8,18.863,10.472,23.894,14.8,25.677a10.366,10.366,0,0,0,13.289-5.816c2.43-5.973-1-12.746-6.961-15.026a13.569,13.569,0,0,0-17.216,7.9c-2.912,7.6,1.47,16.123,9.08,18.9A16.738,16.738,0,0,0,35.16,16.619" transform="translate(58.92 42.707)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

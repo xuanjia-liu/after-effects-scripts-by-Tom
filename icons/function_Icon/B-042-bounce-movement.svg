@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-042-bounce-movement" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_701" data-name="Path 701" d="M1.5,1.5C13.853,8.791,15.016,23.779,15.016,23.779A17.352,17.352,0,0,1,22.243,11" transform="translate(61.5 48.5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"/>
+    <path id="Path_702" data-name="Path 702" d="M45.373,3.971a5.3,5.3,0,1,0-.061,7.489A5.3,5.3,0,0,0,45.373,3.971Z" transform="translate(45.92 48.102)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="3"/>
+    <line id="Line_1" data-name="Line 1" x2="14.155" transform="translate(69.572 73)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

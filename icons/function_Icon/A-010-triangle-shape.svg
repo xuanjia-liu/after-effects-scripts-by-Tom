@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-010-triangle-shape" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M13.583,3.946,2.356,22.691a2.651,2.651,0,0,0,2.266,3.976H27.078a2.651,2.651,0,0,0,2.266-3.975L18.117,3.945a2.651,2.651,0,0,0-4.535,0Z" transform="translate(62.499 46.832)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

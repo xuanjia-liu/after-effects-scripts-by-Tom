@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-021-keyframe-remove-delete-multi" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_832" data-name="Path 832" d="M12.752,1.625A2.781,2.781,0,0,1,14.617.75c1.222,0,2.138,1.039,3.971,3.118l4.5,5.113c2.438,2.767,3.656,4.149,3.656,5.768s-1.218,3-3.656,5.768l-4.5,5.113c-1.832,2.079-2.749,3.119-3.971,3.119a2.781,2.781,0,0,1-1.865-.875" transform="translate(69.251 46.25)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+    <path id="Path_833" data-name="Path 833" d="M5.75,3.27C7.258,1.59,8.119.75,9.231.75c1.236,0,2.161,1.039,4.015,3.118L17.8,8.984c2.466,2.765,3.7,4.148,3.7,5.766s-1.232,3-3.7,5.768l-4.559,5.113c-1.853,2.079-2.779,3.119-4.015,3.119-1.111,0-1.972-.84-3.481-2.52" transform="translate(64 46.25)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+    <line id="Line_21" data-name="Line 21" x2="12.25" transform="translate(61 61)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+  </g>
+</svg>

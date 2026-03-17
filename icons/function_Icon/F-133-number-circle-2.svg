@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-133-number-circle-2" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_495" data-name="Path 495" d="M3,19A16,16,0,1,0,19,3,16,16,0,0,0,3,19" transform="translate(59 42)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    <path id="Path_496" data-name="Path 496" d="M10,8h5.333a1.778,1.778,0,0,1,1.778,1.778v3.556a1.778,1.778,0,0,1-1.778,1.778H11.778A1.778,1.778,0,0,0,10,16.889v3.556a1.778,1.778,0,0,0,1.778,1.778h5.333" transform="translate(64.444 45.889)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

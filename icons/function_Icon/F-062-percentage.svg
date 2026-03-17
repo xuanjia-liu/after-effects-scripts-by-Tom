@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-062-percentage" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M10.084,16.168a6.084,6.084,0,1,1,6.084-6.084,6.084,6.084,0,0,1-6.084,6.084m0-9.734a3.65,3.65,0,1,0,3.65,3.65,3.65,3.65,0,0,0-3.65-3.65M4,31.483,31.481,4,33.2,5.722,5.721,33.2ZM27.119,33.2A6.084,6.084,0,1,1,33.2,27.119,6.084,6.084,0,0,1,27.119,33.2m0-9.734a3.65,3.65,0,1,0,3.65,3.65,3.65,3.65,0,0,0-3.65-3.65" transform="translate(59 42)" fill="currentColor" stroke="currentColor" stroke-width="0.45"/>
+  </g>
+</svg>

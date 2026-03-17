@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-058-intersect-square" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M64.583,41.917h-8.5v-8.5A1.417,1.417,0,0,0,54.667,32H33.417A1.417,1.417,0,0,0,32,33.417v21.25a1.417,1.417,0,0,0,1.417,1.417h8.5v8.5A1.417,1.417,0,0,0,43.333,66h21.25A1.417,1.417,0,0,0,66,64.583V43.333a1.417,1.417,0,0,0-1.417-1.417M34.833,53.25V34.833H53.25v7.083H43.333a1.417,1.417,0,0,0-1.417,1.417V53.25Zm9.917-6.5,6.5,6.5h-6.5Zm8.5,4.494-6.5-6.5h6.5Zm9.917,11.919H44.75V56.083h9.917a1.417,1.417,0,0,0,1.417-1.417V44.75h7.083Z" transform="translate(29 12)" fill="currentColor"/>
+    <path id="Path_876" data-name="Path 876" d="M72.081,55.842v10.8H83.689v-11.3Z" fill="currentColor"/>
+  </g>
+</svg>

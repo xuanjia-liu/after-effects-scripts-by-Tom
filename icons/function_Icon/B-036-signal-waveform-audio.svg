@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-036-signal-waveform-audio" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="Group_39" data-name="Group 39" transform="translate(60.34 42.276)">
+      <path id="Path_691" data-name="Path 691" d="M24.841,32.552a1.472,1.472,0,0,0,2.944,0V12.763a1.472,1.472,0,0,0-2.944,0Z" transform="translate(-8.653 -3.933)" fill="currentColor"/>
+      <path id="Path_692" data-name="Path 692" d="M1.471,19.266A1.472,1.472,0,0,0,0,20.737v9.4a1.471,1.471,0,0,0,2.943,0v-9.4a1.472,1.472,0,0,0-1.471-1.471" transform="translate(0 -6.711)" fill="currentColor"/>
+      <path id="Path_693" data-name="Path 693" d="M19.881,29.943v-8.58a1.472,1.472,0,0,0-2.944,0v8.58a1.472,1.472,0,0,0,2.944,0" transform="translate(-5.9 -6.929)" fill="currentColor"/>
+      <path id="Path_694" data-name="Path 694" d="M10.5,30.045a1.472,1.472,0,0,0,1.471-1.471V25.879a1.471,1.471,0,1,0-2.943,0v2.694A1.472,1.472,0,0,0,10.5,30.045" transform="translate(-3.147 -8.502)" fill="currentColor"/>
+      <path id="Path_695" data-name="Path 695" d="M35.689,29.943v-8.58a1.472,1.472,0,0,0-2.944,0v8.58a1.472,1.472,0,0,0,2.944,0" transform="translate(-11.406 -6.929)" fill="currentColor"/>
+      <path id="Path_696" data-name="Path 696" d="M51.154,19.266a1.472,1.472,0,0,0-1.471,1.471v9.4a1.471,1.471,0,0,0,2.943,0v-9.4a1.472,1.472,0,0,0-1.471-1.471" transform="translate(-17.307 -6.711)" fill="currentColor"/>
+      <path id="Path_697" data-name="Path 697" d="M42.12,24.408a1.472,1.472,0,0,0-1.471,1.471v2.694a1.471,1.471,0,0,0,2.943,0V25.879a1.472,1.472,0,0,0-1.471-1.471" transform="translate(-14.16 -8.502)" fill="currentColor"/>
+      <path id="Path_698" data-name="Path 698" d="M24.841,53.634a1.472,1.472,0,0,0,2.944,0V52.162a1.472,1.472,0,1,0-2.944,0Z" transform="translate(-8.653 -17.657)" fill="currentColor"/>
+      <path id="Path_699" data-name="Path 699" d="M26.312,4.415a1.472,1.472,0,0,0,1.471-1.471V1.471a1.471,1.471,0,1,0-2.943,0V2.944a1.472,1.472,0,0,0,1.471,1.471" transform="translate(-8.653 0)" fill="currentColor"/>
+    </g>
+  </g>
+</svg>

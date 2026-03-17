@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-042-pin-location" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M34.288,15.734,36,14.021,23.857,2,22.266,3.724,23.7,5.157,9.747,16.96,7.659,14.884,5.946,16.571l6.873,6.9L2,34.276,3.712,36,14.531,25.181l6.9,6.873,1.688-1.724L21.04,28.253,32.843,14.3Zm-14.972,10.8-7.844-7.844L25.424,6.857l5.719,5.719Z" transform="translate(59 42)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

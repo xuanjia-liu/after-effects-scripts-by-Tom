@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-004-robot-machine-learning-chip" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61 44)">
+      <path id="Path_116" data-name="Path 116" d="M11,11V22.942H22.942V11Zm9.553,9.554H13.388V13.388h7.165Z" transform="translate(0.029 0.029)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+      <path id="Path_117" data-name="Path 117" d="M35.437,15.136V12.748H30.66V9.165a2.388,2.388,0,0,0-2.388-2.388H24.689V2H22.3V6.777H15.136V2H12.748V6.777H9.165A2.388,2.388,0,0,0,6.777,9.165v3.583H2v2.388H6.777V22.3H2V24.69H6.777v3.583a2.388,2.388,0,0,0,2.388,2.388h3.583v4.777h2.388V30.661H22.3v4.777h2.388V30.661h3.583a2.388,2.388,0,0,0,2.388-2.388V24.69h4.777V22.3H30.66V15.136ZM28.272,28.272H9.165V9.165H28.272Z" transform="translate(-1.719 -1.719)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+    </g>
+  </g>
+</svg>

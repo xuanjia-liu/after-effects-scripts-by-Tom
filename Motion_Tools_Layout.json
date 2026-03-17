@@ -1,0 +1,20 @@
+{
+    "panelBGColor1": "#09181C",
+    "panelBGColor2": "",
+    "panelBGType": 4,
+    "cellBorderColor": "#FFFFFF14",
+    "cellBGColor1": "transparent",
+    "cellBGColor2": "",
+    "cellBgType": 1,
+    "cellWidth": 40,
+    "cellHeight": 40,
+    "panelShadow": 1,
+    "panelShowShadow": false,
+    "spacing": 4,
+    "cellShowIcon": false,
+    "cellShowName": false,
+    "cellTextColor": "#000000",
+    "degree": 180,
+    "showMenuWidget": true,
+    "addButton": false
+}

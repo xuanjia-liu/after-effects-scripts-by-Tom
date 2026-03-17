@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shape Particle System</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <div class="content">
+            <div class="section system-selector">
+                <div class="header-row">
+                    <label for="existing-systems">Existing Systems:</label>
+                    <div class="realtime-toggle">
+                        <label for="realtime-toggle" class="toggle-label">
+                            <input type="checkbox" id="realtime-toggle">
+                            <span class="toggle-text">Live Editing</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex-row">
+                    <select id="existing-systems">
+                        <option value="none">None</option>
+                    </select>
+                    <button id="create-btn">Create</button>
+                </div>
+            </div>
+            
+            <div class="tabs">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" data-tab="basic">Basic</button>
+                    <button class="tab-btn" data-tab="appearance">Appearance</button>
+                    <button class="tab-btn" data-tab="motion">Motion</button>
+                    <button class="tab-btn" data-tab="effects">Effects</button>
+                </div>
+                
+                <!-- Basic Tab -->
+                <div class="tab-content active" id="basic-tab">
+                    <div class="control-group">
+                        <h3>Emitter Settings</h3>
+                        <div class="control" id="total-particles-control">
+                            <div class="label-row">
+                                <label for="total-particles">Total Particles:</label>
+                                <div class="particle-count-toggle">
+                                    <input type="checkbox" id="show-active-particles" class="toggle-checkbox">
+                                    <label for="show-active-particles" class="toggle-label">Use Active</label>
+                                </div>
+                            </div>
+                            <input type="number" id="total-particles" value="50" min="1" max="200" class="particle-control">
+                        </div>
+                        <div class="control" id="active-particles-control" style="display: none;">
+                            <div class="label-row">
+                                <label for="particle-count">Active Particles:</label>
+                                <div class="particle-count-toggle">
+                                    <input type="checkbox" id="show-active-particles-alt" class="toggle-checkbox" checked>
+                                    <label for="show-active-particles-alt" class="toggle-label">Use Active</label>
+                                </div>
+                            </div>
+                            <input type="number" id="particle-count" value="50" min="1" max="500" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="emitter-width">Emitter Width:</label>
+                            <input type="number" id="emitter-width" value="100" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="emitter-height">Emitter Height:</label>
+                            <input type="number" id="emitter-height" value="100" class="particle-control">
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3>Particle Shape</h3>
+                        <div class="control">
+                            <label>Shape Types:</label>
+                            <div class="shape-type-checkboxes">
+                                <div class="shape-checkbox">
+                                    <input type="checkbox" id="shape-type-ellipse" class="shape-type-checkbox particle-control" value="ellipse" checked>
+                                    <label for="shape-type-ellipse">Ellipse</label>
+                                </div>
+                                <div class="shape-checkbox">
+                                    <input type="checkbox" id="shape-type-rectangle" class="shape-type-checkbox particle-control" value="rectangle">
+                                    <label for="shape-type-rectangle">Rectangle</label>
+                                </div>
+                                <div class="shape-checkbox">
+                                    <input type="checkbox" id="shape-type-star" class="shape-type-checkbox particle-control" value="star">
+                                    <label for="shape-type-star">Star</label>
+                                </div>
+                                <div class="shape-checkbox">
+                                    <input type="checkbox" id="shape-type-polygon" class="shape-type-checkbox particle-control" value="polygon">
+                                    <label for="shape-type-polygon">Polygon</label>
+                                </div>
+                                <div class="shape-checkbox">
+                                    <input type="checkbox" id="shape-type-selected-layer" class="shape-type-checkbox particle-control" value="selected-layer">
+                                    <label for="shape-type-selected-layer">Selected Layer</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="control" id="layer-selection-control" style="display: none;">
+                            <label for="selected-layer">Select Shape Layer:</label>
+                            <select id="selected-layer" class="particle-control">
+                                <option value="none">No Layers Available</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Shape-specific properties moved into Particle Shape section -->
+                        <!-- Rectangle properties -->
+                        <div class="control shape-property" id="rectangle-properties" style="display: none;">
+                            <label for="rectangle-roundness"><span class="shape-label">[Rectangle]</span> Corner Roundness:</label>
+                            <input type="number" id="rectangle-roundness" value="0" min="0" class="particle-control">
+                        </div>
+                        
+                        <!-- Star properties -->
+                        <div class="control shape-property" id="star-properties" style="display: none;">
+                            <label for="star-points"><span class="shape-label">[Star]</span> Points:</label>
+                            <input type="number" id="star-points" value="5" min="3" max="20" class="particle-control">
+                        </div>
+                        <div class="control shape-property star-control" style="display: none;">
+                            <label for="star-inner-radius"><span class="shape-label">[Star]</span> Inner Radius (%):</label>
+                            <input type="number" id="star-inner-radius" value="50" min="1" max="100" class="particle-control">
+                        </div>
+                        <div class="control shape-property star-control" style="display: none;">
+                            <label for="star-inner-roundness"><span class="shape-label">[Star]</span> Inner Roundness:</label>
+                            <input type="number" id="star-inner-roundness" value="0" min="0" max="100" class="particle-control">
+                        </div>
+                        <div class="control shape-property star-control" style="display: none;">
+                            <label for="star-outer-roundness"><span class="shape-label">[Star]</span> Outer Roundness:</label>
+                            <input type="number" id="star-outer-roundness" value="0" min="0" max="100" class="particle-control">
+                        </div>
+                        
+                        <!-- Polygon properties -->
+                        <div class="control shape-property" id="polygon-properties" style="display: none;">
+                            <label for="polygon-sides"><span class="shape-label">[Polygon]</span> Sides:</label>
+                            <input type="number" id="polygon-sides" value="6" min="3" max="20" class="particle-control">
+                        </div>
+                        <div class="control shape-property polygon-control" style="display: none;">
+                            <label for="polygon-roundness"><span class="shape-label">[Polygon]</span> Roundness:</label>
+                            <input type="number" id="polygon-roundness" value="0" min="0" max="100" class="particle-control">
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3>Particle Lifecycle</h3>
+                        <div class="control">
+                            <label for="particle-lifetime">Particle Lifetime (sec):</label>
+                            <input type="number" id="particle-lifetime" value="4" step="0.1" min="0.1" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="position-offset">Position Offset (%):</label>
+                            <input type="number" id="position-offset" value="100" min="0" max="100" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="fade-in">Fade In Distance (%):</label>
+                            <input type="number" id="fade-in" value="10" min="0" max="100" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="fade-out">Fade Out Start (%):</label>
+                            <input type="number" id="fade-out" value="80" min="0" max="100" class="particle-control">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Appearance Tab -->
+                <div class="tab-content" id="appearance-tab">
+                    <div class="control-group">
+                        <h3>Size 
+                            <span class="fade-method-header">
+                                <label for="size-fade-method">Fade:</label>
+                                <select id="size-fade-method" class="particle-control">
+                                    <option value="0">Time</option>
+                                    <option value="1" selected>Distance</option>
+                                </select>
+                            </span>
+                        </h3>
+                        <div class="control">
+                            <label for="particle-size">Particle Size:</label>
+                            <input type="number" id="particle-size" value="10" min="0" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="size-variance">Size Variance:</label>
+                            <input type="number" id="size-variance" value="5" min="0" class="particle-control">
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3>Color
+                            <span class="fade-method-header">
+                                <label for="color-fade-method">Fade:</label>
+                                <select id="color-fade-method" class="particle-control">
+                                    <option value="0">Time</option>
+                                    <option value="1" selected>Distance</option>
+                                </select>
+                            </span>
+                        </h3>
+                        <div class="control">
+                            <label for="start-color-label">Start Color:</label>
+                            <div class="color-input-group">
+                                <div class="color-button" id="start-color-button">
+                                    <div class="color-swatch" id="start-color-swatch"></div>
+                                </div>
+                                <input type="text" id="start-color-hex" placeholder="#RRGGBB" class="hex-input particle-control" maxlength="7">
+                                <div class="opacity-control">
+                                    <input type="number" id="start-opacity" value="100" min="0" max="100" class="opacity-input particle-control">
+                                    <span class="opacity-label">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="control">
+                            <label for="end-color-label">End Color:</label>
+                            <div class="color-input-group">
+                                <div class="color-button" id="end-color-button">
+                                    <div class="color-swatch" id="end-color-swatch"></div>
+                                </div>
+                                <input type="text" id="end-color-hex" placeholder="#RRGGBB" class="hex-input particle-control" maxlength="7">
+                                <div class="opacity-control">
+                                    <input type="number" id="end-opacity" value="100" min="0" max="100" class="opacity-input particle-control">
+                                    <span class="opacity-label">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="control">
+                            <label for="color-offset">Color Offset (%):</label>
+                            <input type="number" id="color-offset" value="20" min="0" max="100" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="color-variance">Color Variance:</label>
+                            <input type="number" id="color-variance" value="0" min="0" max="100" class="particle-control">
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3>Opacity
+                            <span class="fade-method-header">
+                                <label for="opacity-fade-method">Fade:</label>
+                                <select id="opacity-fade-method" class="particle-control">
+                                    <option value="0">Time</option>
+                                    <option value="1" selected>Distance</option>
+                                </select>
+                            </span>
+                        </h3>
+                        <div class="control">
+                            <label for="max-opacity">Max Opacity (%):</label>
+                            <input type="number" id="max-opacity" value="100" min="0" max="100" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="opacity-variance">Opacity Variance:</label>
+                            <input type="number" id="opacity-variance" value="20" min="0" class="particle-control">
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3>Rotation</h3>
+                        <div class="control">
+                            <label for="rotation-variance">Rotation Variance (deg):</label>
+                            <input type="number" id="rotation-variance" value="180" min="0" max="360" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="rotation-speed">Rotation Speed (deg/s):</label>
+                            <input type="number" id="rotation-speed" value="0" min="-360" max="360" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="rotation-speed-variance">Rotation Speed Variance:</label>
+                            <input type="number" id="rotation-speed-variance" value="0" min="-360" max="360" class="particle-control">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Motion Tab -->
+                <div class="tab-content" id="motion-tab">
+                    <div class="control-group">
+                        <h3>Velocity</h3>
+                        <div class="control">
+                            <label for="velocity">Velocity:</label>
+                            <input type="number" id="velocity" value="100" min="0" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="velocity-variance">Velocity Variance:</label>
+                            <input type="number" id="velocity-variance" value="50" min="0" class="particle-control">
+                        </div>
+                        
+                        <div class="control">
+                            <label for="velocity-direction">Velocity Direction (deg):</label>
+                            <div class="row-container">
+                                <div class="direction-control" id="velocity-direction-control">
+                                    <div class="direction-circle">
+                                        <div class="direction-labels">
+                                            <div class="direction-label label-top">0°</div>
+                                            <div class="direction-label label-right">90°</div>
+                                            <div class="direction-label label-bottom">180°</div>
+                                            <div class="direction-label label-left">270°</div>
+                                        </div>
+                                        <div class="direction-center"></div>
+                                        <div class="direction-line" id="velocity-line">
+                                            <div class="direction-arrow"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <input type="number" id="velocity-direction" value="0" min="0" max="360" class="particle-control">
+                            </div>
+                        </div>
+                        
+                        <div class="control">
+                            <label for="velocity-direction-variance">Direction Variance (deg):</label>
+                            <input type="number" id="velocity-direction-variance" value="10" min="0" max="180" class="particle-control">
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3>Gravity & Resistance</h3>
+                        <div class="control">
+                            <label for="gravity">Gravity:</label>
+                            <input type="number" id="gravity" value="98" min="0" class="particle-control">
+                        </div>
+                        
+                        <div class="control">
+                            <label for="gravity-direction">Gravity Direction (deg):</label>
+                            <div class="row-container">
+                                <div class="direction-control" id="gravity-direction-control">
+                                    <div class="direction-circle">
+                                        <div class="direction-labels">
+                                            <div class="direction-label label-top">0°</div>
+                                            <div class="direction-label label-right">90°</div>
+                                            <div class="direction-label label-bottom">180°</div>
+                                            <div class="direction-label label-left">270°</div>
+                                        </div>
+                                        <div class="direction-center"></div>
+                                        <div class="direction-line" id="gravity-line">
+                                            <div class="direction-arrow"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <input type="number" id="gravity-direction" value="180" min="0" max="360" class="particle-control">
+                            </div>
+                        </div>
+                        
+                        <div class="control">
+                            <label for="resistance">Resistance (%):</label>
+                            <input type="number" id="resistance" value="0" min="0" max="100" class="particle-control">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Effects Tab -->
+                <div class="tab-content" id="effects-tab">
+                    <div class="control-group">
+                        <h3>Turbulence</h3>
+                        <div class="control">
+                            <label for="turbulent">Turbulence Amount:</label>
+                            <input type="number" id="turbulent" value="40" min="0" class="particle-control">
+                        </div>
+                        <div class="control">
+                            <label for="turbulent-speed">Turbulence Speed:</label>
+                            <input type="number" id="turbulent-speed" value="1" min="0" step="0.1" class="particle-control">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Libraries -->
+    <script src="./lib/CSInterface.js"></script>
+    
+    <!-- Debug Utilities (remove for production) -->
+    <script src="./js/debug.js"></script>
+    
+    <!-- Application Scripts -->
+    <script src="./js/main.js"></script>
+    
+    <!-- Color Picker Modal Markup Start -->
+    <div id="color-picker-overlay">
+        <div class="color-modal">
+            <div class="modal-header">
+                <span id="color-modal-title">Edit Color</span>
+                <button id="close-color-modal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="color-preview-container">
+                    <div id="modal-color-preview"></div>
+                </div>
+                <div class="modal-controls">
+                    <div class="modal-control">
+                        <label for="modal-hue">H:</label>
+                        <input type="range" id="modal-hue" min="0" max="360" value="0">
+                        <input type="number" id="modal-hue-value" min="0" max="360" value="0">
+                    </div>
+                    <div class="modal-control">
+                        <label for="modal-saturation">S:</label>
+                        <input type="range" id="modal-saturation" min="0" max="100" value="100">
+                        <input type="number" id="modal-saturation-value" min="0" max="100" value="100">
+                    </div>
+                    <div class="modal-control">
+                        <label for="modal-brightness">B:</label>
+                        <input type="range" id="modal-brightness" min="0" max="100" value="100">
+                        <input type="number" id="modal-brightness-value" min="0" max="100" value="100">
+                    </div>
+                    <div class="modal-control">
+                        <label for="modal-opacity">A:</label>
+                        <input type="range" id="modal-opacity" min="0" max="100" value="100">
+                        <span class="opacity-value">100%</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancel-color">Cancel</button>
+                <button id="apply-color" class="primary-btn">Apply</button>
+            </div>
+        </div>
+    </div>
+    <!-- Color Picker Modal Markup End -->
+</body>
+</html> 

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-047-interactive-wand-cursor" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(60.286 43.286)">
+      <path id="Path_609" data-name="Path 609" d="M34.565,27.715l-16.974-17a2.59,2.59,0,0,0-3.578,0L10.74,13.988a2.533,2.533,0,0,0,0,3.58l16.973,17a2.533,2.533,0,0,0,3.578,0l3.273-3.273A2.531,2.531,0,0,0,34.565,27.715ZM12.529,15.778,15.8,12.507l4.429,4.429-3.273,3.273L12.528,15.78Zm16.973,17L18.747,22l3.272-3.273L32.776,29.5Z" transform="translate(0.122 0.122)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_610" data-name="Path 610" d="M7,20.531,9.531,18l2.531,2.531L9.531,23.061Z" transform="translate(-0.673 2.245)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_611" data-name="Path 611" d="M18,9.531,20.531,7l2.531,2.531-2.531,2.531Z" transform="translate(2.245 -0.673)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_612" data-name="Path 612" d="M7,9.531,9.531,7l2.531,2.531L9.531,12.061Z" transform="translate(-0.673 -0.673)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_613" data-name="Path 613" d="M13.388,2H2V13.388H4.531V4.531h8.857Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,4 @@
+<svg id="workspace-pager" xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 9 9">
+  <rect id="area" width="9" height="9" fill="none"/>
+  <circle id="fav-pager" cx="2.5" cy="2.5" r="2.5" transform="translate(2 2)" fill="#6e6e6e"/>
+</svg>

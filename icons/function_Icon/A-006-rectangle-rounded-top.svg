@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-006-rectangle-rounded-top" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M13.333,6H23.667A10.333,10.333,0,0,1,34,16.333v8.611a1.722,1.722,0,0,1-1.722,1.722H4.722A1.722,1.722,0,0,1,3,24.944V16.333A10.333,10.333,0,0,1,13.333,6" transform="translate(59.5 44.5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

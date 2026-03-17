@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-024-segment-line-connect" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="Ellipse_58" data-name="Ellipse 58" transform="translate(60 67)" fill="none" stroke="currentColor" stroke-width="3">
+      <circle cx="6" cy="6" r="6" stroke="none"/>
+      <circle cx="6" cy="6" r="4.5" fill="none"/>
+    </g>
+    <g id="Ellipse_59" data-name="Ellipse 59" transform="translate(84 43)" fill="none" stroke="currentColor" stroke-width="3">
+      <circle cx="6" cy="6" r="6" stroke="none"/>
+      <circle cx="6" cy="6" r="4.5" fill="none"/>
+    </g>
+    <line id="Line_32" data-name="Line 32" y1="18" x2="18" transform="translate(69.5 51.5)" fill="none" stroke="currentColor" stroke-width="3"/>
+  </g>
+</svg>

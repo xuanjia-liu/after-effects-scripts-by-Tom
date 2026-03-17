@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="E-012-chevron-circle-right" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M18.179,4.123A14.056,14.056,0,1,0,32.235,18.179,14.056,14.056,0,0,0,18.179,4.123M1,18.179A17.179,17.179,0,1,1,18.179,35.358,17.179,17.179,0,0,1,1,18.179M15.837,9.724l8.455,8.455-8.455,8.455-2.208-2.208,6.247-6.247-6.247-6.247Z" transform="translate(60 42.928)" fill="currentColor"/>
+  </g>
+</svg>

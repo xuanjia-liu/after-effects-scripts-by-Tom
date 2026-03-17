@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-009-category-group-parent-tree" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M35.274,13.507V4H25.767V7.565H21.014a2.379,2.379,0,0,0-2.377,2.377v7.13h-7.13V13.507H2v9.507h9.507V19.449h7.13v7.13a2.379,2.379,0,0,0,2.377,2.377h4.753V32.52h9.507V23.014H25.767v3.565H21.014V9.942h4.753v3.565ZM9.13,20.637H4.377V15.884H9.13ZM28.144,25.39H32.9v4.753H28.144Zm0-19.014H32.9V11.13H28.144Z" transform="translate(59.363 42.74)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

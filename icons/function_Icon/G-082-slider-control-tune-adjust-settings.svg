@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-082-slider-control-tune-adjust-settings" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M35.341,8.763H30.459a5.955,5.955,0,0,0-11.67,0H2v2.382H18.79a5.955,5.955,0,0,0,11.67,0h4.882ZM24.625,13.526a3.509,3.509,0,0,1-3.572-3.572,3.572,3.572,0,1,1,7.145,0,3.509,3.509,0,0,1-3.572,3.572M2,27.815H6.882a5.955,5.955,0,0,0,11.67,0h16.79V25.434H18.552a5.955,5.955,0,0,0-11.67,0H2Zm10.717-4.763a3.572,3.572,0,0,1,0,7.145,3.572,3.572,0,1,1,0-7.145" transform="translate(59.329 42.711)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

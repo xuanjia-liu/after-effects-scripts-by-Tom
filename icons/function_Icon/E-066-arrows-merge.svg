@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="E-066-arrows-merge" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M84.922,33.308V43.769a1.308,1.308,0,0,1-.382.925l-8.771,8.769v8.071l3-3a1.308,1.308,0,1,1,1.85,1.85l-5.231,5.231a1.308,1.308,0,0,1-1.85,0l-5.231-5.231a1.308,1.308,0,1,1,1.85-1.85l3,3V53.463l-8.771-8.769A1.308,1.308,0,0,1,64,43.769V33.308a1.308,1.308,0,1,1,2.615,0v9.92l7.846,7.846,7.846-7.846v-9.92a1.308,1.308,0,1,1,2.615,0" transform="translate(3.539 12)" fill="currentColor"/>
+  </g>
+</svg>

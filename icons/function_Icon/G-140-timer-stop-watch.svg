@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-140-timer-stop-watch" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(62.826 44)">
+      <path id="Path_344" data-name="Path 344" d="M15.653,13.617h2.653V25.235H15.653ZM13,2h7.958V4.582H13Z" transform="translate(-2.548 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_345" data-name="Path 345" d="M35.466,9.855l-1.883-1.82-2.984,2.9A14.791,14.791,0,0,0,10.651,9.09,13.868,13.868,0,0,0,7.827,28.4a14.766,14.766,0,0,0,19.686,3.641,13.9,13.9,0,0,0,4.65-18.969ZM19.551,31.8A11.78,11.78,0,0,1,7.614,20.181,11.78,11.78,0,0,1,19.551,8.564,11.78,11.78,0,0,1,31.487,20.181,11.78,11.78,0,0,1,19.551,31.8" transform="translate(-5.119 -0.819)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

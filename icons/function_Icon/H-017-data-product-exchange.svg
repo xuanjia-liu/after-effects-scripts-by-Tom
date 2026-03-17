@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-017-data-product-exchange" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.791 44.79)">
+      <path id="Path_239" data-name="Path 239" d="M27.472,21.789V24.1H29.5A13.895,13.895,0,0,1,4.316,16H2A16.206,16.206,0,0,0,30.946,26.021v1.557h2.316V21.789Z" transform="translate(-2 0.21)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_240" data-name="Path 240" d="M24.636,12.211,17.7,8.159a1.158,1.158,0,0,0-1.167,0L9.575,12.21a1.158,1.158,0,0,0-.575,1v8.1a1.158,1.158,0,0,0,.575,1l6.96,4.052a1.111,1.111,0,0,0,.57.157,1.2,1.2,0,0,0,.6-.159l6.934-4.052a1.158,1.158,0,0,0,.573-1v-8.1a1.158,1.158,0,0,0-.573-1M17.117,10.5l4.639,2.713-4.639,2.712L12.46,13.21Zm-5.8,4.727,4.631,2.7v5.424l-4.631-2.7Zm6.947,8.134V17.936l4.631-2.707v5.422Z" transform="translate(-0.895 -1.053)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_241" data-name="Path 241" d="M18.052,2A16.154,16.154,0,0,0,5.316,8.189V6.631H3V12.42H8.789V10.1H6.765a13.895,13.895,0,0,1,25.18,8.1h2.316A16.227,16.227,0,0,0,18.052,2" transform="translate(-1.842 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

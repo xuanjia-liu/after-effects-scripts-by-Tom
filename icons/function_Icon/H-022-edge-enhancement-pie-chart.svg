@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-022-edge-enhancement-pie-chart" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.324 44.311)">
+      <path id="Path_175" data-name="Path 175" d="M29.153,31.921H22V27.153a2.387,2.387,0,0,1,2.384-2.384h2.384V22.384H22V20h4.768a2.387,2.387,0,0,1,2.384,2.384v2.384a2.387,2.387,0,0,1-2.384,2.384H24.384v2.384h4.768Z" transform="translate(1.577 1.458)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+      <path id="Path_176" data-name="Path 176" d="M30.305,18.689h2.384A16.689,16.689,0,0,0,16,2V4.384A14.305,14.305,0,0,1,30.305,18.689Z" transform="translate(0.425 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+      <path id="Path_177" data-name="Path 177" d="M27.921,17.921A11.921,11.921,0,0,0,16,6V17.921Z" transform="translate(0.425 -1.232)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+      <path id="Path_178" data-name="Path 178" d="M18.647,29.921A14.257,14.257,0,0,1,6.03,22.357c-.079-.151-.159-.3-.232-.458-.066-.135-.126-.271-.187-.408A15.64,15.64,0,0,1,4.568,18l-2.346.492a16.591,16.591,0,0,0,.57,2.249l-.03.011A16.643,16.643,0,0,0,18.647,32.305Z" transform="translate(-2.222 1.073)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+      <path id="Path_179" data-name="Path 179" d="M6.238,10.192,4.175,9a16.856,16.856,0,0,0-1.953,5.468l2.346.414a14.486,14.486,0,0,1,1.669-4.69Z" transform="translate(-2.222 -0.655)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+      <path id="Path_180" data-name="Path 180" d="M12.751,5.126l-.814-2.239A16.661,16.661,0,0,0,6.951,5.8L8.483,7.623a14.273,14.273,0,0,1,4.268-2.5Z" transform="translate(-1.314 -1.83)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-001-film-strip-vertical" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="Group_197" data-name="Group 197" transform="translate(0.212 -0.817)">
+      <rect id="Rectangle_1" data-name="Rectangle 1" width="29" height="30" rx="2" transform="translate(64.788 46.817)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+      <path id="Path_377" data-name="Path 377" d="M9.445,3V32M3,10.25H9.445M3,17.5H30.943M3,24.751H9.445M25.557,3V32m0-21.751h5.386m-5.386,14.5h5.386" transform="translate(62 44.114)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

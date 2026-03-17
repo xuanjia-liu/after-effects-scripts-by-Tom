@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-176-3d-software-cube" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(59.001 42.001)">
+      <path id="Path_16" data-name="Path 16" d="M25.666,14.215,14.738,8.144a1.214,1.214,0,0,0-1.214,0L2.6,14.215A1.224,1.224,0,0,0,2,15.29V27.426a1.214,1.214,0,0,0,.631,1.056L13.56,34.554a1.219,1.219,0,0,0,.583.164,1.282,1.282,0,0,0,.595-.164l10.928-6.071a1.2,1.2,0,0,0,.619-1.05V15.29a1.224,1.224,0,0,0-.619-1.075ZM12.928,31.433l-8.5-4.723V17.336l8.5,4.723Zm1.214-11.475L5.716,15.29,14.143,10.6l8.427,4.687Zm9.714,6.751-8.5,4.723V22.059l8.5-4.723Z" transform="translate(0 1.281)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_17" data-name="Path 17" d="M32.142,6.857H27.285V2H24.857V6.857H20V9.285h4.857v4.857h2.428V9.285h4.857Z" transform="translate(3.857)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

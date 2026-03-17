@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-038-volume-level-speaker-control-music-audio-mute" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M.5,34,34,.5M10.808,12.1H6.942a2.577,2.577,0,0,0-2.577,2.577v5.154A2.577,2.577,0,0,0,6.942,22.4h3.865ZM24.981,9.519V6.942a2.532,2.532,0,0,0-3.994-2.087L10.808,12.1M16.4,26.424l4.484,3.221a2.628,2.628,0,0,0,4.1-2.087V17.25M10.808,22.4l.747.541" transform="translate(61 44)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

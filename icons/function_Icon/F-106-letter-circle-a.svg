@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-106-letter-circle-a" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_449" data-name="Path 449" d="M3,19A16,16,0,1,0,19,3,16,16,0,0,0,3,19" transform="translate(59 42)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    <path id="Path_450" data-name="Path 450" d="M10,22.222V11.556a3.556,3.556,0,1,1,7.111,0V22.222M10,16.889h7.111" transform="translate(64.444 45.889)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-077-bring-to-front" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M32.838,11.489H25.722V4.372A2.375,2.375,0,0,0,23.35,2H4.372A2.375,2.375,0,0,0,2,4.372V23.35a2.375,2.375,0,0,0,2.372,2.372h7.117v7.117a2.372,2.372,0,0,0,2.372,2.372H32.838a2.372,2.372,0,0,0,2.372-2.372V13.861a2.372,2.372,0,0,0-2.372-2.372M4.372,23.35l0-18.978H23.35v7.117H13.861a2.372,2.372,0,0,0-2.372,2.372V23.35Z" transform="translate(59.333 42.333)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

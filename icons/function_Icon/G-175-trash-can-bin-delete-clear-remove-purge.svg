@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-175-trash-can-bin-delete-clear-remove-purge" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(64.026 44.697)">
+      <path id="Path_346" data-name="Path 346" d="M12,12h2.329V25.974H12Zm6.987,0h2.329V25.974H18.987Z" transform="translate(-2.684 -0.355)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_347" data-name="Path 347" d="M4,6.658V8.987H6.329v23.29a2.329,2.329,0,0,0,2.329,2.329H27.29a2.329,2.329,0,0,0,2.329-2.329V8.987h2.329V6.658ZM8.658,32.277V8.987H27.29v23.29ZM13.316,2h9.316V4.329H13.316Z" transform="translate(-4 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

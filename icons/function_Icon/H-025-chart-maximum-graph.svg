@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-025-chart-maximum-graph" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.242 44.242)">
+      <path id="Path_96" data-name="Path 96" d="M8,6h2.394V8.394H8Zm4.788,0h2.394V8.394H12.788Zm9.576,0h2.394V8.394H22.364Zm4.788,0h2.394V8.394H27.152Zm4.788,0h2.394V8.394H31.941Z" transform="translate(-0.818 -1.212)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_97" data-name="Path 97" d="M33.11,33.123l-.032-.2c-1.738-10.49-4.664-22.442-11.925-23.639v-2.5H18.758v2.5C11.476,10.455,8.544,22.425,6.8,32.928l-.032.2H4.394V9.182H6.788V6.788H4.394V2H2V33.123a2.394,2.394,0,0,0,2.394,2.394H35.517V33.123Zm-23.909,0c2.423-14.494,5.937-21.547,10.741-21.547s8.318,7.053,10.74,21.547Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

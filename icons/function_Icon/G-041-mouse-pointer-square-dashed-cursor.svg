@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-041-mouse-pointer-square-dashed-cursor" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M6.158,3A3.158,3.158,0,0,0,3,6.158M28.263,3a3.158,3.158,0,0,1,3.158,3.158M17.211,17.211,23.526,33l2.684-6.789L33,23.526ZM6.158,31.421A3.158,3.158,0,0,1,3,28.263M12.474,3h1.579M12.474,31.421h3.158M20.368,3h1.579M3,12.474v1.579m28.421-1.579v3.158M3,20.368v1.579" transform="translate(60.5 43.5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

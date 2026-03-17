@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-145-check-square-done-box" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(57.215 40.215)">
+      <path id="Path_112" data-name="Path 112" d="M34.772,4H6.8A2.8,2.8,0,0,0,4,6.8V34.772a2.8,2.8,0,0,0,2.8,2.8H34.772a2.8,2.8,0,0,0,2.8-2.8V6.8a2.8,2.8,0,0,0-2.8-2.8M6.8,34.772V6.8H34.772V34.772Z" transform="translate(0 0)" fill="currentColor" stroke="currentColor" stroke-width="0.2"/>
+      <path id="Path_113" data-name="Path 113" d="M15.994,25.686,9,18.749l2.224-2.154,4.77,4.686L26.358,11l2.224,2.21Z" transform="translate(1.994 2.791)" fill="currentColor" stroke="currentColor" stroke-width="0.2"/>
+    </g>
+  </g>
+</svg>

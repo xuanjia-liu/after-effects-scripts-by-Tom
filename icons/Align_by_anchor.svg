@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="40" height="40" viewBox="0 0 40 40">
+  <defs>
+    <clipPath id="clip-Align_by_anchor">
+      <rect width="40" height="40"/>
+    </clipPath>
+  </defs>
+  <g id="Align_by_anchor" clip-path="url(#clip-Align_by_anchor)">
+    <rect id="長方形_187" data-name="長方形 187" width="26" height="12" rx="3" transform="translate(11 6)" fill="#fff"/>
+    <rect id="長方形_227" data-name="長方形 227" width="5" height="34" rx="2.5" transform="translate(3 3)" fill="#fff"/>
+    <rect id="長方形_226" data-name="長方形 226" width="19" height="12" rx="3" transform="translate(11 22)" fill="#fff" opacity="0.5"/>
+  </g>
+</svg>

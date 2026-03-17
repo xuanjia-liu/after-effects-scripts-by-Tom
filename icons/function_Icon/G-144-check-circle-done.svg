@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-144-check-circle-done" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M18,31.909A13.909,13.909,0,1,0,4.091,18,13.909,13.909,0,0,0,18,31.909M35,18A17,17,0,1,1,18,1,17,17,0,0,1,35,18M15.682,24.822,8.86,18l2.185-2.185,4.636,4.636,9.273-9.273,2.185,2.185Z" transform="translate(60 41)" fill="currentColor" stroke="currentColor" stroke-width="0.2"/>
+  </g>
+</svg>

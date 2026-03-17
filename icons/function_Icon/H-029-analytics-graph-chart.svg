@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-029-analytics-graph-chart" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61 44)">
+      <path id="Path_60" data-name="Path 60" d="M4.409,2H2V33.317a2.409,2.409,0,0,0,2.409,2.409H35.726V33.317H4.409Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_61" data-name="Path 61" d="M34.908,9H26.477v2.409H30.8l-9.142,9.142-5.167-5.179a1.2,1.2,0,0,0-1.71,0L6,24.165l1.7,1.7,7.938-7.938L20.8,23.1a1.2,1.2,0,0,0,1.71,0l9.985-10v4.324h2.409Z" transform="translate(-1.182 -0.568)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

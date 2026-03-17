@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-177-3d-toggle" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(59 42)">
+      <path id="Path_11" data-name="Path 11" d="M12.929,2H2V12.929H4.429v-8.5h8.5Z" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_12" data-name="Path 12" d="M2,21V31.929H12.929V29.5h-8.5V21Z" transform="translate(0 4.071)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_13" data-name="Path 13" d="M31.929,12.929V2H21V4.429h8.5v8.5Z" transform="translate(4.071)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_14" data-name="Path 14" d="M21,31.929H31.929V21H29.5v8.5H21Z" transform="translate(4.071 4.071)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_15" data-name="Path 15" d="M29.666,11.23,18.738,5.159a1.214,1.214,0,0,0-1.214,0L6.6,11.23A1.214,1.214,0,0,0,6,12.287V24.429a1.214,1.214,0,0,0,.619,1.056l10.929,6.071a1.214,1.214,0,0,0,1.214,0l10.929-6.071a1.214,1.214,0,0,0,.6-1.056V12.287a1.214,1.214,0,0,0-.619-1.056ZM18.143,7.6l8.427,4.687-8.427,4.687L9.716,12.287ZM8.429,14.351l8.5,4.724v9.362l-8.5-4.724ZM19.357,28.437V19.074l8.5-4.724v9.362Z" transform="translate(0.857 0.642)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

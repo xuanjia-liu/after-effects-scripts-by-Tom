@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-152-code-brackets-angle" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M19.768,57.917,10.72,65.953l9.042,8.035a1.11,1.11,0,1,1-1.471,1.662L8.317,66.784a1.108,1.108,0,0,1,0-1.662l9.975-8.866a1.112,1.112,0,1,1,1.477,1.662m21.058,7.2-9.975-8.866a1.11,1.11,0,1,0-1.471,1.662l9.048,8.035-9.042,8.035a1.11,1.11,0,1,0,1.471,1.662l9.975-8.867a1.108,1.108,0,0,0,0-1.662Z" transform="translate(53.426 -5.354)" fill="currentColor" stroke="currentColor" stroke-width="0.7"/>
+  </g>
+</svg>

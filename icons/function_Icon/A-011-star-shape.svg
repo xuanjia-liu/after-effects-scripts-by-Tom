@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-011-star-shape" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M17.518,26.446l-9.58,5.037,1.83-10.668L2.007,13.26l10.71-1.552L17.507,2l4.79,9.706,10.71,1.552-7.761,7.554,1.83,10.668Z" transform="translate(60.493 44.498)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

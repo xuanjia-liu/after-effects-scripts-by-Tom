@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-039-mouse-cursor" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M34.129,14.4,5.73,4.077A1.291,1.291,0,0,0,4.077,5.73L14.4,34.129a1.291,1.291,0,0,0,2.414.039l4.957-12.392,12.392-4.957a1.291,1.291,0,0,0,0-2.414ZM20.3,19.568l-.516.207-.207.516-3.963,9.785L7.446,7.446l22.629,8.171Z" transform="translate(58.999 41.999)" fill="currentColor" stroke="currentColor" stroke-width="0.65"/>
+  </g>
+</svg>

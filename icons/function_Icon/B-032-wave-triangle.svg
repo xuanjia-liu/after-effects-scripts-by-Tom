@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-032-wave-triangle" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M51.937,61.654l-8.4,11.636a1.293,1.293,0,0,1-2.1,0L25.68,51.47,18.325,61.651a1.294,1.294,0,0,1-2.1-1.513l8.4-11.636a1.293,1.293,0,0,1,2.1,0L42.487,70.32l7.355-10.181a1.294,1.294,0,0,1,2.1,1.513Z" transform="translate(43.917 0.104)" fill="currentColor" stroke="currentColor" stroke-width="0.2"/>
+  </g>
+</svg>

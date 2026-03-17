@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-006-category-new" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.363 44.363)">
+      <path id="Path_83" data-name="Path 83" d="M22.884,10.753H18.13V6H15.753v4.753H11V13.13h4.753v4.753H18.13V13.13h4.753Z" transform="translate(-0.305 -1.247)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_84" data-name="Path 84" d="M32.9,28.144H19.825V23.39h7.13a2.38,2.38,0,0,0,2.377-2.377V4.377A2.379,2.379,0,0,0,26.955,2H10.318A2.379,2.379,0,0,0,7.942,4.377V21.014a2.379,2.379,0,0,0,2.377,2.377h7.13v4.753H4.377A2.377,2.377,0,0,0,2,30.52v4.753H4.377V30.52H17.449v4.753h2.377V30.52H32.9v4.753h2.377V30.52A2.377,2.377,0,0,0,32.9,28.144M10.318,4.377H26.955l0,16.637H10.318Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

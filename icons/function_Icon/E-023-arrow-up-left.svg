@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="E-023-arrow-up-left" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M81.576,81.576a1.444,1.444,0,0,1-2.044,0L58.889,60.931V76.221a1.444,1.444,0,0,1-2.889,0V57.444A1.444,1.444,0,0,1,57.444,56H76.221a1.444,1.444,0,1,1,0,2.889H60.931L81.576,79.533a1.444,1.444,0,0,1,0,2.044" transform="translate(9 -8)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+  </g>
+</svg>

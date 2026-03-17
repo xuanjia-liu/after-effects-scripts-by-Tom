@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="10.561" height="10.561" viewBox="0 0 10.561 10.561">
+  <g id="icn-effect-list-search" transform="translate(1.061)">
+    <line id="Line" y1="3" x2="3" transform="translate(0 6.5)" fill="none" stroke="#707070" stroke-linecap="round" stroke-width="1.5"/>
+    <g id="Circle" transform="translate(1.5)" fill="none" stroke="#707070" stroke-width="1.5">
+      <circle cx="4" cy="4" r="4" stroke="none"/>
+      <circle cx="4" cy="4" r="3.25" fill="none"/>
+    </g>
+  </g>
+</svg>

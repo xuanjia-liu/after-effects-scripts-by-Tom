@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-019-image-picture-copy" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_251" data-name="Path 251" d="M23.967,19.343A3.469,3.469,0,1,0,20.5,15.874a3.469,3.469,0,0,0,3.469,3.469m0-4.625a1.156,1.156,0,1,1-1.156,1.156,1.156,1.156,0,0,1,1.156-1.156" transform="translate(60 43)" fill="currentColor"/>
+    <path id="Path_888" data-name="Path 888" d="M4.312,25.124H2V4.312A2.315,2.315,0,0,1,4.312,2H25.124V4.312H4.312Z" transform="translate(60 43)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    <path id="Path_252" data-name="Path 252" d="M31.28,7H9.312A2.316,2.316,0,0,0,7,9.312V31.28a2.316,2.316,0,0,0,2.312,2.312H31.28a2.316,2.316,0,0,0,2.312-2.312V9.312A2.316,2.316,0,0,0,31.28,7m0,24.28H9.312V24.343l4.625-4.621L20.4,26.18a2.312,2.312,0,0,0,3.27,0L25.5,24.346l5.781,5.777Zm0-4.426-4.146-4.146a2.312,2.312,0,0,0-3.27,0L22.03,24.542l-6.458-6.458a2.312,2.312,0,0,0-3.27,0l-2.99,2.99V9.312H31.28Z" transform="translate(60.781 43.781)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

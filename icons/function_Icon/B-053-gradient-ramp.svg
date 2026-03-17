@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-053-gradient-ramp" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="Group_196" data-name="Group 196" transform="translate(-1 -1)">
+      <rect id="Rectangle_39" data-name="Rectangle 39" width="27.988" height="27.988" rx="2" transform="translate(65 48)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2.5"/>
+      <path id="icon" d="M24,62.917a1.076,1.076,0,0,1,1.076-1.076H35.841a1.076,1.076,0,0,1,0,2.153H25.076A1.076,1.076,0,0,1,24,62.917m26.911-1.076H40.147a1.076,1.076,0,1,0,0,2.153H50.911a1.076,1.076,0,0,0,0-2.153M30.459,67.223H25.076a1.076,1.076,0,1,0,0,2.153h5.382a1.076,1.076,0,0,0,0-2.153m20.453,0H45.529a1.076,1.076,0,1,0,0,2.153h5.382a1.076,1.076,0,0,0,0-2.153M33.688,68.3a1.076,1.076,0,0,0,1.076,1.076h6.459a1.076,1.076,0,1,0,0-2.153H34.765A1.076,1.076,0,0,0,33.688,68.3m-5.382,4.306H25.076a1.076,1.076,0,0,0,0,2.153h3.229a1.076,1.076,0,0,0,0-2.153m7.535,0H32.612a1.076,1.076,0,0,0,0,2.153h3.229a1.076,1.076,0,0,0,0-2.153m7.535,0H40.147a1.076,1.076,0,0,0,0,2.153h3.229a1.076,1.076,0,0,0,0-2.153m7.535,0H47.682a1.076,1.076,0,0,0,0,2.153h3.229a1.076,1.076,0,0,0,0-2.153" transform="translate(41 -10.355)" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+    </g>
+  </g>
+</svg>

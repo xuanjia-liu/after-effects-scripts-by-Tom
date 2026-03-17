@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-027-chart-average-graph" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(64.114 44.229)">
+      <path id="Path_93" data-name="Path 93" d="M26.328,27.534c-4.307,0-6.018-5-7.672-9.827-1.567-4.58-3.191-9.315-6.684-9.315a4.115,4.115,0,0,0-3.652,2.778L6.05,10.407C6.111,10.228,7.571,6,11.972,6c5.2,0,7.192,5.808,8.949,10.932,1.446,4.222,2.811,8.209,5.407,8.209a4.115,4.115,0,0,0,3.652-2.777l2.268.762c-.06.179-1.519,4.407-5.921,4.407" transform="translate(-1.205 -1.215)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_94" data-name="Path 94" d="M4.393,33.1V19.945H6.785V17.552H4.393V2H2V33.1A2.393,2.393,0,0,0,4.393,35.5H35.5V33.1Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_95" data-name="Path 95" d="M8,15h2.393v2.393H8Zm4.785,0h2.393v2.393H12.785Zm9.571,0h2.393v2.393H22.356Zm4.785,0h2.393v2.393H27.141Zm4.785,0h2.393v2.393H31.927Z" transform="translate(-0.822 0.552)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

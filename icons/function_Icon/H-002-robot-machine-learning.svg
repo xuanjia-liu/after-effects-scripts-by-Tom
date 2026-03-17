@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-002-robot-machine-learning" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(63.597 44)">
+      <path id="Path_71" data-name="Path 71" d="M19.286,10h2.429v2.429H19.286ZM12,10h2.429v2.429H12Z" transform="translate(-2.286 -0.286)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_72" data-name="Path 72" d="M30.3,23.515H24.32V21.124h1.2a2.393,2.393,0,0,0,2.391-2.391V13.953H30.3V11.562H27.905V9.172a2.393,2.393,0,0,0-2.391-2.391H23.124V2H20.734V6.781H15.953V2H13.562V6.781H11.172A2.393,2.393,0,0,0,8.781,9.172v2.391H6.391v2.391H8.781v4.781a2.393,2.393,0,0,0,2.391,2.391h1.2v2.391H6.391A2.393,2.393,0,0,0,4,25.905v9.562H6.391V25.905H30.3v9.562h2.391V25.905A2.393,2.393,0,0,0,30.3,23.515M11.172,9.172H25.515v9.562H11.172Zm3.586,11.953h7.172v2.391H14.757Z" transform="translate(-3.772 -1.734)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-040-force-wind-movement" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_770" data-name="Path 770" d="M6.178,7.444a.951.951,0,0,1,.951-.951H21.7a2.8,2.8,0,1,0,0-5.592H18.377a.951.951,0,0,1-.951-.951A.951.951,0,0,1,18.377-1H21.7a4.7,4.7,0,0,1,0,9.395H7.128A.951.951,0,0,1,6.178,7.444ZM27.3,18.21H13.4a.951.951,0,0,0,0,1.9H27.3a2.8,2.8,0,0,1,0,5.592H25.56a.951.951,0,1,0,0,1.9H27.3a4.7,4.7,0,0,0,0-9.395ZM21.636,13.3a.951.951,0,0,0-.951-.951H.95a.951.951,0,0,0,0,1.9H20.685A.951.951,0,0,0,21.636,13.3Z" transform="translate(62 47.697)" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+  </g>
+</svg>

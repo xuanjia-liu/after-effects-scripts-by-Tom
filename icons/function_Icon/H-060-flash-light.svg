@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-060-flash-light" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M12.061,32.638a1.1,1.1,0,0,1-.658-1.174l2-13H8.1A1.1,1.1,0,0,1,7,17.111L10.295,2.845A1.1,1.1,0,0,1,11.392,2H22.366a1.1,1.1,0,0,1,1.075,1.339l-1.9,8.537h5.212a1.064,1.064,0,0,1,.867,1.712L13.356,32.243a1.1,1.1,0,0,1-.867.483,1.2,1.2,0,0,1-.428-.088M18.8,14.071l2.195-9.876H12.27L9.483,16.266h6.485L14.223,27.547,24.56,14.071Z" transform="translate(60.595 44)" fill="currentColor" stroke="currentColor" stroke-width="0.7"/>
+  </g>
+</svg>

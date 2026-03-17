@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-031-wave-square" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M54.12,74.891v9.53a1.361,1.361,0,0,1-1.361,1.361H35.06A1.361,1.361,0,0,1,33.7,84.421v-17.7H18.723v8.169a1.361,1.361,0,1,1-2.723,0v-9.53A1.361,1.361,0,0,1,17.361,64h17.7a1.361,1.361,0,0,1,1.361,1.361v17.7H51.4V74.891a1.361,1.361,0,0,1,2.723,0" transform="translate(43.04 -13.549)" fill="currentColor" stroke="currentColor" stroke-width="0.2"/>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-035-signal-waveform-audio" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_799" data-name="Path 799" d="M2,17.952V10.393a.945.945,0,1,1,1.89,0v7.559a.945.945,0,0,1-1.89,0m8.449,1.89V8.5a.945.945,0,1,0-1.89,0V19.842a.945.945,0,0,0,1.89,0M17.007,27.4V.945a.945.945,0,1,0-1.89,0V27.4a.945.945,0,0,0,1.89,0m6.559-3.779V4.724a.945.945,0,1,0-1.89,0v18.9a.945.945,0,1,0,1.89,0m6.559-3.779V8.5a.945.945,0,0,0-1.89,0V19.842a.945.945,0,0,0,1.89,0m5.614-8.5a.944.944,0,0,0-.945.943v3.781a.945.945,0,0,0,1.89,0V12.283a.944.944,0,0,0-.943-.945Z" transform="translate(58.5 46.5)" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+  </g>
+</svg>

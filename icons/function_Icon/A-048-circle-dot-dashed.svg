@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-048-circle-dot-dashed" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(63 45.448)">
+      <path id="Path_375" data-name="Path 375" d="M14.654,2.283a15.51,15.51,0,0,1,5.936,0m5.779,2.39a15.542,15.542,0,0,1,4.2,4.217m2.39,5.764a15.51,15.51,0,0,1,0,5.936m-2.39,5.779a15.542,15.542,0,0,1-4.217,4.2m-5.764,2.39a15.526,15.526,0,0,1-5.936,0M8.875,30.57a15.542,15.542,0,0,1-4.2-4.217m-2.39-5.764a15.51,15.51,0,0,1,0-5.936m2.39-5.779a15.542,15.542,0,0,1,4.217-4.2" transform="translate(-1.997 -1.997)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+      <ellipse id="Ellipse_32" data-name="Ellipse 32" cx="3.562" cy="3.562" rx="3.562" ry="3.562" transform="translate(12.063 12.063)" fill="currentColor"/>
+    </g>
+  </g>
+</svg>

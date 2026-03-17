@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-178-data-blob" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61 44)">
+      <path id="Path_150" data-name="Path 150" d="M33.571,36H4.429A2.431,2.431,0,0,1,2,33.571V4.429A2.431,2.431,0,0,1,4.429,2H33.571A2.431,2.431,0,0,1,36,4.429V33.571A2.431,2.431,0,0,1,33.571,36M4.429,4.429V33.571H33.571V4.429Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_151" data-name="Path 151" d="M14.071,7H16.5v8.5H14.071ZM8,7h2.429v8.5H8Zm17,8.5H22.571a2.431,2.431,0,0,1-2.429-2.429V9.429A2.431,2.431,0,0,1,22.571,7H25a2.431,2.431,0,0,1,2.429,2.429v3.643A2.431,2.431,0,0,1,25,15.5M22.571,9.429v3.643H25V9.429ZM25,20.357h2.429v8.5H25Zm-17,0h2.429v8.5H8Zm10.929,8.5H16.5a2.431,2.431,0,0,1-2.429-2.429V22.786A2.431,2.431,0,0,1,16.5,20.357h2.429a2.431,2.431,0,0,1,2.429,2.429v3.643a2.431,2.431,0,0,1-2.429,2.429M16.5,22.786v3.643h2.429V22.786Z" transform="translate(-0.714 -0.929)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

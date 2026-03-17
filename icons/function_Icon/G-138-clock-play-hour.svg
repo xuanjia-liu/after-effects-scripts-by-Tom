@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-138-clock-play-hour" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(62.583 45.583)">
+      <path id="Path_515" data-name="Path 515" d="M12,7v8.22l3.288,3.288M20.22,31.66l8.22-4.932L20.22,21.8Z" transform="translate(2.795 -0.425)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+      <path id="Path_516" data-name="Path 516" d="M19.468,32.5A14.8,14.8,0,1,1,32.342,20.51" transform="translate(-3 -3)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

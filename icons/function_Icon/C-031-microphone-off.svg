@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-031-microphone-off" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(65.21 47.499)">
+      <path id="Path_892" data-name="Path 892" d="M3,3.421,28.581,29M11.527,6.263a4.263,4.263,0,1,1,8.527,0v7.106a4.264,4.264,0,0,1-.185,1.243m-2.842,2.842a4.263,4.263,0,0,1-5.5-4.082V11.951" transform="translate(-3 -2)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+      <path id="Path_893" data-name="Path 893" d="M5,10a9.948,9.948,0,0,0,15.414,8.314m2.842-2.842A9.9,9.9,0,0,0,24.893,10M9.263,25.633H20.633m-5.685-5.685v5.685" transform="translate(-2.158 1.369)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

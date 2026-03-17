@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="40" height="40" viewBox="0 0 40 40">
+  <defs>
+    <clipPath id="clip-Fake_3d_rotation">
+      <rect width="40" height="40"/>
+    </clipPath>
+  </defs>
+  <g id="Fake_3d_rotation" data-name="Fake 3d rotation" clip-path="url(#clip-Fake_3d_rotation)">
+    <path id="Icon_material-crop-rotate" data-name="Icon material-crop-rotate" d="M11.581,33.316A16.327,16.327,0,0,1,2.325,20.154H0A18.594,18.594,0,0,0,18.526,37.207c.357,0,.682-.031,1.023-.047l-5.907-5.922ZM18.681,0c-.357,0-.682.031-1.023.062l5.907,5.907,2.062-2.062a16.28,16.28,0,0,1,9.255,13.146h2.325A18.594,18.594,0,0,0,18.681,0Z" transform="translate(1.397 1.397)" fill="#ea7575" stroke="#ea7575" stroke-width="1.25"/>
+    <path id="パス_1456" data-name="パス 1456" d="M3,4.6A1.5,1.5,0,0,1,4.776,3.128L19.37,5.864A2,2,0,0,1,21,7.83v8.34a2,2,0,0,1-1.631,1.966L4.776,20.872A1.5,1.5,0,0,1,3,19.4Z" transform="translate(8 7.897)" fill="#fff" fill-rule="evenodd"/>
+  </g>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-032-text-annotation-toggle" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61 44)">
+      <path id="Path_329" data-name="Path 329" d="M33.723,14.566l-4-4a1.926,1.926,0,0,0-2.72,0l-17,17v6.719h6.719l17-17A1.926,1.926,0,0,0,33.723,14.566ZM15.712,31.857H12.429V28.574L23.891,17.11l3.285,3.283ZM28.894,18.676l-3.283-3.283,2.753-2.753,3.283,3.283Z" transform="translate(-0.286 -0.286)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_330" data-name="Path 330" d="M11.643,18.929h2.429v-8.5h3.643V8H8v2.429h3.643Z" transform="translate(-0.714 -0.714)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_331" data-name="Path 331" d="M9.286,23.857H4.429V4.429H23.857V9.286h2.429V4.429A2.429,2.429,0,0,0,23.857,2H4.429A2.429,2.429,0,0,0,2,4.429V23.857a2.429,2.429,0,0,0,2.429,2.429H9.286Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

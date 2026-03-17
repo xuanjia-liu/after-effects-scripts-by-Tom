@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="40" height="40" viewBox="0 0 40 40">
+  <defs>
+    <clipPath id="clip-moveToRoot">
+      <rect width="40" height="40"/>
+    </clipPath>
+  </defs>
+  <g id="moveToRoot" clip-path="url(#clip-moveToRoot)">
+    <path id="合体_13" data-name="合体 13" d="M-824,31a2,2,0,0,1-2-2,2,2,0,0,1,2-2h14a2,2,0,0,1,2,2,2,2,0,0,1-2,2Zm0-7a2,2,0,0,1-2-2,2,2,0,0,1,2-2h14a2,2,0,0,1,2,2,2,2,0,0,1-2,2Zm-3.555-6.89A2.442,2.442,0,0,1-830,14.666V2.444A2.442,2.442,0,0,1-827.555,0h5.1a2.441,2.441,0,0,1,1.726.718l1.016,1.008a2.44,2.44,0,0,0,1.726.718h7.539A2.442,2.442,0,0,1-808,4.889v9.778a2.441,2.441,0,0,1-2.444,2.444Z" transform="translate(846 4)" fill="#fff"/>
+    <path id="Icon_fa-solid-arrows-split-up-and-left" data-name="Icon fa-solid-arrows-split-up-and-left" d="M16.264,4.626A1.622,1.622,0,0,1,13.97,2.332L18.832-2.53a1.623,1.623,0,0,1,2.294,0l4.862,4.862a1.622,1.622,0,1,1-2.294,2.294L21.6,2.534V19.1a3.244,3.244,0,0,0,3.241,3.241h2.241a1.621,1.621,0,0,1,0,3.241H24.843A6.482,6.482,0,0,1,18.361,19.1V2.534l-2.1,2.1Z" transform="translate(-12.495 9.038)" fill="#ea7575"/>
+  </g>
+</svg>

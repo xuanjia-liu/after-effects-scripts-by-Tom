@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-021-image-reference-export" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_633" data-name="Path 633" d="M4.668,24.01v2.668h6.118L2,35.465l1.886,1.886,8.787-8.787v6.118h2.668V24.01ZM24.68,16a4,4,0,1,0-4-4,4,4,0,0,0,4,4m0-5.337A1.334,1.334,0,1,1,23.346,12a1.334,1.334,0,0,1,1.334-1.334" transform="translate(59 41.337)" fill="currentColor"/>
+    <path id="Path_634" data-name="Path 634" d="M33.351,4H6.668A2.668,2.668,0,0,0,4,6.668V20.01H6.668V6.668H33.351V26.907l-4.79-4.79a2.668,2.668,0,0,0-3.762,0l-2.121,2.121-8.232-8.232L12.56,17.9l4.782,4.782L20.8,26.133a2.668,2.668,0,0,0,3.762,0l2.121-2.121,6.671,6.671v2.668H20.01v2.668H33.351a2.668,2.668,0,0,0,2.668-2.668V6.668A2.668,2.668,0,0,0,33.351,4" transform="translate(59.668 40)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

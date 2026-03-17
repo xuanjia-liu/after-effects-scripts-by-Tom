@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-168-book-page" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.291 47.872)">
+      <path id="Path_69" data-name="Path 69" d="M21.515,10h8.354v2.387H21.515Zm0,5.967h8.354v2.387H21.515Zm0,5.967h8.354v2.387H21.515ZM6,10h8.354v2.387H6Zm0,5.967h8.354v2.387H6Zm0,5.967h8.354v2.387H6Z" transform="translate(-1.226 -4.033)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_70" data-name="Path 70" d="M33.03,5H4.387A2.389,2.389,0,0,0,2,7.387V28.869a2.389,2.389,0,0,0,2.387,2.387H33.03a2.389,2.389,0,0,0,2.387-2.387V7.387A2.389,2.389,0,0,0,33.03,5M4.387,7.387H17.515V28.869H4.387ZM19.9,28.869V7.387H33.03V28.869Z" transform="translate(-2 -5)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-016-keyframe-multi-couple" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_839" data-name="Path 839" d="M24.875,17.173,16.282,27a3.959,3.959,0,0,1-5.959,0L1.73,17.173a3.957,3.957,0,0,1,0-5.213l8.593-9.822a3.962,3.962,0,0,1,5.959,0l8.593,9.822A3.957,3.957,0,0,1,24.875,17.173Z" transform="translate(57.25 46.287)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    <path id="Path_840" data-name="Path 840" d="M12.092,28.457,21.758,17.18a3.96,3.96,0,0,0,0-5.153L12.092.75" transform="translate(68.354 46.25)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    <path id="Path_841" data-name="Path 841" d="M16.093,28.457,25.757,17.18a3.96,3.96,0,0,0,0-5.153L16.093.75" transform="translate(72.272 46.25)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

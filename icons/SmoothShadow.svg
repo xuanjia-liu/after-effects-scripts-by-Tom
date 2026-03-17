@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="40" height="40" viewBox="0 0 40 40">
+  <defs>
+    <clipPath id="clip-SmoothShadow">
+      <rect width="40" height="40"/>
+    </clipPath>
+  </defs>
+  <g id="SmoothShadow" clip-path="url(#clip-SmoothShadow)">
+    <rect id="長方形_195" data-name="長方形 195" width="34" height="34" rx="8" transform="translate(4 4)" fill="#ea7575" opacity="0.2"/>
+    <rect id="長方形_194" data-name="長方形 194" width="31" height="31" rx="6" transform="translate(4 4)" fill="#ea7575" opacity="0.5"/>
+    <rect id="長方形_193" data-name="長方形 193" width="30" height="30" rx="5" transform="translate(3 3)" fill="#ea7575" opacity="0.8"/>
+    <rect id="長方形_187" data-name="長方形 187" width="30" height="30" rx="4" transform="translate(2 2)" fill="#fff"/>
+  </g>
+</svg>

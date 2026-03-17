@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-057-matte-layers-rename" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(62.226 48.278)">
+      <path id="path" d="M-18591.02-21681.254c0-.281,6.105-14.246,6.105-14.246l6.105,14.246" transform="translate(18591.02 21702.627)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+      <line id="line" x2="8.141" transform="translate(2.035 17.303)" fill="none" stroke="currentColor" stroke-width="3"/>
+      <path id="line-2" data-name="line" d="M0,9.25H12.211" transform="translate(18.317 10.088)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+      <path id="line-3" data-name="line" d="M0,9.25H12.211" transform="translate(18.317 16.194)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+      <path id="path-2" data-name="path" d="M18779.252,22014.256H18765V22000h14.25v14.258Zm-7.129-10.187a3.057,3.057,0,1,0,3.051,3.059A3.06,3.06,0,0,0,18772.123,22004.068Z" transform="translate(-18747.703 -21999.998)" fill="currentColor"/>
+    </g>
+  </g>
+</svg>

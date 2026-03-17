@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-042-cursor-mouse-pointer-square" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(63 46)">
+      <path id="Path_378" data-name="Path 378" d="M31.421,15.632V6.158A3.158,3.158,0,0,0,28.263,3H6.158A3.158,3.158,0,0,0,3,6.158V28.263a3.158,3.158,0,0,0,3.158,3.158h9.474" transform="translate(-3 -3)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+      <path id="Path_379" data-name="Path 379" d="M12,12l6.316,15.789L21,21l6.789-2.684Z" transform="translate(2.211 2.211)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

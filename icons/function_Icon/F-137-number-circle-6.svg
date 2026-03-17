@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-137-number-circle-6" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_503" data-name="Path 503" d="M3,19A16,16,0,1,0,19,3,16,16,0,0,0,3,19" transform="translate(59 42)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    <path id="Path_504" data-name="Path 504" d="M17.111,9.778A1.778,1.778,0,0,0,15.333,8H11.778A1.778,1.778,0,0,0,10,9.778V20.444a1.778,1.778,0,0,0,1.778,1.778h3.556a1.778,1.778,0,0,0,1.778-1.778V16.889a1.778,1.778,0,0,0-1.778-1.778H10" transform="translate(64.444 45.889)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

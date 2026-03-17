@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-072-light-on-sun-raise" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M17.786,2h2.429V8.071H17.786Zm8.121,8.379,4.257-4.257,1.717,1.717L27.624,12.1Zm4.022,7.407H36v2.429H29.929Zm-4.022,9.836,1.717-1.716,4.257,4.257L30.164,31.88Zm-8.121,2.307h2.429V36H17.786Zm-11.664.233L10.379,25.9,12.1,27.621,7.839,31.879ZM2,17.786H8.071v2.429H2ZM6.123,7.838,7.84,6.121,12.1,10.379,10.379,12.1ZM19,14.143A4.857,4.857,0,1,1,14.143,19,4.857,4.857,0,0,1,19,14.143m0-2.429A7.286,7.286,0,1,0,26.286,19,7.286,7.286,0,0,0,19,11.714" transform="translate(59 42)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

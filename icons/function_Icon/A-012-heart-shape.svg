@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-012-heart-shape" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M31.575,18.849,18.591,31.708,5.606,18.849A8.656,8.656,0,1,1,18.591,7.481,8.656,8.656,0,1,1,31.575,18.859" transform="translate(59.513 43.512)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

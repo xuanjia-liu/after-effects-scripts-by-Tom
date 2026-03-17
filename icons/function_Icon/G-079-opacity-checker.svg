@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-079-opacity-checker" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M6,6h6.01v6.01H6Zm6.01,6.01h6.01v6.01H12.01ZM18.019,6h6.01v6.01h-6.01ZM30.038,6h6.01v6.01h-6.01ZM6,18.019h6.01v6.01H6Zm12.019,0h6.01v6.01h-6.01Zm12.019,0h6.01v6.01h-6.01ZM6,30.038h6.01v6.01H6Zm12.019,0h6.01v6.01h-6.01Zm12.019,0h6.01v6.01h-6.01ZM24.029,12.01h6.01v6.01h-6.01ZM12.01,24.029h6.01v6.01H12.01Zm12.019,0h6.01v6.01h-6.01Z" transform="translate(57.401 40.401)" fill="currentColor"/>
+  </g>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-103-layout-sidebar-left-collapse" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(62.454 45.454)">
+      <path id="Path_597" data-name="Path 597" d="M4,7.887A3.887,3.887,0,0,1,7.887,4H31.206a3.887,3.887,0,0,1,3.887,3.887V31.206a3.887,3.887,0,0,1-3.887,3.887H7.887A3.887,3.887,0,0,1,4,31.206ZM13.716,4V35.093" transform="translate(-4 -4)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+      <path id="Path_598" data-name="Path 598" d="M16.887,10,13,13.887l3.887,3.887" transform="translate(4.49 1.66)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

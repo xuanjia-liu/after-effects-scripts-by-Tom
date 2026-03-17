@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-045-circle-dot-shape" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(59 42)">
+      <path id="Path_589" data-name="Path 589" d="M11,13.466A2.466,2.466,0,1,0,13.466,11,2.466,2.466,0,0,0,11,13.466" transform="translate(5.534 5.534)" fill="currentColor"/>
+      <path id="Path_590" data-name="Path 590" d="M3,19A16,16,0,1,0,19,3,16,16,0,0,0,3,19" transform="translate(0 0)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

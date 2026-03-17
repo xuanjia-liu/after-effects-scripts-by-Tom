@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-052-chart-circles-intersect" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(57 40)">
+      <path id="Path_587" data-name="Path 587" d="M4,15.688A11.687,11.687,0,1,0,15.688,4,11.687,11.687,0,0,0,4,15.688" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+      <path id="Path_588" data-name="Path 588" d="M9,20.687A11.688,11.688,0,1,0,20.688,9,11.688,11.688,0,0,0,9,20.687" transform="translate(5.625 5.625)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

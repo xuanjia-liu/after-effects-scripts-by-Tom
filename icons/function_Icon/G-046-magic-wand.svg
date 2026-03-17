@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-046-magic-wand" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M34.217,27.854,13.752,7.389a2.407,2.407,0,0,0-3.323,0L7.389,10.428a2.353,2.353,0,0,0,0,3.323L27.853,34.217a2.353,2.353,0,0,0,3.323,0l3.04-3.039a2.35,2.35,0,0,0,0-3.323M9.051,12.09,12.09,9.051l5.876,5.876-3.04,3.04ZM29.515,32.555,16.588,19.629l3.04-3.04L32.555,29.516ZM2,18.453,4.35,16.1l2.35,2.35L4.35,20.8ZM16.1,4.35,18.453,2,20.8,4.35,18.453,6.7ZM2,4.35,4.35,2,6.7,4.35,4.35,6.7Z" transform="translate(59.548 42.548)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

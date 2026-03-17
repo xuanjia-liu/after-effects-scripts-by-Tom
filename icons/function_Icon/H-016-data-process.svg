@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-016-data-process" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="Group_49" data-name="Group 49" transform="translate(63.189 46.186)">
+      <path id="Path_713" data-name="Path 713" d="M24.168,28.769a4.594,4.594,0,1,1,4.594-4.595,4.6,4.6,0,0,1-4.594,4.595m0-7.022A2.428,2.428,0,1,0,26.6,24.175a2.431,2.431,0,0,0-2.428-2.428" transform="translate(-9.357 -9.361)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_714" data-name="Path 714" d="M4.749,26.817a2.177,2.177,0,0,1-2.175-2.174,2.155,2.155,0,0,1,.3-1.088A14.8,14.8,0,0,1,20.735,1.238l.278.121L20.4,2.771l-.278-.121A13.259,13.259,0,0,0,4.068,22.581a2.173,2.173,0,1,1,.681,4.236" transform="translate(0)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_715" data-name="Path 715" d="M22.684,32.2a14.723,14.723,0,0,1-5.913-1.238l-.278-.121.617-1.413.277.122A13.259,13.259,0,0,0,33.438,9.622a2.189,2.189,0,1,1,1.2-.974A14.8,14.8,0,0,1,22.684,32.2" transform="translate(-7.884 -2.575)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_716" data-name="Path 716" d="M32.563,27.889a2.184,2.184,0,1,1,.784-4.223,8.9,8.9,0,0,0,1.507-4.99,9.061,9.061,0,0,0-11.215-8.8l-.294.073-.365-1.5.294-.072a10.607,10.607,0,0,1,13.121,10.3A10.41,10.41,0,0,1,34.51,24.7a2.184,2.184,0,0,1-1.937,3.194Z" transform="translate(-10.985 -3.861)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_717" data-name="Path 717" d="M18.669,30.542a10.627,10.627,0,0,1-10.6-10.6,10.407,10.407,0,0,1,1.885-6.02A2.184,2.184,0,1,1,11.892,15.1a2.166,2.166,0,0,1-.774-.146,8.9,8.9,0,0,0-1.507,4.99,9.061,9.061,0,0,0,11.215,8.8l.294-.073.365,1.5-.294.072A10.687,10.687,0,0,1,18.669,30.542Z" transform="translate(-3.858 -5.129)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <circle id="Ellipse_56" data-name="Ellipse 56" cx="3" cy="3" r="3" transform="translate(12 12)" fill="currentColor"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-003-robot-machine-learning" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.363 44.363)">
+      <path id="Path_274" data-name="Path 274" d="M17.13,27.072A8.307,8.307,0,0,1,10.2,23.354l1.98-1.316a5.942,5.942,0,0,0,9.9,0l1.98,1.316a8.307,8.307,0,0,1-6.932,3.718M21.884,14a2.377,2.377,0,1,0,2.377,2.377A2.353,2.353,0,0,0,21.884,14m-9.507,0a2.377,2.377,0,1,0,2.377,2.377A2.353,2.353,0,0,0,12.377,14" transform="translate(-0.493 0.26)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_275" data-name="Path 275" d="M35.274,18.637V16.26H32.9V11.507a4.759,4.759,0,0,0-4.753-4.753H25.767V2H23.39V6.753H13.884V2H11.507V6.753H9.13a4.759,4.759,0,0,0-4.753,4.753V16.26H2v2.377H4.377v5.942H2v2.377H4.377V30.52A4.759,4.759,0,0,0,9.13,35.274H28.144A4.759,4.759,0,0,0,32.9,30.52V26.955h2.377V24.579H32.9V18.637ZM30.52,30.52A2.379,2.379,0,0,1,28.144,32.9H9.13A2.379,2.379,0,0,1,6.753,30.52V11.507A2.379,2.379,0,0,1,9.13,9.13H28.144a2.379,2.379,0,0,1,2.377,2.377Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

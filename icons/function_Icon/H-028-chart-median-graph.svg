@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-028-chart-median-graph" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.443 44.443)">
+      <path id="Path_98" data-name="Path 98" d="M16,24.4V22h2.4v2.4Z" transform="translate(0.779 1.97)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_99" data-name="Path 99" d="M21.176,33.16v-2.4h-2.4v2.4H4.4V2H2V33.16a2.4,2.4,0,0,0,2.4,2.4h31.16v-2.4Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_100" data-name="Path 100" d="M30.023,23.188a4.123,4.123,0,0,1-3.659,2.782c-2.6,0-3.968-3.995-5.417-8.224-.427-1.245-.868-2.529-1.364-3.761h.789v-2.4H18.48c-1.45-2.739-3.4-4.794-6.5-4.794-4.408,0-5.87,4.234-5.931,4.415l2.272.763a4.123,4.123,0,0,1,3.659-2.782c3.5,0,5.125,4.744,6.7,9.331.306.889.611,1.786.937,2.653H17.975v2.4h2.639c1.3,2.743,2.991,4.794,5.75,4.794,4.408,0,5.87-4.234,5.931-4.415Zm-12.048-14v-2.4h2.4v2.4Zm0-4.794V2h2.4V4.4Z" transform="translate(-1.196 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

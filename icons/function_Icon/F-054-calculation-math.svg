@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-054-calculation-math" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M16.933,9.173H11.76V4H9.173V9.173H4V11.76H9.173v5.173H11.76V11.76h5.173ZM4,23.4H16.933v2.587H4Zm0,6.466H16.933v2.587H4ZM22.106,9.173H35.038V11.76H22.106ZM30.4,27.279l4.643-4.643-1.824-1.824-4.643,4.643-4.643-4.643-1.824,1.824,4.643,4.643-4.643,4.643,1.824,1.824L28.572,29.1l4.643,4.643,1.824-1.824Z" transform="translate(58.481 42.127)" fill="currentColor" stroke="currentColor" stroke-width="0.4"/>
+  </g>
+</svg>

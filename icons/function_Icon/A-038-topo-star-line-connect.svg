@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-038-topo-star-line-connect" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(62.134 44.134)">
+      <ellipse id="Ellipse_51" data-name="Ellipse 51" cx="2.945" cy="2.945" rx="2.945" ry="2.945" transform="translate(14.934 9.885)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2.7"/>
+      <path id="Path_711" data-name="Path 711" d="M43.021,5.146a3.276,3.276,0,1,0-3.275,3.275A3.275,3.275,0,0,0,43.021,5.146Z" transform="translate(-11.712 -0.751)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2.7"/>
+      <path id="Path_712" data-name="Path 712" d="M42.666,28.741a2.243,2.243,0,1,0-2.243,2.243A2.243,2.243,0,0,0,42.666,28.741Z" transform="translate(-12.253 -8.553)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2.7"/>
+      <ellipse id="Ellipse_52" data-name="Ellipse 52" cx="3.776" cy="3.776" rx="3.776" ry="3.776" transform="translate(5.81 25.314)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2.7"/>
+      <ellipse id="Ellipse_53" data-name="Ellipse 53" cx="4.397" cy="4.397" rx="4.397" ry="4.397" transform="translate(0.866 0.866)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2.7"/>
+      <line id="Line_2" data-name="Line 2" y1="4.544" x2="5.471" transform="translate(20.044 6.488)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2.7"/>
+      <line id="Line_3" data-name="Line 3" x2="6.325" y2="3.794" transform="translate(9.031 7.523)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2.7"/>
+      <line id="Line_4" data-name="Line 4" x2="6.074" y2="4.343" transform="translate(20.272 14.541)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2.7"/>
+      <line id="Line_5" data-name="Line 5" y1="10.277" x2="5.242" transform="translate(11.3 15.452)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2.7"/>
+    </g>
+  </g>
+</svg>

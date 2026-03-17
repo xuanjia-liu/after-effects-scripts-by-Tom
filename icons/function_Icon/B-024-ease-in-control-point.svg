@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-024-ease-in-control-point" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M3,26.921C14.96,26.921,29.911,3,29.911,3M23.93,26.921a2.99,2.99,0,1,0,2.99-2.99,2.99,2.99,0,0,0-2.99,2.99m0,0H3" transform="translate(61.5 44.5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

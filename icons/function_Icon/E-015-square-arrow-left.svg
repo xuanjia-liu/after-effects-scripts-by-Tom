@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="E-015-square-arrow-left" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_560" data-name="Path 560" d="M14.913,8,8,14.913l6.913,6.913m6.913-6.913H8" transform="translate(63.087 46.087)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    <path id="Path_561" data-name="Path 561" d="M3,6.456A3.456,3.456,0,0,1,6.456,3H30.651a3.456,3.456,0,0,1,3.456,3.456V30.651a3.456,3.456,0,0,1-3.456,3.456H6.456A3.456,3.456,0,0,1,3,30.651Z" transform="translate(59.446 42.446)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

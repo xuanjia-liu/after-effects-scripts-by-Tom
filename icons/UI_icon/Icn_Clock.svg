@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="27" height="27" viewBox="0 0 27 27">
+  <g id="Icn_Clock" transform="translate(0 0.355)">
+    <g id="Circle" transform="translate(27 26.645) rotate(180)" fill="none" stroke="#707070" stroke-linecap="round" stroke-width="1.5" stroke-dasharray="50 9">
+      <circle cx="13.5" cy="13.5" r="13.5" stroke="none"/>
+      <circle cx="13.5" cy="13.5" r="12.75" fill="none"/>
+    </g>
+    <line id="Line" y2="2" transform="translate(13.5 23.5)" fill="none" stroke="#707070" stroke-linecap="round" stroke-width="1.5"/>
+    <line id="Line-2" data-name="Line" y2="2" transform="translate(13.5 1.5)" fill="none" stroke="#707070" stroke-linecap="round" stroke-width="1.5"/>
+    <line id="Line-3" data-name="Line" x1="2" transform="translate(1.5 13.5)" fill="none" stroke="#707070" stroke-linecap="round" stroke-width="1.5"/>
+    <line id="Line-4" data-name="Line" x1="2" transform="translate(23.5 13.5)" fill="none" stroke="#707070" stroke-linecap="round" stroke-width="1.5"/>
+    <path id="Check" d="M-21978.5-21183.5l5,5,11-11" transform="translate(21987 21194)" fill="none" stroke="#67a900" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>
+  </g>
+</svg>

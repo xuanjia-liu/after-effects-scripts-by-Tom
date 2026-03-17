@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-039-event-process-line" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61 43)">
+      <circle id="Ellipse_18" data-name="Ellipse 18" cx="2.4" cy="2.4" r="2.4" transform="translate(13.924 31.2)" fill="currentColor" stroke="currentColor" stroke-width="0.4"/>
+      <path id="Path_245" data-name="Path 245" d="M24.8,33.8h-3V31.4h3a6.6,6.6,0,0,0,1.524-13.024l.552-2.335A9,9,0,0,1,24.8,33.8M22.3,15.3l-3.6-3.6a2.4,2.4,0,0,0-3.394,0l-3.6,3.6a2.4,2.4,0,0,0,0,3.394l3.6,3.6a2.4,2.4,0,0,0,3.394,0l3.6-3.6a2.4,2.4,0,0,0,0-3.394M17,20.6,13.4,17,17,13.4,20.6,17Z" transform="translate(-0.2 1)" fill="currentColor" stroke="currentColor" stroke-width="0.4"/>
+      <circle id="Ellipse_19" data-name="Ellipse 19" cx="2.4" cy="2.4" r="2.4" transform="translate(13.924)" fill="currentColor" stroke="currentColor" stroke-width="0.4"/>
+      <path id="Path_246" data-name="Path 246" d="M8.924,19.76A9,9,0,0,1,11,2h3V4.4H11A6.6,6.6,0,0,0,9.476,17.424Z" transform="translate(-2 -0.8)" fill="currentColor" stroke="currentColor" stroke-width="0.4"/>
+    </g>
+  </g>
+</svg>

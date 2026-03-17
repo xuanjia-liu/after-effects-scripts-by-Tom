@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-030-chart-scatter-graph" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icons" transform="translate(61.147 44.295)">
+      <path id="Path_107" data-name="Path 107" d="M35.431,35.431H4.388A2.388,2.388,0,0,1,2,33.043V2H4.388V33.043H35.431Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <circle id="Ellipse_1" data-name="Ellipse 1" cx="2.72" cy="2.72" r="2.72" transform="translate(7.002 21.163)" fill="currentColor"/>
+      <circle id="Ellipse_2" data-name="Ellipse 2" cx="2.176" cy="2.176" r="2.176" transform="translate(12.443 13.546)" fill="currentColor"/>
+      <circle id="Ellipse_3" data-name="Ellipse 3" cx="2.176" cy="2.176" r="2.176" transform="translate(21.147 13.546)" fill="currentColor"/>
+      <circle id="Ellipse_4" data-name="Ellipse 4" cx="2.176" cy="2.176" r="2.176" transform="translate(26.587 2.666)" fill="currentColor"/>
+      <circle id="Ellipse_5" data-name="Ellipse 5" cx="2.176" cy="2.176" r="2.176" transform="translate(12.443 4.842)" fill="currentColor"/>
+    </g>
+  </g>
+</svg>

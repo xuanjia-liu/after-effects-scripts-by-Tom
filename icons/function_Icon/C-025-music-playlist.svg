@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-025-music-playlist" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M16.444,25.847a5.042,5.042,0,1,0,5.042-5.042,5.042,5.042,0,0,0-5.042,5.042m10.083,0V4h6.722M19.805,5.681H3M3,12.4H19.805m-6.722,6.722H3" transform="translate(59.875 43.556)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

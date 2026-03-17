@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-041-force-movement" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <line id="Line_28" data-name="Line 28" x2="19.575" transform="translate(64.138 50)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2.5"/>
+    <line id="Line_29" data-name="Line 29" x2="13.228" transform="translate(60 60.376)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2.5"/>
+    <path id="Path_861" data-name="Path 861" d="M36.325,11.878A10.628,10.628,0,1,1,25.7,1.25,10.629,10.629,0,0,1,36.325,11.878Z" transform="translate(58.75 48.75)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="3"/>
+    <line id="Line_30" data-name="Line 30" x2="19.575" transform="translate(64.106 71.255)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2.5"/>
+  </g>
+</svg>

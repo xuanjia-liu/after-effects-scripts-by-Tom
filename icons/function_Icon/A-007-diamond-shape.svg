@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-007-diamond-shape" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M15.045,32.993l-9.259-11.9a4.643,4.643,0,0,1,0-5.168L15.045,4.016a2.51,2.51,0,0,1,4.028,0l9.259,11.9a4.643,4.643,0,0,1,0,5.168L19.072,32.993a2.51,2.51,0,0,1-4.028,0" transform="translate(60.5 42.495)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

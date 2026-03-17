@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-015-keyframe-multi-couple" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_837" data-name="Path 837" d="M12.752,1.626A2.786,2.786,0,0,1,14.621.75c1.224,0,2.142,1.041,3.977,3.124L23.11,9c2.442,2.771,3.662,4.156,3.662,5.778s-1.22,3.006-3.662,5.778L18.6,25.673c-1.835,2.082-2.754,3.124-3.977,3.124a2.786,2.786,0,0,1-1.869-.876" transform="translate(68.286 46.25)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+    <path id="Path_838" data-name="Path 838" d="M9,3.874C10.857,1.791,11.784.75,13.02.75s2.161,1.041,4.016,3.124L21.594,9c2.465,2.77,3.7,4.154,3.7,5.778s-1.232,3.006-3.7,5.776l-4.558,5.122c-1.855,2.084-2.78,3.125-4.016,3.125S10.857,27.755,9,25.671L4.447,20.549c-2.465-2.77-3.7-4.154-3.7-5.776S1.982,11.765,4.447,9Z" transform="translate(59.25 46.25)" fill="none" stroke="currentColor" stroke-width="3"/>
+  </g>
+</svg>

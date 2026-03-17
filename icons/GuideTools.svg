@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="40" height="40" viewBox="0 0 40 40">
+  <defs>
+    <clipPath id="clip-GuideTools">
+      <rect width="40" height="40"/>
+    </clipPath>
+  </defs>
+  <g id="GuideTools" clip-path="url(#clip-GuideTools)">
+    <rect id="長方形_187" data-name="長方形 187" width="20" height="20" transform="translate(10 10)" fill="#fff"/>
+    <path id="合体_12" data-name="合体 12" d="M-751,36.5V34h-24v2.5a1.5,1.5,0,0,1-1.5,1.5,1.5,1.5,0,0,1-1.5-1.5V34h-2.5a1.5,1.5,0,0,1-1.5-1.5,1.5,1.5,0,0,1,1.5-1.5h2.5V7h-2.5A1.5,1.5,0,0,1-782,5.5,1.5,1.5,0,0,1-780.5,4h2.5V1.5A1.5,1.5,0,0,1-776.5,0,1.5,1.5,0,0,1-775,1.5V4h24V1.5A1.5,1.5,0,0,1-749.5,0,1.5,1.5,0,0,1-748,1.5V4h2.5A1.5,1.5,0,0,1-744,5.5,1.5,1.5,0,0,1-745.5,7H-748V31h2.5a1.5,1.5,0,0,1,1.5,1.5,1.5,1.5,0,0,1-1.5,1.5H-748v2.5a1.5,1.5,0,0,1-1.5,1.5A1.5,1.5,0,0,1-751,36.5Zm0-5.5V7h-24V31Z" transform="translate(783 1)" fill="#ea7575"/>
+  </g>
+</svg>

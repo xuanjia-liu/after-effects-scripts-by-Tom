@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-029-wave-sawtooth" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M55.195,69.968,36.768,81.307a1.417,1.417,0,0,1-2.16-1.207V59.959L18.342,69.968a1.417,1.417,0,0,1-1.485-2.413L35.283,56.215a1.417,1.417,0,0,1,2.16,1.207V77.563L53.71,67.554a1.417,1.417,0,0,1,1.485,2.413" transform="translate(42.038 -8.126)" fill="currentColor" stroke="currentColor" stroke-width="0.2"/>
+  </g>
+</svg>

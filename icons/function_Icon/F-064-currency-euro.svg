@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-064-currency-euro" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M19.5,31.5c-4.52,0-7.916-2.871-9.307-7.5H22V21.5H9.665A19.1,19.1,0,0,1,9.5,19c0-.413.013-.83.033-1.25H22v-2.5H9.8c.76-4.56,3.216-8.75,9.7-8.75,4.816,0,6.915,2.059,8.91,5.612l2.18-1.225C28.581,7.311,25.847,4,19.5,4,11.556,4,7,9.467,7,19c0,8.831,5.14,15,12.5,15,6.347,0,9.081-3.31,11.09-6.888l-2.18-1.225c-2,3.555-4.094,5.612-8.91,5.612" transform="translate(59.205 42)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

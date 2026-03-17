@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-053-document-file-audio" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_159" data-name="Path 159" d="M29.69,32.034a1.068,1.068,0,0,1-.667-.235L23.97,27.758h-3.9A1.069,1.069,0,0,1,19,26.689V21.345a1.069,1.069,0,0,1,1.069-1.069h3.9l5.052-4.041a1.069,1.069,0,0,1,1.736.834v13.9a1.069,1.069,0,0,1-1.069,1.069M21.138,25.62h3.207a1.069,1.069,0,0,1,.668.235l3.608,2.886v-9.45l-3.608,2.886a1.069,1.069,0,0,1-.668.235H21.138Z" transform="translate(62.896 44.966)" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="0.3"/>
+    <path id="Path_160" data-name="Path 160" d="M16.69,29.793H3.138V4.138H16.69v6.414a2.144,2.144,0,0,0,2.138,2.138h6.414V15.9h2.138V10.552a.973.973,0,0,0-.321-.748L19.576,2.321A.972.972,0,0,0,18.827,2H3.138A2.144,2.144,0,0,0,1,4.138V29.793a2.144,2.144,0,0,0,2.138,2.138H16.69ZM18.827,4.566l5.986,5.986H18.827Z" transform="translate(62 44)" fill="currentColor" stroke="currentColor" stroke-width="0.7"/>
+  </g>
+</svg>

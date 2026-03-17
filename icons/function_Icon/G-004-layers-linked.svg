@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-004-layers-linked" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(62.446 45.446)">
+      <path id="Path_525" data-name="Path 525" d="M29.386,8.521a3.888,3.888,0,0,1,1.944,3.367V27.442a3.888,3.888,0,0,1-3.888,3.888H11.888A3.888,3.888,0,0,1,8,27.442V11.888A3.888,3.888,0,0,1,11.888,8h5.833" transform="translate(-0.223 -0.223)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.8"/>
+      <path id="Path_526" data-name="Path 526" d="M5.944,26.814A3.888,3.888,0,0,1,4,23.442V7.888A3.888,3.888,0,0,1,7.888,4H23.442a3.888,3.888,0,0,1,3.888,3.888V23.442a3.888,3.888,0,0,1-3.888,3.888H17.61" transform="translate(-4 -4)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.8"/>
+    </g>
+  </g>
+</svg>

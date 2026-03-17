@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-062-ruler-design" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M34.346,10H3.2A1.2,1.2,0,0,0,2,11.2v11.98a1.2,1.2,0,0,0,1.2,1.2H34.346a1.2,1.2,0,0,0,1.2-1.2V11.2a1.2,1.2,0,0,0-1.2-1.2m-1.2,11.98H4.4V12.4H9.188v4.792h2.4V12.4h5.99v4.792h2.4V12.4h5.99v4.792h2.4V12.4h4.792Z" transform="translate(59.228 43.812)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-014-monitor-play" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="play" d="M46.357,51.675l-7.641-5.094a1.274,1.274,0,0,0-1.98,1.06V57.829a1.274,1.274,0,0,0,1.98,1.06L46.357,53.8a1.273,1.273,0,0,0,0-2.12m-7.074,3.774v-5.42l4.072,2.706Z" transform="translate(37 6)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+    <path id="monitor" d="M53.291,40H27.821A3.821,3.821,0,0,0,24,43.821V61.65a3.821,3.821,0,0,0,3.821,3.821h25.47a3.821,3.821,0,0,0,3.821-3.821V43.821A3.821,3.821,0,0,0,53.291,40m1.274,21.65a1.274,1.274,0,0,1-1.274,1.273H27.821a1.274,1.274,0,0,1-1.274-1.273V43.821a1.274,1.274,0,0,1,1.274-1.274h25.47a1.274,1.274,0,0,1,1.274,1.274Zm-7.641,7.641a1.274,1.274,0,0,1-1.274,1.274H35.462a1.274,1.274,0,1,1,0-2.547H45.65a1.273,1.273,0,0,1,1.274,1.274" transform="translate(37 6)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

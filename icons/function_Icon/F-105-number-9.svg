@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-105-number-9" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="Group_209" data-name="Group 209" transform="translate(0.5 2)">
+      <path id="Path_585" data-name="Path 585" d="M21,10.5a6.5,6.5,0,0,0-13,0v1.625a6.5,6.5,0,1,0,13,0" transform="translate(63 42)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+      <path id="Path_586" data-name="Path 586" d="M8,21a6.5,6.5,0,0,0,13,0V8" transform="translate(63 44.5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-107-carousel-horizontal" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M12,7a2,2,0,0,1,2-2H30a2,2,0,0,1,2,2V31a2,2,0,0,1-2,2H14a2,2,0,0,1-2-2ZM42,29H40a2,2,0,0,1-2-2V11a2,2,0,0,1,2-2h2M2,29H4a2,2,0,0,0,2-2V11A2,2,0,0,0,4,9H2" transform="translate(56.5 42)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-055-character-fraction" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(59.511 42.078)">
+      <g id="Group_208" data-name="Group 208" transform="translate(0.13 0.151)">
+        <path id="Path_85" data-name="Path 85" d="M33.3,36.289H23.525V28.957a2.447,2.447,0,0,1,2.444-2.444h4.888V21.625H23.525V19.181h7.332A2.447,2.447,0,0,1,33.3,21.625v4.888a2.447,2.447,0,0,1-2.444,2.444H25.969v4.888H33.3ZM7.638,28.451,26.685,9.4l1.728,1.728L9.366,30.179Z" transform="translate(-0.583 -0.765)" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-width="0.5"/>
+        <path id="Path_86" data-name="Path 86" d="M8.689,3.172v0ZM9.861,2H4V4.344H7.517V16.066H4V18.41h9.377V16.066H9.861Z" transform="translate(0 0.017)" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-width="0.5"/>
+      </g>
+    </g>
+  </g>
+</svg>

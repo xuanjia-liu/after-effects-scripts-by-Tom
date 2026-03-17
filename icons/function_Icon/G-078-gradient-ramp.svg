@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-078-gradient-ramp" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.533 44.533)">
+      <path id="Path_225" data-name="Path 225" d="M34.189,4H6.744A2.747,2.747,0,0,0,4,6.744V34.189a2.747,2.747,0,0,0,2.744,2.744H34.189a2.747,2.747,0,0,0,2.744-2.744V6.744A2.747,2.747,0,0,0,34.189,4M28.7,34.189V28.7H23.211v5.489H17.722V28.7H12.233V23.211h5.489V17.722H12.233V12.233h5.489V6.744h5.489v5.489H28.7V6.744h5.489V34.189Z" transform="translate(-4 -4)" fill="currentColor"/>
+      <path id="Path_226" data-name="Path 226" d="M14,10h5.489v5.489H14Zm0,10.978h5.489v5.489H14Zm5.489-5.489h5.489v5.489H19.489Z" transform="translate(-0.278 -1.767)" fill="currentColor"/>
+    </g>
+  </g>
+</svg>

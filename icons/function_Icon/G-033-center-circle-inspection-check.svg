@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-033-center-circle-inspection-check" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(59.987 42.987)">
+      <path id="Path_261" data-name="Path 261" d="M16.147,18.782,12.814,15.45,11,17.264l5.147,5.147L25.153,13.4,23.339,11.59Z" transform="translate(0.58 0.749)" fill="currentColor" stroke="currentColor" stroke-width="0.6"/>
+      <path id="Path_262" data-name="Path 262" d="M38.026,18.727H35.389A15.449,15.449,0,0,0,21.3,4.638V2H18.727V4.638A15.449,15.449,0,0,0,4.638,18.727H2V21.3H4.638A15.449,15.449,0,0,0,18.727,35.389v2.638H21.3V35.389A15.449,15.449,0,0,0,35.389,21.3h2.638ZM21.3,32.815v-3.8H18.727v3.8A12.888,12.888,0,0,1,7.211,21.3h3.8V18.727h-3.8A12.888,12.888,0,0,1,18.727,7.211v3.8H21.3v-3.8A12.888,12.888,0,0,1,32.815,18.727h-3.8V21.3h3.794A12.888,12.888,0,0,1,21.3,32.815" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.6"/>
+    </g>
+  </g>
+</svg>

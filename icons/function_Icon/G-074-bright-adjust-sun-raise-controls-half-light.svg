@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-074-bright-adjust-sun-raise-controls-half-light" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M16.405.5V2.947m0,26.916V32.31M2.947,16.405H.5m6.387,9.519L5.149,27.661M6.887,6.887,5.149,5.149M16.405,7.841a8.564,8.564,0,0,0,0,17.129Zm13.458,8.564H32.31m-6.387,9.519,1.737,1.737M25.924,6.887l1.737-1.737" transform="translate(61.595 44.595)" fill="none" stroke="currentColor" stroke-linecap="square" stroke-width="3"/>
+  </g>
+</svg>

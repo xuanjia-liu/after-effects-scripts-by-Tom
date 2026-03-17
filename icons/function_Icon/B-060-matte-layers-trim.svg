@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-060-matte-layers-trim" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.422 47.207)">
+      <path id="path" d="M1,18.828,9.141,2.547" transform="translate(3.07 0.51)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+      <path id="path-2" data-name="path" d="M8.141,18.907,0,2.625" transform="translate(2.035 0.432)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+      <circle id="ellipse" cx="3.053" cy="3.053" r="3.053" transform="translate(8.141 19.338)" fill="none" stroke="currentColor" stroke-width="3"/>
+      <circle id="ellipse-2" data-name="ellipse" cx="3.053" cy="3.053" r="3.053" transform="translate(0 19.338)" fill="none" stroke="currentColor" stroke-width="3"/>
+      <path id="line" d="M0,9.25H12.211" transform="translate(20.352 10.088)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+      <path id="line-2" data-name="line" d="M0,9.25H12.211" transform="translate(20.352 16.194)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+      <path id="path-3" data-name="path" d="M18777.217,22014.256h-10.184a2.041,2.041,0,0,1-2.031-2.039v-10.184a2.038,2.038,0,0,1,2.031-2.035h10.184a2.039,2.039,0,0,1,2.035,2.035v10.184A2.042,2.042,0,0,1,18777.217,22014.256Zm-5.094-12.223a5.092,5.092,0,1,0,5.094,5.094A5.1,5.1,0,0,0,18772.123,22002.033Z" transform="translate(-18745.668 -21999.998)" fill="currentColor"/>
+      <path id="path-4" data-name="path" d="M18779.252,22014.256H18765V22000h14.25v14.258Zm-7.129-10.187a3.057,3.057,0,1,0,3.051,3.059A3.06,3.06,0,0,0,18772.123,22004.068Z" transform="translate(-18745.668 -21999.998)" fill="currentColor"/>
+    </g>
+  </g>
+</svg>

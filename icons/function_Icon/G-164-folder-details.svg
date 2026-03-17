@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-164-folder-details" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61 45.214)">
+      <path id="Path_665" data-name="Path 665" d="M16,20H33v2.429H16Zm0,4.857H33v2.429H16Zm0,4.857h8.5v2.429H16Z" transform="translate(1 -0.571)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_666" data-name="Path 666" d="M16.571,30.714H4.429V6.429h8.706l4.153,4.141.7.716H33.571V21H36V11.286a2.429,2.429,0,0,0-2.429-2.429H19L14.859,4.716A2.429,2.429,0,0,0,13.135,4H4.429A2.429,2.429,0,0,0,2,6.429V30.714a2.429,2.429,0,0,0,2.429,2.429H16.571Z" transform="translate(-2 -4)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

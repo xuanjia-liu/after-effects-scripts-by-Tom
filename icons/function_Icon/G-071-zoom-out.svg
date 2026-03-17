@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-071-zoom-out" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(59.537 42.537)">
+      <path id="Path_370" data-name="Path 370" d="M8,12H20.195v2.439H8Z" transform="translate(1.317 2.195)" fill="currentColor" stroke="currentColor" stroke-width="0.7"/>
+      <path id="Path_371" data-name="Path 371" d="M25.717,23.951a13.239,13.239,0,0,0,3.112-8.536A13.414,13.414,0,1,0,15.414,28.829a13.239,13.239,0,0,0,8.536-3.112l9.251,9.21L34.926,33.2Zm-10.3,2.439A10.975,10.975,0,1,1,26.39,15.414,10.975,10.975,0,0,1,15.414,26.39" fill="currentColor" stroke="currentColor" stroke-width="0.7"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-026-chart-minimum-graph" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.363 44.363)">
+      <path id="Path_101" data-name="Path 101" d="M4.377,32.9V30.521H6.753V28.144H4.377V2H2V32.9a2.377,2.377,0,0,0,2.377,2.377h30.9V32.9Z" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_102" data-name="Path 102" d="M8,24h2.377v2.377H8Zm4.753,0H15.13v2.377H12.753Zm9.507,0h2.377v2.377H22.26Zm4.753,0H29.39v2.377H27.014Zm4.753,0h2.377v2.377H31.767Z" transform="translate(-0.87 2.144)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_103" data-name="Path 103" d="M32.069,4.39,29.725,4C27.32,18.389,23.831,25.39,19.062,25.39S10.8,18.389,8.4,4l-2.345.39C7.784,14.763,10.7,26.5,17.873,27.664v2.48H20.25v-2.48C27.424,26.5,30.339,14.763,32.069,4.39" transform="translate(-1.236 -1.623)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

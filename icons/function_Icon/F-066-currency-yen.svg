@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-066-currency-yen" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M31.038,5h-3.2L19.384,20.5,10.929,5h-3.2l8.546,15.5H8.111v2.818h9.864v4.227H8.111v2.818h9.864V36h2.818V30.364h9.864V27.545H20.793V23.318h9.864V20.5H22.492Z" transform="translate(58.271 41)" fill="currentColor" stroke="currentColor" stroke-width="0.2"/>
+  </g>
+</svg>

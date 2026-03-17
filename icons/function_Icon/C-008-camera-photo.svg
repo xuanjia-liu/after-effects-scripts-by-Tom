@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-008-camera-photo" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icons" transform="translate(0.191 -0.421)">
+      <path id="Path_81" data-name="Path 81" d="M34.418,30.414H3.2a1.2,1.2,0,0,1-1.2-1.2V8.8A1.2,1.2,0,0,1,3.2,7.6h7.756L13.01,4.54a1.2,1.2,0,0,1,1-.54h9.605a1.2,1.2,0,0,1,1,.54L26.661,7.6h7.756a1.2,1.2,0,0,1,1.2,1.2V29.214a1.2,1.2,0,0,1-1.2,1.2M4.4,28.013H33.217V10h-7.2a1.2,1.2,0,0,1-1-.54L22.963,6.4H14.655L12.6,9.463a1.2,1.2,0,0,1-1,.54H4.4Z" transform="translate(59 44.214)" fill="currentColor" stroke="currentColor" stroke-width="0.4"/>
+      <path id="Path_82" data-name="Path 82" d="M17.2,24.408a7.2,7.2,0,1,1,7.2-7.2,7.2,7.2,0,0,1-7.2,7.2m0-12.006a4.8,4.8,0,1,0,4.8,4.8,4.8,4.8,0,0,0-4.8-4.8" transform="translate(60.605 45.418)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-031-center-circle-crosshair" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(63.33 46.33)">
+      <circle id="Ellipse_33" data-name="Ellipse 33" cx="15" cy="15" r="15" transform="translate(-0.33 -0.33)" fill="none" stroke="currentColor" stroke-linecap="square" stroke-linejoin="round" stroke-width="3"/>
+      <path id="Path_376" data-name="Path 376" d="M30.054,16.027H24.443m-16.833,0H2M16.027,7.611V2m0,28.054V24.443" transform="translate(-1.357 -1.357)" fill="none" stroke="currentColor" stroke-linecap="square" stroke-linejoin="round" stroke-width="2.7"/>
+    </g>
+  </g>
+</svg>

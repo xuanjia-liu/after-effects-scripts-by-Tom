@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-090-arrow-autofit-left" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M4.823,18.582V7.646A3.646,3.646,0,0,1,8.468,4H30.342a3.646,3.646,0,0,1,3.646,3.646V22.228m0,7.291H3M8.468,24.05,3,29.519l5.468,5.468" transform="translate(59.402 41.506)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

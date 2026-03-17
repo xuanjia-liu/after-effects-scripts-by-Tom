@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-141-alarm-clock-hour" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.001 44)">
+      <path id="Path_40" data-name="Path 40" d="M20.58,37.16A15.58,15.58,0,1,1,36.16,21.58,15.58,15.58,0,0,1,20.58,37.16m0-28.327A12.747,12.747,0,1,0,33.327,21.58,12.747,12.747,0,0,0,20.58,8.833" transform="translate(-3.584 -3.16)" fill="currentColor" stroke="currentColor" stroke-width="0.2"/>
+      <path id="Path_41" data-name="Path 41" d="M24.665,28.08,19.58,23V13.917h2.833v7.9l4.249,4.263ZM4,9.09,9.073,4.006l2.006,2L6.006,11.091ZM30.911,6l2-2,5.072,5.083-2,2Z" transform="translate(-4 -3.995)" fill="currentColor" stroke="currentColor" stroke-width="0.2"/>
+    </g>
+  </g>
+</svg>

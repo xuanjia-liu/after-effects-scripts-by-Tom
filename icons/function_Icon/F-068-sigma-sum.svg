@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-068-sigma-sum" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M77.087,45.273V42.636H60.057l8.832,11.04a1.318,1.318,0,0,1,0,1.648l-8.832,11.04H77.087V63.727a1.318,1.318,0,1,1,2.636,0v3.955A1.318,1.318,0,0,1,78.4,69H57.314a1.318,1.318,0,0,1-1.03-2.142L66.17,54.5,56.284,42.142A1.318,1.318,0,0,1,57.314,40H78.4a1.318,1.318,0,0,1,1.318,1.318v3.955a1.318,1.318,0,0,1-2.636,0" transform="translate(9.141 6.5)" fill="currentColor" stroke="currentColor" stroke-width="0.2"/>
+  </g>
+</svg>

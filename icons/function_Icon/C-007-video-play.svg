@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-007-video-play" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_350" data-name="Path 350" d="M13,11V23.006l9.605-6Z" transform="translate(61.207 44.289)" fill="currentColor"/>
+    <path id="Path_351" data-name="Path 351" d="M33.217,6H4.4A2.4,2.4,0,0,0,2,8.4v19.21a2.4,2.4,0,0,0,2.4,2.4H33.217a2.4,2.4,0,0,0,2.4-2.4V8.4a2.4,2.4,0,0,0-2.4-2.4m0,21.612H4.4V8.4H33.217Z" transform="translate(59 43.286)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-029-line-connect-topology" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M12.5,33.75A4.25,4.25,0,1,0,8.25,38a4.25,4.25,0,0,0,4.25-4.25m25.5,0A4.25,4.25,0,1,0,33.75,38,4.25,4.25,0,0,0,38,33.75m0-25.5a4.25,4.25,0,1,0-4.25,4.25A4.25,4.25,0,0,0,38,8.25m-25.5,0A4.25,4.25,0,1,0,8.25,12.5,4.25,4.25,0,0,0,12.5,8.25M8.25,12.5v17m25.5,0v-17M12.5,8.25h17m0,25.5h-17" transform="translate(57.5 40.5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

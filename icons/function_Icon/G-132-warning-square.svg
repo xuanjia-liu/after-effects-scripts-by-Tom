@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-132-warning-square" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.514 44.514)">
+      <path id="Path_364" data-name="Path 364" d="M16.561,24.112a2.061,2.061,0,1,0,2.061,2.061,2.061,2.061,0,0,0-2.061-2.061M15.187,9h2.748V21.365H15.187Z" transform="translate(-0.075 -2.131)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_365" data-name="Path 365" d="M34.224,36.972H6.748A2.75,2.75,0,0,1,4,34.224V6.748A2.75,2.75,0,0,1,6.748,4H34.224a2.75,2.75,0,0,1,2.748,2.748V34.224a2.75,2.75,0,0,1-2.748,2.748M6.748,6.748V34.224H34.226V6.748Z" transform="translate(-4 -4)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-016-shapes-circle-category-group" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="tabler-circles" d="M12.057,9.951A6.951,6.951,0,1,0,19.008,3a6.951,6.951,0,0,0-6.951,6.951M2.5,27.327a6.951,6.951,0,1,0,6.951-6.951A6.951,6.951,0,0,0,2.5,27.327m19.114,0a6.951,6.951,0,1,0,6.951-6.951,6.951,6.951,0,0,0-6.951,6.951" transform="translate(59 42.5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  </g>
+</svg>

@@ -1,0 +1,9 @@
+<svg id="browse-file" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+  <g id="icn-browse">
+    <rect id="area" width="20" height="20" fill="none"/>
+    <g id="icon" transform="translate(1.5 2.5)">
+      <path id="path" d="M1,1H7L9,3h7a1.054,1.054,0,0,1,1,1V15a1.054,1.054,0,0,1-1,1H1a1.054,1.054,0,0,1-1-1V2A1.054,1.054,0,0,1,1,1Z" transform="translate(0 -1)" fill="none" stroke="#b1b1b1" stroke-linejoin="round" stroke-width="1.5"/>
+      <path id="path-2" data-name="path" d="M0,5.1v-2a2,2,0,0,1,2-2H15a2,2,0,0,1,2,2v2" transform="translate(0 4.904)" fill="none" stroke="#b1b1b1" stroke-width="1.5"/>
+    </g>
+  </g>
+</svg>

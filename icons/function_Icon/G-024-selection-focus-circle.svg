@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-024-selection-focus-circle" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_617" data-name="Path 617" d="M9.375,15A5.625,5.625,0,1,0,15,9.376,5.624,5.624,0,0,0,9.375,15" transform="translate(63 46)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    <path id="Path_618" data-name="Path 618" d="M30,1.365V8.183a1.364,1.364,0,0,1-2.727,0V2.728H21.818A1.365,1.365,0,0,1,21.744,0h6.892A1.365,1.365,0,0,1,30,1.365M8.182,27.274H2.727V21.819A1.364,1.364,0,0,0,0,21.744v6.892A1.365,1.365,0,0,0,1.365,30H8.182a1.364,1.364,0,1,0,.074-2.726.457.457,0,0,0-.074,0m20.455-6.819a1.364,1.364,0,0,0-1.364,1.364v5.455H21.818A1.364,1.364,0,0,0,21.744,30a.457.457,0,0,0,.074,0h6.818A1.364,1.364,0,0,0,30,28.637h0V21.819a1.364,1.364,0,0,0-1.364-1.364M8.182,0H1.365A1.365,1.365,0,0,0,0,1.365V8.183a1.364,1.364,0,0,0,2.727,0V2.728H8.182A1.365,1.365,0,0,0,8.256,0H8.182" transform="translate(63 46)" fill="currentColor" stroke="currentColor" stroke-width="0.25"/>
+  </g>
+</svg>

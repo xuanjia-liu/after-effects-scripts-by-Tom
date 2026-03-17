@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-010-integration" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="carbon-integration" d="M35.1,17.674,27.974,4.617A1.187,1.187,0,0,0,26.929,4H10.312a1.187,1.187,0,0,0-1.045.617L2.145,17.674a1.187,1.187,0,0,0,0,1.187L9.267,31.918a1.187,1.187,0,0,0,1.045.57H26.929a1.187,1.187,0,0,0,1.045-.617L35.1,18.814a1.187,1.187,0,0,0,0-1.14M26.846,7.561l5.211,9.5H20.781ZM18.62,16.036,12.472,6.374h12.3ZM10.395,7.561l6.066,9.5H5.184ZM5.184,19.431H16.46l-6.066,9.5ZM18.62,20.452l6.149,9.662h-12.3Zm8.226,8.475-6.066-9.5H32.057Z" transform="translate(59.386 42.756)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

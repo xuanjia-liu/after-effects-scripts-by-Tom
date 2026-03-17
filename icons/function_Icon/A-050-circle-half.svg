@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-050-circle-half" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_867" data-name="Path 867" d="M17,0a17,17,0,0,1,0,34Z" transform="translate(61 44)" fill="currentColor"/>
+    <g id="Ellipse_60" data-name="Ellipse 60" transform="translate(61 44)" fill="none" stroke="currentColor" stroke-width="3">
+      <circle cx="17" cy="17" r="17" stroke="none"/>
+      <circle cx="17" cy="17" r="15.5" fill="none"/>
+    </g>
+  </g>
+</svg>

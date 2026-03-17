@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-056-lens-blur" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <rect id="Rectangle_39" data-name="Rectangle 39" width="27.067" height="27.067" rx="2" transform="translate(64.466 47.466)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2.5"/>
+    <path id="Path_884" data-name="Path 884" d="M12.55,15.049a2.5,2.5,0,1,1,2.5-2.5,2.506,2.506,0,0,1-2.5,2.5m0-6.246a2.5,2.5,0,1,1,2.5-2.5,2.506,2.506,0,0,1-2.5,2.5M6.3,15.049a2.5,2.5,0,1,1,2.5-2.5,2.506,2.506,0,0,1-2.5,2.5M6.3,8.8A2.5,2.5,0,1,1,8.8,6.3,2.506,2.506,0,0,1,6.3,8.8" transform="translate(68.572 51.572)" fill="currentColor" fill-rule="evenodd"/>
+    <path id="Path_885" data-name="Path 885" d="M19.271,7.851a1.19,1.19,0,1,1,1.19-1.19,1.178,1.178,0,0,1-1.19,1.19M13.8,2.379a1.178,1.178,0,0,1-1.19-1.19,1.19,1.19,0,0,1,2.379,0,1.178,1.178,0,0,1-1.19,1.19m-7.137,0a1.178,1.178,0,0,1-1.19-1.19,1.19,1.19,0,0,1,2.379,0,1.178,1.178,0,0,1-1.19,1.19M1.19,14.989a1.19,1.19,0,0,1,0-2.379,1.19,1.19,0,0,1,0,2.379m0-7.137a1.19,1.19,0,0,1,0-2.379,1.19,1.19,0,0,1,0,2.379m5.472,10.23a1.19,1.19,0,1,1-1.19,1.19,1.178,1.178,0,0,1,1.19-1.19m7.137,0a1.19,1.19,0,1,1-1.19,1.19,1.178,1.178,0,0,1,1.19-1.19m5.472-5.472a1.19,1.19,0,1,1-1.19,1.19,1.178,1.178,0,0,1,1.19-1.19" transform="translate(67.77 50.77)" fill="currentColor" stroke="currentColor" stroke-width="1" fill-rule="evenodd"/>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="F-034-character-sentence-case" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M38.934,28.151h-6.84a2.74,2.74,0,0,1-2.736-2.736V17.208a2.739,2.739,0,0,1,2.736-2.736h6.84v2.736h-6.84v8.208h6.84ZM23.887,14.472H18.415V9H15.679V28.151h8.208a2.74,2.74,0,0,0,2.736-2.736V17.208a2.739,2.739,0,0,0-2.736-2.736M18.415,25.415V17.208h5.472v8.208ZM10.208,9H4.736A2.739,2.739,0,0,0,2,11.736V28.151H4.736v-6.84h5.472v6.84h2.736V11.736A2.739,2.739,0,0,0,10.208,9M4.736,18.576v-6.84h5.472v6.84Z" transform="translate(58 42)" fill="currentColor" stroke="currentColor" stroke-width="0.3"/>
+  </g>
+</svg>

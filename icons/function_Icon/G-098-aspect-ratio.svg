@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-098-aspect-ratio" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(60 47)">
+      <path id="Path_400" data-name="Path 400" d="M3,9A4,4,0,0,1,7,5H35a4,4,0,0,1,4,4V29a4,4,0,0,1-4,4H7a4,4,0,0,1-4-4Z" transform="translate(-3 -5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+      <path id="Path_401" data-name="Path 401" d="M7,15V9h6m14,6v6H21" transform="translate(1 -1)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

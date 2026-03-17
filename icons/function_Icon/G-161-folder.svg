@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-161-folder" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M12.988,6.4l4.1,4.086.695.707H33.153V30.361H4.4V6.4Zm0-2.4H4.4A2.4,2.4,0,0,0,2,6.4V30.361a2.4,2.4,0,0,0,2.4,2.4H33.153a2.4,2.4,0,0,0,2.4-2.4V11.189a2.4,2.4,0,0,0-2.4-2.4H18.775L14.689,4.707A2.4,2.4,0,0,0,12.988,4" transform="translate(59.225 42.621)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

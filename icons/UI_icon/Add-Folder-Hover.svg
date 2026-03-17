@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="18.541" height="17.218" viewBox="0 0 18.541 17.218">
+  <g id="Add-Folder-Hover" transform="translate(0.75 0.75)">
+    <g id="Group_4" data-name="Group 4">
+      <path id="Path_5" data-name="Path 5" d="M10.316,15.75H1.75a1.054,1.054,0,0,1-1-1v-13a1.054,1.054,0,0,1,1-1h6l2,2h7a1.055,1.055,0,0,1,1,1v6.364" transform="translate(-0.75 -0.75)" fill="none" stroke="#2d8ceb" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>
+      <path id="Path_6" data-name="Path 6" d="M.75,10.754v-2a2,2,0,0,1,2-2h13a2,2,0,0,1,2,2v1.36" transform="translate(-0.75 -0.75)" fill="none" stroke="#2d8ceb" stroke-width="1.5"/>
+      <path id="Path_7" data-name="Path 7" d="M14.041,12.718V10.45a.677.677,0,0,1,.22-.509A.743.743,0,0,1,14.8,9.73a.72.72,0,0,1,.721.72v2.268h2.267a.745.745,0,0,1,.532.215.724.724,0,0,1,0,1.047.745.745,0,0,1-.532.215h-2.25v2.267a.725.725,0,0,1-.223.536.738.738,0,0,1-.533.22.7.7,0,0,1-.522-.22.731.731,0,0,1-.216-.536V14.195H11.773a.717.717,0,0,1-.518-.215.741.741,0,0,1,.518-1.262Z" transform="translate(-0.75 -0.75)" fill="#2d8ceb"/>
+    </g>
+  </g>
+</svg>

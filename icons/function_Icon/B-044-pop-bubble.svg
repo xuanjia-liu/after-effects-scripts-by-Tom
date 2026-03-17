@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-044-pop-bubble" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="Group_76" data-name="Group 76" transform="translate(63 46)">
+      <path id="Path_756" data-name="Path 756" d="M27.751,3.217a.906.906,0,0,0,.906-.906V.906a.906.906,0,0,0-1.812,0V2.311a.906.906,0,0,0,.906.906" transform="translate(-12.751 0)" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      <path id="Path_757" data-name="Path 757" d="M27.751,51.014a.906.906,0,0,0-.906.906v1.405a.906.906,0,0,0,1.812,0V51.92a.906.906,0,0,0-.906-.906" transform="translate(-12.751 -24.231)" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      <path id="Path_758" data-name="Path 758" d="M53.326,26.845H51.92a.906.906,0,1,0,0,1.812h1.405a.906.906,0,1,0,0-1.812" transform="translate(-24.231 -12.751)" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      <path id="Path_759" data-name="Path 759" d="M2.312,26.845H.906a.906.906,0,1,0,0,1.812H2.312a.906.906,0,1,0,0-1.812" transform="translate(0 -12.751)" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      <path id="Path_760" data-name="Path 760" d="M12.324,13.605a.906.906,0,1,0,1.282-1.28l-1.854-1.854a.905.905,0,0,0-1.28,1.28Z" transform="translate(-4.847 -4.847)" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      <path id="Path_761" data-name="Path 761" d="M41.5,40.218a.906.906,0,1,0-1.28,1.282l1.854,1.854a.906.906,0,0,0,1.28-1.282Z" transform="translate(-18.979 -18.977)" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      <path id="Path_762" data-name="Path 762" d="M42.074,10.47,40.22,12.324A.905.905,0,1,0,41.5,13.6l1.854-1.854a.905.905,0,1,0-1.28-1.279" transform="translate(-18.978 -4.847)" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      <path id="Path_763" data-name="Path 763" d="M12.323,40.219l-1.854,1.854a.906.906,0,1,0,1.28,1.282L13.6,41.5a.907.907,0,0,0-1.282-1.283" transform="translate(-4.846 -18.978)" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      <path id="Path_764" data-name="Path 764" d="M29.1,21.893,26.518,23.44a8.941,8.941,0,0,0-3.079,3.079L21.892,29.1a.432.432,0,0,1-.74,0l-1.547-2.586a8.944,8.944,0,0,0-3.079-3.079L13.94,21.893a.431.431,0,0,1,0-.74l2.586-1.547a8.949,8.949,0,0,0,3.079-3.079l1.547-2.586a.432.432,0,0,1,.74,0l1.547,2.586a8.946,8.946,0,0,0,3.079,3.079L29.1,21.153A.43.43,0,0,1,29.1,21.893Z" transform="translate(-6.522 -6.522)" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="2.6"/>
+    </g>
+  </g>
+</svg>

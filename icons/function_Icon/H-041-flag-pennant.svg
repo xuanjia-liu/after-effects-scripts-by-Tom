@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="H-041-flag-pennant" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M76.64,41.478,49.564,32.061A1.177,1.177,0,0,0,48,33.173v25.9a1.177,1.177,0,1,0,2.354,0V52.845L76.64,43.7a1.177,1.177,0,0,0,0-2.225M50.354,50.353V34.829l22.315,7.762Z" transform="translate(15.284 14.82)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+  </g>
+</svg>

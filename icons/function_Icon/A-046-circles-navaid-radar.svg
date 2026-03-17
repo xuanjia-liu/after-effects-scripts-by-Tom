@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-046-circles-navaid-radar" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61 44)">
+      <path id="Path_284" data-name="Path 284" d="M19,36A17,17,0,1,1,36,19,17,17,0,0,1,19,36M19,4.429A14.571,14.571,0,1,0,33.568,19,14.571,14.571,0,0,0,19,4.429" transform="translate(-2 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_285" data-name="Path 285" d="M17.713,27.429a9.714,9.714,0,1,1,9.713-9.714,9.713,9.713,0,0,1-9.713,9.714m0-17A7.286,7.286,0,1,0,25,17.714a7.285,7.285,0,0,0-7.284-7.286" transform="translate(-0.714 -0.714)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <circle id="Ellipse_22" data-name="Ellipse 22" cx="2.429" cy="2.429" r="2.429" transform="translate(14.57 14.571)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

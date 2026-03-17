@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="E-100-rewind-forward-30" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_548" data-name="Path 548" d="M22.7,22.142h0v6.019a3.009,3.009,0,0,0,6.019,0V22.142a3.009,3.009,0,0,0-6.019,0" transform="translate(61.958 45.963)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2.5"/>
+    <path id="Path_549" data-name="Path 549" d="M9,21.057h3.009a3.009,3.009,0,1,1,0,6.019h0a3.009,3.009,0,1,1,0,6.019H9" transform="translate(63.619 44.038)" fill="none" stroke="currentColor" stroke-linecap="square" stroke-width="2.5"/>
+    <path id="Path_908" data-name="Path 908" d="M6.708,25.357A11.084,11.084,0,0,1,14.084,6H32.978" transform="translate(59.25 44.793)" fill="none" stroke="currentColor" stroke-width="3"/>
+    <path id="Path_909" data-name="Path 909" d="M22.133,14.084l5.542-5.542L22.133,3" transform="translate(65.981 42.251)" fill="none" stroke="currentColor" stroke-width="3"/>
+  </g>
+</svg>

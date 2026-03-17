@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-084-auto-scroll" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(69.5 44)">
+      <path id="Path_66" data-name="Path 66" d="M12,16.857A4.857,4.857,0,1,0,16.857,12,4.857,4.857,0,0,0,12,16.857Zm7.286,0a2.429,2.429,0,1,1-2.429-2.429A2.429,2.429,0,0,1,19.286,16.857Z" transform="translate(-8.357 0.143)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_67" data-name="Path 67" d="M17.5,28.368,10.7,21.58,9,23.3l8.5,8.5L26,23.3l-1.712-1.712Z" transform="translate(-9 2.196)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+      <path id="Path_68" data-name="Path 68" d="M17.5,5.436,24.276,12.2,26,10.5,17.5,2,9,10.5l1.712,1.712Z" transform="translate(-9 -2)" fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="A-036-topo-star-line-connect" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="icon" d="M12,32a4,4,0,1,0-4,4,4,4,0,0,0,4-4M36,8a4,4,0,1,0-4,4,4,4,0,0,0,4-4M12,8a4,4,0,1,0-4,4,4,4,0,0,0,4-4M36,32a4,4,0,1,0-4,4,4,4,0,0,0,4-4M24,20a4,4,0,1,0-4,4,4,4,0,0,0,4-4M11,11l6,6M11,29l6-6m6,0,6,6m0-18-6,6" transform="translate(58.5 41.5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.7"/>
+  </g>
+</svg>

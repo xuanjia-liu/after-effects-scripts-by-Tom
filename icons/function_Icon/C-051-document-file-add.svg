@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="C-051-document-file-add" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <path id="Path_158" data-name="Path 158" d="M16.714,29.857H3.143V4.143H16.714v6.428a2.149,2.149,0,0,0,2.143,2.143h6.428V17h2.143V10.571a.975.975,0,0,0-.321-.75l-7.5-7.5A.974.974,0,0,0,18.857,2H3.143A2.149,2.149,0,0,0,1,4.143V29.857A2.149,2.149,0,0,0,3.143,32H16.714ZM18.857,4.571l6,6h-6Z" transform="translate(62 44)" fill="currentColor" stroke="currentColor" stroke-width="0.7"/>
+    <line id="Line_34" data-name="Line 34" x2="10.786" transform="translate(82.714 70.5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+    <line id="Line_35" data-name="Line 35" y2="10.5" transform="translate(88.214 65)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+  </g>
+</svg>

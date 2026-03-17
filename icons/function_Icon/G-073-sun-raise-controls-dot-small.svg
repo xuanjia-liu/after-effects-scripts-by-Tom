@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="G-073-sun-raise-controls-dot-small" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(61.985 44.985)">
+      <circle id="Ellipse_49" data-name="Ellipse 49" cx="1.424" cy="1.424" r="1.424" transform="translate(14.182 14.243)" fill="none" stroke="currentColor" stroke-linecap="square" stroke-linejoin="round" stroke-width="3"/>
+      <path id="Path_644" data-name="Path 644" d="M17.515,33.53V30.618m11.327-1.776-2.067-2.067m6.755-9.26H30.618M28.842,6.188,26.775,8.255M17.515,1.5V4.412M6.188,6.188,8.255,8.255M1.5,17.515H4.412M6.188,28.842l2.067-2.067" transform="translate(-1.5 -1.5)" fill="none" stroke="currentColor" stroke-linecap="square" stroke-linejoin="round" stroke-width="3"/>
+    </g>
+  </g>
+</svg>

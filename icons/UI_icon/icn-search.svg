@@ -1,0 +1,8 @@
+<svg id="icn-search" xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 25 25">
+  <rect id="area" width="25" height="25" fill="none"/>
+  <line id="Line" y1="4" x2="4" transform="translate(6 14.5)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"/>
+  <g id="Circle" transform="translate(8.5 6)" fill="none" stroke="currentColor" stroke-width="1.5">
+    <circle cx="5" cy="5" r="5" stroke="none"/>
+    <circle cx="5" cy="5" r="4.25" fill="none"/>
+  </g>
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 50 50">
+  <g id="B-058-matte-layers-hide" transform="translate(-53 -36)">
+    <rect id="area" width="50" height="50" transform="translate(53 36)" fill="none"/>
+    <g id="icon" transform="translate(60.19 48.278)">
+      <path id="line" d="M0,9.25H12.211" transform="translate(22.387 10.088)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+      <path id="line-2" data-name="line" d="M0,9.25H12.211" transform="translate(22.387 16.194)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+      <path id="path" d="M18779.252,22014.256H18765V22000h14.25v14.258Zm-7.129-10.187a3.057,3.057,0,1,0,3.051,3.059A3.06,3.06,0,0,0,18772.123,22004.068Z" transform="translate(-18743.633 -21999.998)" fill="currentColor"/>
+      <path id="path-2" data-name="path" d="M-32.5,4.606S-30.233-1.5-24.359-1.5s8.141,6.106,8.141,6.106" transform="translate(32.5 8.627)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+      <path id="path-3" data-name="path" d="M-32.5-1.5s2.267,6.106,8.141,6.106S-16.218-1.5-16.218-1.5" transform="translate(32.5 14.733)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+      <line id="line-3" data-name="line" x1="16.282" y2="16.282" transform="translate(0 5.092)" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="3"/>
+      <circle id="ellipse" cx="3" cy="3" r="3" transform="translate(5.373 9.863)" fill="currentColor"/>
+    </g>
+  </g>
+</svg>
