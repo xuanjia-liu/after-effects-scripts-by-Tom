@@ -83,83 +83,106 @@
         var dialog = new Window("dialog", "Keyframe Cleanup Tools");
         dialog.orientation = "column";
         dialog.alignChildren = "fill";
-        dialog.spacing = 10;
-        dialog.margins = 20;
+        dialog.spacing = 14;
+        dialog.margins = 18;
         
-        // Header
-        var headerGroup = dialog.add("group");
-        headerGroup.orientation = "column";
-        headerGroup.alignChildren = "left";
+        // Workflow tabs
+        var tabs = dialog.add("tabbedpanel");
+        tabs.alignChildren = "fill";
+        tabs.preferredSize.width = 430;
+        tabs.preferredSize.height = 260;
         
-        var titleText = headerGroup.add("statictext", undefined, "Keyframe Cleanup Tools");
-        titleText.graphics.font = ScriptUI.newFont("dialog", "bold", 14);
+        var removeTab = tabs.add("tab", undefined, "Remove Outside");
+        removeTab.orientation = "column";
+        removeTab.alignChildren = "fill";
+        removeTab.margins = 0;
+        removeTab.spacing = 0;
         
-        var descText = headerGroup.add("statictext", undefined, "Choose a cleanup workflow for the selected layers.");
-        descText.preferredSize.width = 400;
+        var removeContainer = removeTab.add("panel");
+        removeContainer.orientation = "column";
+        removeContainer.alignChildren = "fill";
+        removeContainer.margins = 14;
+        removeContainer.spacing = 12;
         
-        // Separator
-        var separator1 = dialog.add("panel");
-        separator1.preferredSize.height = 2;
+        var removeIntro = removeContainer.add("statictext", undefined, "Remove keys from selected layers when they are outside the comp bounds.");
+        removeIntro.preferredSize.width = 380;
+        removeIntro.justify = "left";
         
-        // Workflow selector
-        var workflowPanel = dialog.add("panel", undefined, "Workflow");
-        workflowPanel.orientation = "column";
-        workflowPanel.alignChildren = "left";
-        workflowPanel.margins = 10;
+        var removeSettings = removeContainer.add("group");
+        removeSettings.orientation = "column";
+        removeSettings.alignChildren = "fill";
+        removeSettings.spacing = 10;
         
-        var removeOutsideRadio = workflowPanel.add("radiobutton", undefined, "Remove Outside Canvas");
-        var quickSimplifyRadio = workflowPanel.add("radiobutton", undefined, "Quick Simplify");
-        var advancedSimplifyRadio = workflowPanel.add("radiobutton", undefined, "Advanced Simplify");
-        removeOutsideRadio.value = true;
-        
-        var workflowSummary = dialog.add("statictext", undefined, "");
-        workflowSummary.preferredSize.width = 400;
-        
-        // Settings container
-        var settingsGroup = dialog.add("group");
-        settingsGroup.orientation = "column";
-        settingsGroup.alignChildren = "fill";
-        settingsGroup.spacing = 10;
-        
-        // Remove Outside Canvas settings
-        var removePanel = settingsGroup.add("panel", undefined, "Remove Outside Canvas");
-        removePanel.orientation = "column";
-        removePanel.alignChildren = "fill";
-        removePanel.margins = 10;
-        
-        var marginGroup = removePanel.add("group");
+        var marginGroup = removeSettings.add("group");
         marginGroup.orientation = "row";
         marginGroup.alignChildren = "center";
+        marginGroup.spacing = 12;
         
-        marginGroup.add("statictext", undefined, "Margin (pixels):");
+        marginGroup.add("statictext", undefined, "Margin:");
+        var marginSlider = marginGroup.add("slider", undefined, 0, 0, 500);
+        marginSlider.preferredSize.width = 210;
         var marginEdit = marginGroup.add("edittext", undefined, "0");
-        marginEdit.preferredSize.width = 80;
+        marginEdit.preferredSize.width = 70;
         marginEdit.alignment = "left";
         
-        var marginHelp = removePanel.add("statictext", undefined, "0 removes keys when the layer is fully outside. Higher values require the layer to be further off-canvas.");
-        marginHelp.preferredSize.width = 390;
+        var marginHelp = removeSettings.add("statictext", undefined, "Use 0 to remove keys when a layer is fully outside.\nIncrease it to wait until the layer is further off-canvas.", {multiline: true});
+        marginHelp.preferredSize.width = 380;
         
-        // Quick Simplify settings
-        var quickPanel = settingsGroup.add("panel", undefined, "Quick Simplify");
+        // Quick Optimize settings
+        var quickTab = tabs.add("tab", undefined, "Quick Optimize");
+        quickTab.orientation = "column";
+        quickTab.alignChildren = "fill";
+        quickTab.margins = 0;
+        quickTab.spacing = 0;
+        
+        var quickContainer = quickTab.add("panel");
+        quickContainer.orientation = "column";
+        quickContainer.alignChildren = "fill";
+        quickContainer.margins = 14;
+        quickContainer.spacing = 12;
+        
+        var quickIntro = quickContainer.add("statictext", undefined, "One-click simplification using a conservative Value Mode pass.");
+        quickIntro.preferredSize.width = 380;
+        quickIntro.justify = "left";
+        
+        var quickPanel = quickContainer.add("group");
         quickPanel.orientation = "column";
         quickPanel.alignChildren = "fill";
-        quickPanel.margins = 10;
+        quickPanel.spacing = 10;
         
         var quickInfo1 = quickPanel.add("statictext", undefined, "Applies a sensible default pass with no extra setup.");
         var quickInfo2 = quickPanel.add("statictext", undefined, "Best for most animations when you want a faster, one-click cleanup.");
-        quickInfo1.preferredSize.width = 390;
-        quickInfo2.preferredSize.width = 390;
+        quickInfo1.preferredSize.width = 380;
+        quickInfo2.preferredSize.width = 380;
         
-        // Advanced Simplify settings
-        var advancedPanel = settingsGroup.add("panel", undefined, "Advanced Simplify");
+        // Advanced Optimize settings
+        var advancedTab = tabs.add("tab", undefined, "Advanced Optimize");
+        advancedTab.orientation = "column";
+        advancedTab.alignChildren = "fill";
+        advancedTab.margins = 0;
+        advancedTab.spacing = 0;
+        
+        var advancedContainer = advancedTab.add("panel");
+        advancedContainer.orientation = "column";
+        advancedContainer.alignChildren = "fill";
+        advancedContainer.margins = 14;
+        advancedContainer.spacing = 12;
+        
+        var advancedIntro = advancedContainer.add("statictext", undefined, "Choose an optimize mode and tune the tolerance for more control.");
+        advancedIntro.preferredSize.width = 380;
+        advancedIntro.justify = "left";
+        
+        var advancedPanel = advancedContainer.add("group");
         advancedPanel.orientation = "column";
         advancedPanel.alignChildren = "fill";
-        advancedPanel.margins = 10;
+        advancedPanel.spacing = 12;
         
         var modeGroup = advancedPanel.add("group");
         modeGroup.orientation = "row";
         modeGroup.alignChildren = "center";
-        modeGroup.add("statictext", undefined, "Mode:");
+        modeGroup.spacing = 12;
+        var modeLabel = modeGroup.add("statictext", undefined, "Mode:");
+        modeLabel.preferredSize.width = 72;
         var valueModeRadio = modeGroup.add("radiobutton", undefined, "Value Mode");
         var timeModeRadio = modeGroup.add("radiobutton", undefined, "Time Mode");
         valueModeRadio.value = true;
@@ -167,45 +190,29 @@
         var toleranceRow = advancedPanel.add("group");
         toleranceRow.orientation = "row";
         toleranceRow.alignChildren = "center";
+        toleranceRow.spacing = 12;
         var toleranceLabel = toleranceRow.add("statictext", undefined, "Tolerance:");
+        toleranceLabel.preferredSize.width = 72;
         var toleranceSlider = toleranceRow.add("slider", undefined, 10, 1, 100);
-        toleranceSlider.preferredSize.width = 180;
-        var toleranceValue = toleranceRow.add("statictext", undefined, "1.0");
-        toleranceValue.preferredSize.width = 70;
-        
-        var toleranceHint = advancedPanel.add("statictext", undefined, "");
-        toleranceHint.preferredSize.width = 390;
+        toleranceSlider.preferredSize.width = 210;
+        var toleranceEdit = toleranceRow.add("edittext", undefined, "1.0");
+        toleranceEdit.preferredSize.width = 70;
+        toleranceEdit.alignment = "left";
         
         var modeInfoPanel = advancedPanel.add("panel", undefined, "Mode Guide");
         modeInfoPanel.orientation = "column";
         modeInfoPanel.alignChildren = "fill";
         modeInfoPanel.margins = 10;
+        modeInfoPanel.preferredSize.height = 86;
         
         var modeInfo1 = modeInfoPanel.add("statictext", undefined, "");
         var modeInfo2 = modeInfoPanel.add("statictext", undefined, "");
         var modeInfo3 = modeInfoPanel.add("statictext", undefined, "");
         var modeInfo4 = modeInfoPanel.add("statictext", undefined, "");
-        modeInfo1.preferredSize.width = 380;
-        modeInfo2.preferredSize.width = 380;
-        modeInfo3.preferredSize.width = 380;
-        modeInfo4.preferredSize.width = 380;
-        
-        // Shared info
-        var infoPanel = dialog.add("panel", undefined, "Selection");
-        infoPanel.orientation = "column";
-        infoPanel.alignChildren = "fill";
-        infoPanel.margins = 10;
-        
-        var info1 = infoPanel.add("statictext", undefined, "Selected layers: " + selectedLayers.length);
-        var info2 = infoPanel.add("statictext", undefined, "Composition: " + comp.name + " (" + comp.width + "x" + comp.height + ")");
-        var info3 = infoPanel.add("statictext", undefined, "Tip: If properties are selected, the optimizer uses those first. Otherwise it scans animated properties on the selected layers.");
-        info1.preferredSize.width = 390;
-        info2.preferredSize.width = 390;
-        info3.preferredSize.width = 390;
-        
-        // Separator
-        var separator2 = dialog.add("panel");
-        separator2.preferredSize.height = 2;
+        modeInfo1.preferredSize.width = 360;
+        modeInfo2.preferredSize.width = 360;
+        modeInfo3.preferredSize.width = 360;
+        modeInfo4.preferredSize.width = 360;
         
         // Buttons
         var buttonGroup = dialog.add("group");
@@ -218,15 +225,28 @@
         okButton.preferredSize.width = 120;
         
         // Event handlers
+        marginSlider.onChanging = function() {
+            marginEdit.text = String(Math.round(this.value));
+        };
+        
         marginEdit.onChanging = function() {
-            var value = parseFloat(this.text);
-            if (isNaN(value) || value < 0) {
-                this.text = "0";
-            }
+            syncMarginFromField(false);
+        };
+        
+        marginEdit.onChange = function() {
+            syncMarginFromField(true);
         };
         
         toleranceSlider.onChanging = function() {
             updateToleranceText();
+        };
+        
+        toleranceEdit.onChanging = function() {
+            syncToleranceFromField(false);
+        };
+        
+        toleranceEdit.onChange = function() {
+            syncToleranceFromField(true);
         };
         
         valueModeRadio.onClick = function() {
@@ -239,16 +259,14 @@
             updateToleranceText();
         };
         
-        removeOutsideRadio.onClick = updateWorkflowState;
-        quickSimplifyRadio.onClick = updateWorkflowState;
-        advancedSimplifyRadio.onClick = updateWorkflowState;
+        tabs.onChange = updateWorkflowState;
         
         cancelButton.onClick = function() {
             dialog.close(0);
         };
         
         okButton.onClick = function() {
-            if (removeOutsideRadio.value) {
+            if (tabs.selection === removeTab) {
                 var margin = parseFloat(marginEdit.text);
                 if (isNaN(margin) || margin < 0) {
                     alert("Please enter a valid margin value (0 or greater).");
@@ -262,42 +280,69 @@
         function updateToleranceText() {
             var rawTolerance = toleranceSlider.value / 10;
             if (timeModeRadio.value) {
-                toleranceValue.text = rawTolerance.toFixed(1) + " frames";
-                toleranceHint.text = "Lower tolerance preserves dense timing. Higher tolerance consolidates tightly packed keyframes more aggressively.";
+                toleranceEdit.text = rawTolerance.toFixed(1);
             } else {
-                toleranceValue.text = rawTolerance.toFixed(1);
-                toleranceHint.text = "Lower tolerance stays closer to the original motion. Higher tolerance removes more similar keyframes.";
+                toleranceEdit.text = rawTolerance.toFixed(1);
+            }
+        }
+        
+        function syncMarginFromField(commit) {
+            var value = parseFloat(marginEdit.text);
+            
+            if (isNaN(value)) {
+                if (commit) {
+                    value = 0;
+                } else {
+                    return;
+                }
+            }
+            
+            value = Math.max(0, Math.min(500, value));
+            marginSlider.value = value;
+            if (commit) {
+                marginEdit.text = String(Math.round(value));
+            }
+        }
+        
+        function syncToleranceFromField(commit) {
+            var value = parseFloat(toleranceEdit.text);
+            
+            if (isNaN(value)) {
+                if (commit) {
+                    value = 1.0;
+                } else {
+                    return;
+                }
+            }
+            
+            value = Math.max(0.1, Math.min(10.0, value));
+            toleranceSlider.value = value * 10;
+            if (commit) {
+                toleranceEdit.text = value.toFixed(1);
             }
         }
         
         function updateAdvancedModeInfo() {
             if (timeModeRadio.value) {
-                modeInfo1.text = "Time Mode looks at how close keyframes are on the timeline.";
-                modeInfo2.text = "If keys fall within the tolerance window, dense middle keys are consolidated.";
-                modeInfo3.text = "Best for baked or frame-by-frame animation data.";
-                modeInfo4.text = "Use when your animation came from an export workflow and has too many tightly packed keys.";
+                modeInfo1.text = "Time Mode merges keyframes that are very close in time.";
+                modeInfo2.text = "Best for baked or frame-by-frame animation.";
+                modeInfo3.text = "";
+                modeInfo4.text = "";
             } else {
-                modeInfo1.text = "Value Mode looks at how much a property changes between surrounding keyframes.";
-                modeInfo2.text = "If the difference stays within tolerance, the middle keyframe is removed.";
-                modeInfo3.text = "Best for over-iterated animation where values stay very close together.";
-                modeInfo4.text = "Use when the motion feels over-controlled because you added too many manual keys.";
+                modeInfo1.text = "Value Mode removes keyframes when the motion change is very small.";
+                modeInfo2.text = "Best for over-keyed animation with similar values.";
+                modeInfo3.text = "";
+                modeInfo4.text = "";
             }
         }
         
         function updateWorkflowState() {
-            removePanel.visible = removeOutsideRadio.value;
-            quickPanel.visible = quickSimplifyRadio.value;
-            advancedPanel.visible = advancedSimplifyRadio.value;
-            
-            if (removeOutsideRadio.value) {
-                workflowSummary.text = "Current workflow: Remove keys from selected layers when they are outside the comp bounds.";
+            if (tabs.selection === removeTab) {
                 okButton.text = "Remove Keyframes";
-            } else if (quickSimplifyRadio.value) {
-                workflowSummary.text = "Current workflow: Quick Simplify. Uses a default Value Mode pass with a conservative tolerance.";
-                okButton.text = "Quick Simplify";
+            } else if (tabs.selection === quickTab) {
+                okButton.text = "Quick Optimize";
             } else {
-                workflowSummary.text = "Current workflow: Advanced Simplify. Choose Value Mode or Time Mode and tune the tolerance.";
-                okButton.text = "Advanced Simplify";
+                okButton.text = "Advanced Optimize";
             }
             
             dialog.layout.layout(true);
@@ -305,7 +350,9 @@
         
         // Show dialog
         updateAdvancedModeInfo();
+        syncMarginFromField(true);
         updateToleranceText();
+        tabs.selection = removeTab;
         updateWorkflowState();
         var result = dialog.show();
         
@@ -316,12 +363,12 @@
             var modeLabel = "Value Mode";
             var tolerance = 1.0;
             
-            if (quickSimplifyRadio.value) {
+            if (tabs.selection === quickTab) {
                 action = "quickSimplify";
-                actionLabel = "Quick Simplify";
-            } else if (advancedSimplifyRadio.value) {
+                actionLabel = "Quick Optimize";
+            } else if (tabs.selection === advancedTab) {
                 action = "advancedSimplify";
-                actionLabel = "Advanced Simplify";
+                actionLabel = "Advanced Optimize";
                 mode = timeModeRadio.value ? "time" : "value";
                 modeLabel = timeModeRadio.value ? "Time Mode" : "Value Mode";
                 tolerance = toleranceSlider.value / 10;
