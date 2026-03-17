@@ -1,4 +1,4 @@
-﻿// Remove Keyframes Outside Canvas - After Effects Script
+// Remove Keyframes Outside Canvas - After Effects Script
 // This script removes keyframes on all properties of selected layers
 // when the layer's position is outside the composition area
 // Takes anchor points into consideration when calculating position
@@ -261,6 +261,8 @@
         
         tabs.onChange = updateWorkflowState;
         
+        var selectedTab = null;
+        
         cancelButton.onClick = function() {
             dialog.close(0);
         };
@@ -274,6 +276,7 @@
                 }
             }
             
+            selectedTab = tabs.selection;
             dialog.close(1);
         };
         
@@ -363,10 +366,10 @@
             var modeLabel = "Value Mode";
             var tolerance = 1.0;
             
-            if (tabs.selection === quickTab) {
+            if (selectedTab === quickTab) {
                 action = "quickSimplify";
                 actionLabel = "Quick Optimize";
-            } else if (tabs.selection === advancedTab) {
+            } else if (selectedTab === advancedTab) {
                 action = "advancedSimplify";
                 actionLabel = "Advanced Optimize";
                 mode = timeModeRadio.value ? "time" : "value";
