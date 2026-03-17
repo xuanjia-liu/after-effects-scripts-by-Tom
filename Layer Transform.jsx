@@ -40,8 +40,8 @@
     modePanel.spacing = config.spacing;
     modePanel.margins = config.margins;
     
-    var relativeRadio = modePanel.add("radiobutton", undefined, "🔄 Add to Current Values");
-    var absoluteRadio = modePanel.add("radiobutton", undefined, "🎯 Set Absolute Values");
+    var relativeRadio = modePanel.add("radiobutton", undefined, "Add to Current Values");
+    var absoluteRadio = modePanel.add("radiobutton", undefined, "Set Absolute Values");
     relativeRadio.value = true;
     
     relativeRadio.helpTip = "Add/subtract from current layer properties";
@@ -51,9 +51,9 @@
     var tabPanel = window.add("tabbedpanel");
     tabPanel.alignChildren = "fill";
     
-    var transformTab = tabPanel.add("tab", undefined, "🔧 Transform");
-    var randomizeTab = tabPanel.add("tab", undefined, "🎲 Randomize");
-    var utilitiesTab = tabPanel.add("tab", undefined, "🛠 Utilities");
+    var transformTab = tabPanel.add("tab", undefined, "Transform");
+    var randomizeTab = tabPanel.add("tab", undefined, "Randomize");
+    var utilitiesTab = tabPanel.add("tab", undefined, "Utilities");
     
     // ========== TRANSFORM TAB ==========
     transformTab.alignChildren = "fill";
@@ -63,7 +63,7 @@
     var transformValues = { position: [0, 0, 0], rotation: 0, scale: [100, 100], opacity: 100 };
     
     // === POSITION CONTROLS ===
-    var positionGroup = transformTab.add("panel", undefined, "📍 Position");
+    var positionGroup = transformTab.add("panel", undefined, "Position");
     positionGroup.orientation = "column";
     positionGroup.alignChildren = "fill";
     positionGroup.spacing = 8;
@@ -110,7 +110,7 @@
     var zControl = createSliderInput(positionGroup, "Z:", 0, -1000, 1000, "px");
     
     // === ROTATION CONTROLS ===
-    var rotationGroup = transformTab.add("panel", undefined, "🔄 Rotation");
+    var rotationGroup = transformTab.add("panel", undefined, "Rotation");
     rotationGroup.orientation = "column";
     rotationGroup.alignChildren = "fill";
     rotationGroup.spacing = 8;
@@ -119,7 +119,7 @@
     var rotationControl = createSliderInput(rotationGroup, "Angle:", 0, -360, 360, "°");
     
     // === SCALE CONTROLS ===
-    var scaleGroup = transformTab.add("panel", undefined, "📏 Scale");
+    var scaleGroup = transformTab.add("panel", undefined, "Scale");
     scaleGroup.orientation = "column";
     scaleGroup.alignChildren = "fill";
     scaleGroup.spacing = 8;
@@ -130,7 +130,7 @@
     
     var linkGroup = scaleGroup.add("group");
     linkGroup.orientation = "row";
-    var linkCheckbox = linkGroup.add("checkbox", undefined, "🔗 Link X and Y Scale");
+    var linkCheckbox = linkGroup.add("checkbox", undefined, "Link X and Y Scale");
     linkCheckbox.value = true;
     
     // Link scale values
@@ -150,7 +150,7 @@
     };
     
     // === OPACITY CONTROLS ===
-    var opacityGroup = transformTab.add("panel", undefined, "👁 Opacity");
+    var opacityGroup = transformTab.add("panel", undefined, "Opacity");
     opacityGroup.orientation = "column";
     opacityGroup.alignChildren = "fill";
     opacityGroup.spacing = 8;
@@ -164,11 +164,11 @@
     actionGroup.alignChildren = ["center", "center"];
     actionGroup.spacing = 15;
     
-    var applyBtn = actionGroup.add("button", undefined, "✅ Apply Transform");
+    var applyBtn = actionGroup.add("button", undefined, "Apply Transform");
     applyBtn.preferredSize.height = config.buttonHeight;
     applyBtn.preferredSize.width = 150;
     
-    var resetBtn = actionGroup.add("button", undefined, "🔄 Reset Values");
+    var resetBtn = actionGroup.add("button", undefined, "Reset Values");
     resetBtn.preferredSize.height = config.buttonHeight;
     resetBtn.preferredSize.width = 120;
     
@@ -183,15 +183,15 @@
     propertyGroup.spacing = 15;
     propertyGroup.margins = config.margins;
     
-    var randomPosition = propertyGroup.add("checkbox", undefined, "📍 Position");
-    var randomRotation = propertyGroup.add("checkbox", undefined, "🔄 Rotation");
-    var randomScale = propertyGroup.add("checkbox", undefined, "📏 Scale");
-    var randomOpacity = propertyGroup.add("checkbox", undefined, "👁 Opacity");
+    var randomPosition = propertyGroup.add("checkbox", undefined, "Position");
+    var randomRotation = propertyGroup.add("checkbox", undefined, "Rotation");
+    var randomScale = propertyGroup.add("checkbox", undefined, "Scale");
+    var randomOpacity = propertyGroup.add("checkbox", undefined, "Opacity");
     
     randomPosition.value = true;
     
     // === RANDOMIZATION RANGES ===
-    var rangeGroup = randomizeTab.add("panel", undefined, "📊 Randomization Ranges");
+    var rangeGroup = randomizeTab.add("panel", undefined, "Randomization Ranges");
     rangeGroup.orientation = "column";
     rangeGroup.alignChildren = "fill";
     rangeGroup.spacing = 8;
@@ -208,11 +208,11 @@
     randomActionGroup.alignChildren = ["center", "center"];
     randomActionGroup.spacing = 15;
     
-    var applyRandomBtn = randomActionGroup.add("button", undefined, "🎲 Apply Randomization");
+    var applyRandomBtn = randomActionGroup.add("button", undefined, "Apply Randomization");
     applyRandomBtn.preferredSize.height = config.buttonHeight;
     applyRandomBtn.preferredSize.width = 180;
     
-    var resetRandomBtn = randomActionGroup.add("button", undefined, "🔄 Reset");
+    var resetRandomBtn = randomActionGroup.add("button", undefined, "Reset");
     resetRandomBtn.preferredSize.height = config.buttonHeight;
     resetRandomBtn.preferredSize.width = 80;
     
@@ -221,7 +221,7 @@
     utilitiesTab.spacing = config.spacing;
     
     // === QUICK ACTIONS ===
-    var quickGroup = utilitiesTab.add("panel", undefined, "⚡ Quick Actions");
+    var quickGroup = utilitiesTab.add("panel", undefined, "Quick Actions");
     quickGroup.orientation = "column";
     quickGroup.alignChildren = "fill";
     quickGroup.spacing = 10;
@@ -232,20 +232,20 @@
     row1.alignChildren = ["fill", "center"];
     row1.spacing = 10;
     
-    var centerBtn = row1.add("button", undefined, "🎯 Center in Comp");
-    var roundBtn = row1.add("button", undefined, "📐 Round Positions");
-    var centerAvgBtn = row1.add("button", undefined, "🎯 Center to Average");
+    var centerBtn = row1.add("button", undefined, "Center in Comp");
+    var roundBtn = row1.add("button", undefined, "Round Positions");
+    var centerAvgBtn = row1.add("button", undefined, "Center to Average");
     
     var row2 = quickGroup.add("group");
     row2.orientation = "row";
     row2.alignChildren = ["fill", "center"];
     row2.spacing = 10;
     
-    var resetTransformBtn = row2.add("button", undefined, "↺ Reset Transform");
-    var distributeBtn = row2.add("button", undefined, "📏 Distribute Evenly");
+    var resetTransformBtn = row2.add("button", undefined, "Reset Transform");
+    var distributeBtn = row2.add("button", undefined, "Distribute Evenly");
     
     // === ADVANCED TOOLS ===
-    var advancedGroup = utilitiesTab.add("panel", undefined, "🔧 Advanced Tools");
+    var advancedGroup = utilitiesTab.add("panel", undefined, "Advanced Tools");
     advancedGroup.orientation = "column";
     advancedGroup.alignChildren = "fill";
     advancedGroup.spacing = 10;
@@ -256,16 +256,16 @@
     row3.alignChildren = ["fill", "center"];
     row3.spacing = 10;
     
-    var nullParentBtn = row3.add("button", undefined, "🔗 Add Null Parent");
-    var matchPosBtn = row3.add("button", undefined, "📍 Match Position");
+    var nullParentBtn = row3.add("button", undefined, "Add Null Parent");
+    var matchPosBtn = row3.add("button", undefined, "Match Position");
     
     var row4 = advancedGroup.add("group");
     row4.orientation = "row";
     row4.alignChildren = ["fill", "center"];
     row4.spacing = 10;
     
-    var flipHBtn = row4.add("button", undefined, "↔ Flip Horizontal");
-    var flipVBtn = row4.add("button", undefined, "↕ Flip Vertical");
+    var flipHBtn = row4.add("button", undefined, "Flip Horizontal");
+    var flipVBtn = row4.add("button", undefined, "Flip Vertical");
     
     // ========== HELPER FUNCTIONS ==========
     
@@ -281,7 +281,7 @@
     function getActiveComp() {
         var comp = app.project.activeItem;
         if (!comp || !(comp instanceof CompItem)) {
-            updateStatus("❌ Please select a composition", true);
+            updateStatus("Please select a composition", true);
             return null;
         }
         return comp;
@@ -291,7 +291,7 @@
         if (!comp) return null;
         var layers = comp.selectedLayers;
         if (layers.length === 0) {
-            updateStatus("❌ Please select at least one layer", true);
+            updateStatus("Please select at least one layer", true);
             return null;
         }
         return layers;
@@ -347,7 +347,7 @@
                         var newRot = isRelative ? currentRot + rotation : rotation;
                         rotProp.setValue(newRot);
                     } else {
-                        updateStatus("❌ Rotation property not accessible", true);
+                        updateStatus("Rotation property not accessible", true);
                     }
                 }
                 
@@ -376,10 +376,10 @@
                 }
             }
             
-            updateStatus("✅ Transform applied to " + layers.length + " layer(s)");
+            updateStatus("Transform applied to " + layers.length + " layer(s)");
             
         } catch (error) {
-            updateStatus("❌ Error: " + error.toString(), true);
+            updateStatus("Error: " + error.toString(), true);
         }
         
         app.endUndoGroup();
@@ -393,7 +393,7 @@
         scaleXControl.slider.value = 100; scaleXControl.input.text = "100";
         scaleYControl.slider.value = 100; scaleYControl.input.text = "100";
         opacityControl.slider.value = 100; opacityControl.input.text = "100";
-        updateStatus("🔄 Controls reset");
+        updateStatus("Controls reset");
     }
     
     function applyRandomization() {
@@ -443,13 +443,13 @@
             }
             
             if (appliedCount > 0) {
-                updateStatus("🎲 Randomized " + appliedCount + " properties on " + layers.length + " layer(s)");
+                updateStatus("Randomized " + appliedCount + " properties on " + layers.length + " layer(s)");
             } else {
-                updateStatus("❌ No properties selected for randomization", true);
+                updateStatus("No properties selected for randomization", true);
             }
             
         } catch (error) {
-            updateStatus("❌ Error: " + error.toString(), true);
+            updateStatus("Error: " + error.toString(), true);
         }
         
         app.endUndoGroup();
@@ -514,10 +514,10 @@
                     var newRot = isRelative ? currentRot + randomOffset : randomOffset;
                     rotProp.setValue(newRot);
                 } else {
-                    updateStatus("❌ Rotation property not accessible", true);
+                    updateStatus("Rotation property not accessible", true);
                 }
             } catch (error) {
-                updateStatus("❌ Randomize rotation error: " + error.toString(), true);
+                updateStatus("Randomize rotation error: " + error.toString(), true);
             }
         }
     }
@@ -559,9 +559,9 @@
             for (var i = 0; i < layers.length; i++) {
                 layers[i].transform.position.setValue(compCenter);
             }
-            updateStatus("🎯 Centered " + layers.length + " layer(s)");
+            updateStatus("Centered " + layers.length + " layer(s)");
         } catch (error) {
-            updateStatus("❌ Error: " + error.toString(), true);
+            updateStatus("Error: " + error.toString(), true);
         }
         app.endUndoGroup();
     }
@@ -588,9 +588,9 @@
             for (var j = 0; j < layers.length; j++) {
                 layers[j].transform.position.setValue(avgPos);
             }
-            updateStatus("🎯 Centered " + layers.length + " layer(s) to average center");
+            updateStatus("Centered " + layers.length + " layer(s) to average center");
         } catch (error) {
-            updateStatus("❌ Error: " + error.toString(), true);
+            updateStatus("Error: " + error.toString(), true);
         }
         app.endUndoGroup();
     }
@@ -608,9 +608,9 @@
                 var roundedPos = [Math.round(pos[0]), Math.round(pos[1]), Math.round(pos[2] || 0)];
                 layers[i].transform.position.setValue(roundedPos);
             }
-            updateStatus("📐 Rounded positions for " + layers.length + " layer(s)");
+            updateStatus("Rounded positions for " + layers.length + " layer(s)");
         } catch (error) {
-            updateStatus("❌ Error: " + error.toString(), true);
+            updateStatus("Error: " + error.toString(), true);
         }
         app.endUndoGroup();
     }
@@ -631,9 +631,9 @@
                 layer.transform.scale.setValue([100, 100]);
                 layer.transform.opacity.setValue(100);
             }
-            updateStatus("↺ Reset transform for " + layers.length + " layer(s)");
+            updateStatus("Reset transform for " + layers.length + " layer(s)");
         } catch (error) {
-            updateStatus("❌ Error: " + error.toString(), true);
+            updateStatus("Error: " + error.toString(), true);
         }
         app.endUndoGroup();
     }
@@ -643,7 +643,7 @@
         if (!comp) return;
         var layers = getSelectedLayers(comp);
         if (!layers || layers.length < 2) {
-            updateStatus("❌ Select at least 2 layers to distribute", true);
+            updateStatus("Select at least 2 layers to distribute", true);
             return;
         }
         
@@ -655,9 +655,9 @@
                 var newPos = [spacing * (i + 1), startY, 0];
                 layers[i].transform.position.setValue(newPos);
             }
-            updateStatus("📏 Distributed " + layers.length + " layers evenly");
+            updateStatus("Distributed " + layers.length + " layers evenly");
         } catch (error) {
-            updateStatus("❌ Error: " + error.toString(), true);
+            updateStatus("Error: " + error.toString(), true);
         }
         app.endUndoGroup();
     }
@@ -695,9 +695,9 @@
                 layers[i].parent = nullLayer;
             }
             
-            updateStatus("🔗 Added null parent for " + layers.length + " layer(s)");
+            updateStatus("Added null parent for " + layers.length + " layer(s)");
         } catch (error) {
-            updateStatus("❌ Error: " + error.toString(), true);
+            updateStatus("Error: " + error.toString(), true);
         }
         app.endUndoGroup();
     }
@@ -707,7 +707,7 @@
         if (!comp) return;
         var layers = getSelectedLayers(comp);
         if (!layers || layers.length < 2) {
-            updateStatus("❌ Select at least 2 layers to match position", true);
+            updateStatus("Select at least 2 layers to match position", true);
             return;
         }
         
@@ -720,9 +720,9 @@
                 layers[i].transform.position.setValue(referencePos);
             }
             
-            updateStatus("📍 Matched position of " + (layers.length - 1) + " layer(s) to first layer");
+            updateStatus("Matched position of " + (layers.length - 1) + " layer(s) to first layer");
         } catch (error) {
-            updateStatus("❌ Error: " + error.toString(), true);
+            updateStatus("Error: " + error.toString(), true);
         }
         app.endUndoGroup();
     }
@@ -740,9 +740,9 @@
                 var currentScale = layer.transform.scale.value;
                 layer.transform.scale.setValue([-currentScale[0], currentScale[1]]);
             }
-            updateStatus("↔ Flipped " + layers.length + " layer(s) horizontally");
+            updateStatus("Flipped " + layers.length + " layer(s) horizontally");
         } catch (error) {
-            updateStatus("❌ Error: " + error.toString(), true);
+            updateStatus("Error: " + error.toString(), true);
         }
         app.endUndoGroup();
     }
@@ -760,9 +760,9 @@
                 var currentScale = layer.transform.scale.value;
                 layer.transform.scale.setValue([currentScale[0], -currentScale[1]]);
             }
-            updateStatus("↕ Flipped " + layers.length + " layer(s) vertically");
+            updateStatus("Flipped " + layers.length + " layer(s) vertically");
         } catch (error) {
-            updateStatus("❌ Error: " + error.toString(), true);
+            updateStatus("Error: " + error.toString(), true);
         }
         app.endUndoGroup();
     }
@@ -784,7 +784,7 @@
         randomRotation.value = false;
         randomScale.value = false;
         randomOpacity.value = false;
-        updateStatus("🔄 Randomization settings reset");
+        updateStatus("Randomization settings reset");
     };
     
     // Utilities tab
@@ -804,7 +804,7 @@
     tabPanel.selection = transformTab;
     
     // Initialize
-    updateStatus("✅ Layer Transform Tool ready");
+    updateStatus("Layer Transform Tool ready");
     window.center();
     window.show();
     
