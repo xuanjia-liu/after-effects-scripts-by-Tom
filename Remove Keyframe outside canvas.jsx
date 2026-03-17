@@ -37,23 +37,39 @@
     try {
         var removedKeyframesCount = 0;
         var processedLayers = 0;
+        var processedProperties = 0;
         
-        // Process each selected layer
-        for (var i = 0; i < selectedLayers.length; i++) {
-            var layer = selectedLayers[i];
+        if (userSettings.action === "removeOutside") {
+            // Process each selected layer
+            for (var i = 0; i < selectedLayers.length; i++) {
+                var layer = selectedLayers[i];
+                
+                // Skip layers that don't have position property (like cameras, lights in some cases)
+                if (!layer.position) continue;
+                
+                processedLayers++;
+                removedKeyframesCount += processLayer(layer, comp, userSettings.margin);
+            }
             
-            // Skip layers that don't have position property (like cameras, lights in some cases)
-            if (!layer.position) continue;
+            alert("Processing complete!\n" +
+                  "Mode: Remove Outside Canvas\n" +
+                  "Layers processed: " + processedLayers + "\n" +
+                  "Keyframes removed: " + removedKeyframesCount + "\n" +
+                  "Margin used: " + userSettings.margin + "px");
+        } else {
+            var optimizeResult = optimizeSelectedLayers(comp, selectedLayers, userSettings);
+            removedKeyframesCount = optimizeResult.removedKeyframes;
+            processedLayers = optimizeResult.processedLayers;
+            processedProperties = optimizeResult.processedProperties;
             
-            processedLayers++;
-            removedKeyframesCount += processLayer(layer, comp, userSettings.margin);
+            alert("Processing complete!\n" +
+                  "Mode: " + userSettings.actionLabel + "\n" +
+                  "Optimizer mode: " + userSettings.modeLabel + "\n" +
+                  "Layers processed: " + processedLayers + "\n" +
+                  "Properties simplified: " + processedProperties + "\n" +
+                  "Keyframes removed: " + removedKeyframesCount + "\n" +
+                  "Tolerance used: " + userSettings.toleranceDisplay);
         }
-        
-        // Show results
-        alert("Processing complete!\n" +
-              "Layers processed: " + processedLayers + "\n" +
-              "Keyframes removed: " + removedKeyframesCount + "\n" +
-              "Margin used: " + userSettings.margin + "px");
               
     } catch (error) {
         alert("Error: " + error.message);
@@ -64,7 +80,7 @@
     
     // Function to show UI and get user settings
     function showUI() {
-        var dialog = new Window("dialog", "Remove Keyframes Outside Canvas");
+        var dialog = new Window("dialog", "Keyframe Cleanup Tools");
         dialog.orientation = "column";
         dialog.alignChildren = "fill";
         dialog.spacing = 10;
@@ -75,24 +91,43 @@
         headerGroup.orientation = "column";
         headerGroup.alignChildren = "left";
         
-        var titleText = headerGroup.add("statictext", undefined, "Remove Keyframes Outside Canvas");
+        var titleText = headerGroup.add("statictext", undefined, "Keyframe Cleanup Tools");
         titleText.graphics.font = ScriptUI.newFont("dialog", "bold", 14);
         
-        var descText = headerGroup.add("statictext", undefined, "Remove keyframes when layers are outside the composition by more than the specified margin.");
+        var descText = headerGroup.add("statictext", undefined, "Choose a cleanup workflow for the selected layers.");
         descText.preferredSize.width = 400;
         
         // Separator
         var separator1 = dialog.add("panel");
         separator1.preferredSize.height = 2;
         
-        // Settings group
+        // Workflow selector
+        var workflowPanel = dialog.add("panel", undefined, "Workflow");
+        workflowPanel.orientation = "column";
+        workflowPanel.alignChildren = "left";
+        workflowPanel.margins = 10;
+        
+        var removeOutsideRadio = workflowPanel.add("radiobutton", undefined, "Remove Outside Canvas");
+        var quickSimplifyRadio = workflowPanel.add("radiobutton", undefined, "Quick Simplify");
+        var advancedSimplifyRadio = workflowPanel.add("radiobutton", undefined, "Advanced Simplify");
+        removeOutsideRadio.value = true;
+        
+        var workflowSummary = dialog.add("statictext", undefined, "");
+        workflowSummary.preferredSize.width = 400;
+        
+        // Settings container
         var settingsGroup = dialog.add("group");
         settingsGroup.orientation = "column";
         settingsGroup.alignChildren = "fill";
-        settingsGroup.spacing = 15;
+        settingsGroup.spacing = 10;
         
-        // Margin setting
-        var marginGroup = settingsGroup.add("group");
+        // Remove Outside Canvas settings
+        var removePanel = settingsGroup.add("panel", undefined, "Remove Outside Canvas");
+        removePanel.orientation = "column";
+        removePanel.alignChildren = "fill";
+        removePanel.margins = 10;
+        
+        var marginGroup = removePanel.add("group");
         marginGroup.orientation = "row";
         marginGroup.alignChildren = "center";
         
@@ -101,28 +136,72 @@
         marginEdit.preferredSize.width = 80;
         marginEdit.alignment = "left";
         
-        var marginHelp = marginGroup.add("statictext", undefined, "(0 = exactly outside, >0 = further outside)");
-        marginHelp.graphics.foregroundColor = marginHelp.graphics.newPen(marginHelp.graphics.PenType.SOLID_COLOR, [0.5, 0.5, 0.5], 1);
+        var marginHelp = removePanel.add("statictext", undefined, "0 removes keys when the layer is fully outside. Higher values require the layer to be further off-canvas.");
+        marginHelp.preferredSize.width = 390;
         
-        // Info group
-        var infoGroup = settingsGroup.add("group");
-        infoGroup.orientation = "column";
-        infoGroup.alignChildren = "fill";
+        // Quick Simplify settings
+        var quickPanel = settingsGroup.add("panel", undefined, "Quick Simplify");
+        quickPanel.orientation = "column";
+        quickPanel.alignChildren = "fill";
+        quickPanel.margins = 10;
         
-        var infoPanel = infoGroup.add("panel", undefined, "Information");
+        var quickInfo1 = quickPanel.add("statictext", undefined, "Applies a sensible default pass with no extra setup.");
+        var quickInfo2 = quickPanel.add("statictext", undefined, "Best for most animations when you want a faster, one-click cleanup.");
+        quickInfo1.preferredSize.width = 390;
+        quickInfo2.preferredSize.width = 390;
+        
+        // Advanced Simplify settings
+        var advancedPanel = settingsGroup.add("panel", undefined, "Advanced Simplify");
+        advancedPanel.orientation = "column";
+        advancedPanel.alignChildren = "fill";
+        advancedPanel.margins = 10;
+        
+        var modeGroup = advancedPanel.add("group");
+        modeGroup.orientation = "row";
+        modeGroup.alignChildren = "center";
+        modeGroup.add("statictext", undefined, "Mode:");
+        var valueModeRadio = modeGroup.add("radiobutton", undefined, "Value Mode");
+        var timeModeRadio = modeGroup.add("radiobutton", undefined, "Time Mode");
+        valueModeRadio.value = true;
+        
+        var toleranceRow = advancedPanel.add("group");
+        toleranceRow.orientation = "row";
+        toleranceRow.alignChildren = "center";
+        var toleranceLabel = toleranceRow.add("statictext", undefined, "Tolerance:");
+        var toleranceSlider = toleranceRow.add("slider", undefined, 10, 1, 100);
+        toleranceSlider.preferredSize.width = 180;
+        var toleranceValue = toleranceRow.add("statictext", undefined, "1.0");
+        toleranceValue.preferredSize.width = 70;
+        
+        var toleranceHint = advancedPanel.add("statictext", undefined, "");
+        toleranceHint.preferredSize.width = 390;
+        
+        var modeInfoPanel = advancedPanel.add("panel", undefined, "Mode Guide");
+        modeInfoPanel.orientation = "column";
+        modeInfoPanel.alignChildren = "fill";
+        modeInfoPanel.margins = 10;
+        
+        var modeInfo1 = modeInfoPanel.add("statictext", undefined, "");
+        var modeInfo2 = modeInfoPanel.add("statictext", undefined, "");
+        var modeInfo3 = modeInfoPanel.add("statictext", undefined, "");
+        var modeInfo4 = modeInfoPanel.add("statictext", undefined, "");
+        modeInfo1.preferredSize.width = 380;
+        modeInfo2.preferredSize.width = 380;
+        modeInfo3.preferredSize.width = 380;
+        modeInfo4.preferredSize.width = 380;
+        
+        // Shared info
+        var infoPanel = dialog.add("panel", undefined, "Selection");
         infoPanel.orientation = "column";
         infoPanel.alignChildren = "fill";
         infoPanel.margins = 10;
         
-        var info1 = infoPanel.add("statictext", undefined, "• Margin = 0: Remove keyframes when layer is completely outside");
-        var info2 = infoPanel.add("statictext", undefined, "• Margin > 0: Remove keyframes when layer is further outside by margin amount");
-        var info3 = infoPanel.add("statictext", undefined, "• Selected layers: " + selectedLayers.length);
-        var info4 = infoPanel.add("statictext", undefined, "• Composition: " + comp.name + " (" + comp.width + "x" + comp.height + ")");
-        
-        info1.preferredSize.width = 380;
-        info2.preferredSize.width = 380;
-        info3.preferredSize.width = 380;
-        info4.preferredSize.width = 380;
+        var info1 = infoPanel.add("statictext", undefined, "Selected layers: " + selectedLayers.length);
+        var info2 = infoPanel.add("statictext", undefined, "Composition: " + comp.name + " (" + comp.width + "x" + comp.height + ")");
+        var info3 = infoPanel.add("statictext", undefined, "Tip: If properties are selected, the optimizer uses those first. Otherwise it scans animated properties on the selected layers.");
+        info1.preferredSize.width = 390;
+        info2.preferredSize.width = 390;
+        info3.preferredSize.width = 390;
         
         // Separator
         var separator2 = dialog.add("panel");
@@ -135,7 +214,7 @@
         buttonGroup.spacing = 10;
         
         var cancelButton = buttonGroup.add("button", undefined, "Cancel");
-        var okButton = buttonGroup.add("button", undefined, "Remove Keyframes");
+        var okButton = buttonGroup.add("button", undefined, "Run Cleanup");
         okButton.preferredSize.width = 120;
         
         // Event handlers
@@ -146,26 +225,119 @@
             }
         };
         
+        toleranceSlider.onChanging = function() {
+            updateToleranceText();
+        };
+        
+        valueModeRadio.onClick = function() {
+            updateAdvancedModeInfo();
+            updateToleranceText();
+        };
+        
+        timeModeRadio.onClick = function() {
+            updateAdvancedModeInfo();
+            updateToleranceText();
+        };
+        
+        removeOutsideRadio.onClick = updateWorkflowState;
+        quickSimplifyRadio.onClick = updateWorkflowState;
+        advancedSimplifyRadio.onClick = updateWorkflowState;
+        
         cancelButton.onClick = function() {
             dialog.close(0);
         };
         
         okButton.onClick = function() {
-            var margin = parseFloat(marginEdit.text);
-            if (isNaN(margin) || margin < 0) {
-                alert("Please enter a valid margin value (0 or greater).");
-                return;
+            if (removeOutsideRadio.value) {
+                var margin = parseFloat(marginEdit.text);
+                if (isNaN(margin) || margin < 0) {
+                    alert("Please enter a valid margin value (0 or greater).");
+                    return;
+                }
             }
             
             dialog.close(1);
         };
         
+        function updateToleranceText() {
+            var rawTolerance = toleranceSlider.value / 10;
+            if (timeModeRadio.value) {
+                toleranceValue.text = rawTolerance.toFixed(1) + " frames";
+                toleranceHint.text = "Lower tolerance preserves dense timing. Higher tolerance consolidates tightly packed keyframes more aggressively.";
+            } else {
+                toleranceValue.text = rawTolerance.toFixed(1);
+                toleranceHint.text = "Lower tolerance stays closer to the original motion. Higher tolerance removes more similar keyframes.";
+            }
+        }
+        
+        function updateAdvancedModeInfo() {
+            if (timeModeRadio.value) {
+                modeInfo1.text = "Time Mode looks at how close keyframes are on the timeline.";
+                modeInfo2.text = "If keys fall within the tolerance window, dense middle keys are consolidated.";
+                modeInfo3.text = "Best for baked or frame-by-frame animation data.";
+                modeInfo4.text = "Use when your animation came from an export workflow and has too many tightly packed keys.";
+            } else {
+                modeInfo1.text = "Value Mode looks at how much a property changes between surrounding keyframes.";
+                modeInfo2.text = "If the difference stays within tolerance, the middle keyframe is removed.";
+                modeInfo3.text = "Best for over-iterated animation where values stay very close together.";
+                modeInfo4.text = "Use when the motion feels over-controlled because you added too many manual keys.";
+            }
+        }
+        
+        function updateWorkflowState() {
+            removePanel.visible = removeOutsideRadio.value;
+            quickPanel.visible = quickSimplifyRadio.value;
+            advancedPanel.visible = advancedSimplifyRadio.value;
+            
+            if (removeOutsideRadio.value) {
+                workflowSummary.text = "Current workflow: Remove keys from selected layers when they are outside the comp bounds.";
+                okButton.text = "Remove Keyframes";
+            } else if (quickSimplifyRadio.value) {
+                workflowSummary.text = "Current workflow: Quick Simplify. Uses a default Value Mode pass with a conservative tolerance.";
+                okButton.text = "Quick Simplify";
+            } else {
+                workflowSummary.text = "Current workflow: Advanced Simplify. Choose Value Mode or Time Mode and tune the tolerance.";
+                okButton.text = "Advanced Simplify";
+            }
+            
+            dialog.layout.layout(true);
+        }
+        
         // Show dialog
+        updateAdvancedModeInfo();
+        updateToleranceText();
+        updateWorkflowState();
         var result = dialog.show();
         
         if (result === 1) {
+            var action = "removeOutside";
+            var actionLabel = "Remove Outside Canvas";
+            var mode = "value";
+            var modeLabel = "Value Mode";
+            var tolerance = 1.0;
+            
+            if (quickSimplifyRadio.value) {
+                action = "quickSimplify";
+                actionLabel = "Quick Simplify";
+            } else if (advancedSimplifyRadio.value) {
+                action = "advancedSimplify";
+                actionLabel = "Advanced Simplify";
+                mode = timeModeRadio.value ? "time" : "value";
+                modeLabel = timeModeRadio.value ? "Time Mode" : "Value Mode";
+                tolerance = toleranceSlider.value / 10;
+            } else {
+                mode = "outside";
+                modeLabel = "Outside Canvas";
+            }
+            
             return {
-                margin: parseFloat(marginEdit.text)
+                action: action,
+                actionLabel: actionLabel,
+                margin: parseFloat(marginEdit.text),
+                mode: mode,
+                modeLabel: modeLabel,
+                tolerance: tolerance,
+                toleranceDisplay: mode === "time" ? tolerance.toFixed(1) + " frames" : tolerance.toFixed(1)
             };
         } else {
             return null;
@@ -446,6 +618,227 @@
         }
         
         return worldScale;
+    }
+    
+    
+    function optimizeSelectedLayers(comp, selectedLayers, userSettings) {
+        var processedLayers = 0;
+        var processedProperties = 0;
+        var removedKeyframes = 0;
+        var hasSelectedProperties = false;
+        
+        for (var i = 0; i < selectedLayers.length; i++) {
+            if (selectedLayers[i].selectedProperties && selectedLayers[i].selectedProperties.length > 0) {
+                hasSelectedProperties = true;
+                break;
+            }
+        }
+        
+        for (var layerIndex = 0; layerIndex < selectedLayers.length; layerIndex++) {
+            var layer = selectedLayers[layerIndex];
+            var targetProperties = [];
+            
+            if (hasSelectedProperties && layer.selectedProperties && layer.selectedProperties.length > 0) {
+                collectOptimizablePropertiesFromList(layer.selectedProperties, targetProperties);
+            } else if (!hasSelectedProperties) {
+                collectOptimizablePropertiesFromPropertyGroup(layer, targetProperties);
+            }
+            
+            if (targetProperties.length === 0) {
+                continue;
+            }
+            
+            processedLayers++;
+            for (var p = 0; p < targetProperties.length; p++) {
+                removedKeyframes += simplifyProperty(comp, targetProperties[p], userSettings.mode, userSettings.tolerance);
+                processedProperties++;
+            }
+        }
+        
+        return {
+            processedLayers: processedLayers,
+            processedProperties: processedProperties,
+            removedKeyframes: removedKeyframes
+        };
+    }
+    
+    
+    function collectOptimizablePropertiesFromList(propertyList, output) {
+        for (var i = 0; i < propertyList.length; i++) {
+            collectOptimizableProperties(propertyList[i], output);
+        }
+    }
+    
+    
+    function collectOptimizablePropertiesFromPropertyGroup(group, output) {
+        if (!group || group.numProperties === undefined) {
+            return;
+        }
+        
+        for (var i = 1; i <= group.numProperties; i++) {
+            try {
+                collectOptimizableProperties(group.property(i), output);
+            } catch (e) {
+                // Skip inaccessible properties
+            }
+        }
+    }
+    
+    
+    function collectOptimizableProperties(prop, output) {
+        if (!prop) {
+            return;
+        }
+        
+        if (isOptimizableProperty(prop)) {
+            output.push(prop);
+            return;
+        }
+        
+        if (prop.numProperties && prop.numProperties > 0) {
+            for (var i = 1; i <= prop.numProperties; i++) {
+                try {
+                    collectOptimizableProperties(prop.property(i), output);
+                } catch (e) {
+                    // Skip inaccessible sub-properties
+                }
+            }
+        }
+    }
+    
+    
+    function isOptimizableProperty(prop) {
+        if (!prop || prop.numKeys === undefined || prop.numKeys < 3) {
+            return false;
+        }
+        
+        if (prop.propertyValueType === PropertyValueType.NO_VALUE ||
+            prop.propertyValueType === PropertyValueType.CUSTOM_VALUE ||
+            prop.propertyValueType === PropertyValueType.MARKER ||
+            prop.propertyValueType === PropertyValueType.LAYER_INDEX ||
+            prop.propertyValueType === PropertyValueType.MASK_INDEX ||
+            prop.propertyValueType === PropertyValueType.TEXT_DOCUMENT ||
+            prop.propertyValueType === PropertyValueType.SHAPE) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    
+    function simplifyProperty(comp, prop, mode, tolerance) {
+        var removedCount = 0;
+        
+        for (var k = prop.numKeys - 1; k >= 2; k--) {
+            if (hasHoldInterpolation(prop, k)) {
+                continue;
+            }
+            
+            var shouldRemove = false;
+            if (mode === "time") {
+                shouldRemove = shouldRemoveByTime(comp, prop, k, tolerance);
+            } else {
+                shouldRemove = shouldRemoveByValue(prop, k, tolerance);
+            }
+            
+            if (shouldRemove) {
+                try {
+                    prop.removeKey(k);
+                    removedCount++;
+                } catch (e) {
+                    // Some keyframes might be protected or invalid
+                }
+            }
+        }
+        
+        return removedCount;
+    }
+    
+    
+    function hasHoldInterpolation(prop, keyIndex) {
+        try {
+            if (prop.keyInInterpolationType(keyIndex) === KeyframeInterpolationType.HOLD) {
+                return true;
+            }
+            if (prop.keyOutInterpolationType(keyIndex) === KeyframeInterpolationType.HOLD) {
+                return true;
+            }
+            if (keyIndex > 1 && prop.keyOutInterpolationType(keyIndex - 1) === KeyframeInterpolationType.HOLD) {
+                return true;
+            }
+            if (keyIndex < prop.numKeys && prop.keyInInterpolationType(keyIndex + 1) === KeyframeInterpolationType.HOLD) {
+                return true;
+            }
+        } catch (e) {
+            return false;
+        }
+        
+        return false;
+    }
+    
+    
+    function shouldRemoveByTime(comp, prop, keyIndex, tolerance) {
+        var prevTime = prop.keyTime(keyIndex - 1);
+        var currentTime = prop.keyTime(keyIndex);
+        var nextTime = prop.keyTime(keyIndex + 1);
+        var maxGap = tolerance * comp.frameDuration;
+        
+        return (currentTime - prevTime) <= maxGap && (nextTime - currentTime) <= maxGap;
+    }
+    
+    
+    function shouldRemoveByValue(prop, keyIndex, tolerance) {
+        var prevTime = prop.keyTime(keyIndex - 1);
+        var currentTime = prop.keyTime(keyIndex);
+        var nextTime = prop.keyTime(keyIndex + 1);
+        var timeSpan = nextTime - prevTime;
+        
+        if (timeSpan <= 0) {
+            return false;
+        }
+        
+        var prevValue = prop.keyValue(keyIndex - 1);
+        var currentValue = prop.keyValue(keyIndex);
+        var nextValue = prop.keyValue(keyIndex + 1);
+        var normalizedTime = (currentTime - prevTime) / timeSpan;
+        var expectedValue = interpolateValue(prevValue, nextValue, normalizedTime);
+        var delta = getValueDifference(currentValue, expectedValue);
+        
+        return delta <= tolerance;
+    }
+    
+    
+    function interpolateValue(startValue, endValue, amount) {
+        if (typeof startValue === "number") {
+            return startValue + (endValue - startValue) * amount;
+        }
+        
+        if (startValue instanceof Array) {
+            var result = [];
+            for (var i = 0; i < startValue.length; i++) {
+                result.push(startValue[i] + (endValue[i] - startValue[i]) * amount);
+            }
+            return result;
+        }
+        
+        return startValue;
+    }
+    
+    
+    function getValueDifference(a, b) {
+        if (typeof a === "number") {
+            return Math.abs(a - b);
+        }
+        
+        if (a instanceof Array) {
+            var maxDifference = 0;
+            for (var i = 0; i < a.length; i++) {
+                maxDifference = Math.max(maxDifference, Math.abs(a[i] - b[i]));
+            }
+            return maxDifference;
+        }
+        
+        return Number.MAX_VALUE;
     }
     
     
