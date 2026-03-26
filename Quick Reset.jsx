@@ -81,6 +81,60 @@ function getProperties(property, propertyMatch) {
     return result;
 }
 
+function getPropertyPath(property) {
+    var path = [];
+    
+    try {
+        while (property) {
+            if (property.propertyIndex !== undefined) {
+                path.unshift(property.propertyIndex);
+            } else if (property.name !== undefined) {
+                path.unshift(property.name);
+            }
+            property = property.parentProperty;
+        }
+    } catch (e) {
+        // Fall back to whatever path data we were able to gather
+    }
+    
+    return path.join(".");
+}
+
+function getExpressionPropertiesFromSelection(expressionMatch) {
+    var activeComp = app.project.activeItem;
+    var selectedLayers = activeComp.selectedLayers;
+    var selectedProps = activeComp.selectedProperties;
+    var expressionProperties = [];
+    var seenProperties = {};
+    
+    function addUniqueProperties(sourceProperty) {
+        var matchingProps = getProperties(sourceProperty, expressionMatch);
+        
+        for (var i = 0; i < matchingProps.length; i++) {
+            var prop = matchingProps[i];
+            var propPath = getPropertyPath(prop);
+            
+            if (!seenProperties[propPath]) {
+                seenProperties[propPath] = true;
+                expressionProperties.push(prop);
+            }
+        }
+    }
+    
+    if (selectedProps && selectedProps.length > 0) {
+        for (var i = 0; i < selectedProps.length; i++) {
+            addUniqueProperties(selectedProps[i]);
+        }
+        return expressionProperties;
+    }
+    
+    for (var j = 0; j < selectedLayers.length; j++) {
+        addUniqueProperties(selectedLayers[j]);
+    }
+    
+    return expressionProperties;
+}
+
 // Function to cycle through mask modes
 function cycleMaskModes() {
     if (!isCompActive()) {
@@ -440,6 +494,7 @@ function findShapeTransforms(property) {
     
     return result;
 }
+
 function deleteKeyframes(skipUndoGroup) {
     if (!isCompActive()) {
         if (!skipUndoGroup) updateStatusText("Please select a composition first", true);
@@ -684,6 +739,11 @@ function deleteExpressions(skipUndoGroup) {
     if (!skipUndoGroup) app.beginUndoGroup("Delete Expressions");
     
     var selectedLayers = app.project.activeItem.selectedLayers;
+    var expressionProperties = getExpressionPropertiesFromSelection(function(prop) {
+        return prop.propertyType === PropertyType.PROPERTY && 
+               prop.canSetExpression && 
+               prop.expression !== "";
+    });
     var totalExpressionsRemoved = 0;
     
     // If no layers are selected, there's nothing to do
@@ -695,34 +755,24 @@ function deleteExpressions(skipUndoGroup) {
         return 0;
     }
     
-    for (var i = 0; i < selectedLayers.length; i++) {
-        var layer = selectedLayers[i];
-        
-        var expressionProperties = getProperties(layer, function(prop) {
-            return prop.propertyType === PropertyType.PROPERTY && 
-                   prop.canSetExpression && 
-                   prop.expression !== "";
-        });
-        
-        for (var p = 0; p < expressionProperties.length; p++) {
-            try {
-                var prop = expressionProperties[p];
-                // Store current value
-                var currentValue = prop.value;
-                // Remove expression
-                prop.expression = "";
-                // Set value back
-                if (currentValue !== null && currentValue !== undefined) {
-                    try {
-                        prop.setValue(currentValue);
-                    } catch (e) {
-                        // Some properties might not accept setValue after expression removal
-                    }
+    for (var p = 0; p < expressionProperties.length; p++) {
+        try {
+            var prop = expressionProperties[p];
+            // Store current value
+            var currentValue = prop.value;
+            // Remove expression
+            prop.expression = "";
+            // Set value back
+            if (currentValue !== null && currentValue !== undefined) {
+                try {
+                    prop.setValue(currentValue);
+                } catch (e) {
+                    // Some properties might not accept setValue after expression removal
                 }
-                totalExpressionsRemoved++;
-            } catch (e) {
-                // Skip if expression can't be removed
             }
+            totalExpressionsRemoved++;
+        } catch (e) {
+            // Skip if expression can't be removed
         }
     }
     
@@ -742,37 +792,32 @@ function deleteDisabledExpressions() {
     app.beginUndoGroup("Delete Disabled Expressions");
     
     var selectedLayers = app.project.activeItem.selectedLayers;
+    var disabledExpressionProperties = getExpressionPropertiesFromSelection(function(prop) {
+        return prop.propertyType === PropertyType.PROPERTY && 
+               prop.canSetExpression && 
+               prop.expression !== "" && 
+               !prop.expressionEnabled;
+    });
     var totalExpressionsRemoved = 0;
     
-    for (var i = 0; i < selectedLayers.length; i++) {
-        var layer = selectedLayers[i];
-        
-        var disabledExpressionProperties = getProperties(layer, function(prop) {
-            return prop.propertyType === PropertyType.PROPERTY && 
-                   prop.canSetExpression && 
-                   prop.expression !== "" && 
-                   !prop.expressionEnabled;
-        });
-        
-        for (var p = 0; p < disabledExpressionProperties.length; p++) {
-            try {
-                var prop = disabledExpressionProperties[p];
-                // Store current value
-                var currentValue = prop.value;
-                // Remove expression
-                prop.expression = "";
-                // Set value back
-                if (currentValue !== null && currentValue !== undefined) {
-                    try {
-                        prop.setValue(currentValue);
-                    } catch (e) {
-                        // Some properties might not accept setValue after expression removal
-                    }
+    for (var p = 0; p < disabledExpressionProperties.length; p++) {
+        try {
+            var prop = disabledExpressionProperties[p];
+            // Store current value
+            var currentValue = prop.value;
+            // Remove expression
+            prop.expression = "";
+            // Set value back
+            if (currentValue !== null && currentValue !== undefined) {
+                try {
+                    prop.setValue(currentValue);
+                } catch (e) {
+                    // Some properties might not accept setValue after expression removal
                 }
-                totalExpressionsRemoved++;
-            } catch (e) {
-                // Skip if expression can't be removed
             }
+            totalExpressionsRemoved++;
+        } catch (e) {
+            // Skip if expression can't be removed
         }
     }
     
