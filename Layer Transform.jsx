@@ -462,9 +462,29 @@
     }
 
     // Cameras and lights have neither a scale nor a source rect, so they take
-    // no part in bounds measuring or mirroring
-    function isAVLayer(layer) {
-        return (layer instanceof AVLayer);
+    // no part in bounds measuring or mirroring.
+    //
+    // The test names the two classes to exclude rather than asking for an
+    // AVLayer: ExtendScript's instanceof does not follow After Effects' class
+    // hierarchy, so a shape or text layer answers false to `instanceof
+    // AVLayer` even though it is one, and the whole selection would be
+    // skipped. CameraLayer and LightLayer are leaf classes, so they answer
+    // reliably.
+    function isTransformableLayer(layer) {
+        try {
+            if (layer instanceof CameraLayer) return false;
+            if (layer instanceof LightLayer) return false;
+        } catch (error) {
+            // Older hosts without these globals: fall through to the
+            // capability test below
+        }
+        
+        // Anything that can be scaled can be transformed by this tool
+        try {
+            return (layer.transform.scale !== null && layer.transform.scale !== undefined);
+        } catch (error) {
+            return false;
+        }
     }
 
     // A 2D layer wants a 2D point and a 3D layer a 3D one; handing either the
@@ -593,7 +613,7 @@
 
         for (var i = 0; i < layers.length; i++) {
             var layer = layers[i];
-            if (!isAVLayer(layer)) continue;
+            if (!isTransformableLayer(layer)) continue;
 
             var anchor = getLayerCompAnchor(layer, time);
             if (anchor) {
@@ -660,7 +680,7 @@
         for (var i = 0; i < selected.length; i++) {
             if (selected[i].locked) {
                 skippedLocked++;
-            } else if (avOnly && !isAVLayer(selected[i])) {
+            } else if (avOnly && !isTransformableLayer(selected[i])) {
                 skippedType++;
             } else {
                 writable.push(selected[i]);
