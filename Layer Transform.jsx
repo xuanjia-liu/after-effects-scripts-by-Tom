@@ -267,6 +267,18 @@
     var flipHBtn = row4.add("button", undefined, "Flip Horizontal");
     var flipVBtn = row4.add("button", undefined, "Flip Vertical");
     
+    var row5 = advancedGroup.add("group");
+    row5.orientation = "row";
+    row5.alignChildren = ["left", "center"];
+    row5.spacing = 10;
+    
+    var individualMirrorCheck = row5.add("checkbox", undefined, "Mirror each layer individually");
+    individualMirrorCheck.value = false;
+    individualMirrorCheck.helpTip = "On: every layer is mirrored around its own anchor point.\nOff: the selection is mirrored as one group around its combined center.";
+    
+    flipHBtn.helpTip = "Mirror the selection horizontally around its combined center";
+    flipVBtn.helpTip = "Mirror the selection vertically around its combined center";
+    
     // ========== HELPER FUNCTIONS ==========
     
     function updateStatus(message, isError) {
@@ -295,6 +307,170 @@
             return null;
         }
         return layers;
+    }
+    
+    // Sets a property value, keeping animated properties intact by writing a key
+    function setPropertyValue(prop, value, time) {
+        if (prop.numKeys > 0) {
+            prop.setValueAtTime(time, value);
+        } else {
+            prop.setValue(value);
+        }
+    }
+    
+    // Drops layers whose parent (or grandparent...) is also selected, so a
+    // group operation never transforms the same layer twice
+    function getTopLevelLayers(layers) {
+        var selected = {};
+        for (var i = 0; i < layers.length; i++) {
+            selected["i" + layers[i].index] = true;
+        }
+        
+        var result = [];
+        for (var j = 0; j < layers.length; j++) {
+            var isNested = false;
+            var parent = layers[j].parent;
+            while (parent) {
+                if (selected["i" + parent.index]) {
+                    isNested = true;
+                    break;
+                }
+                parent = parent.parent;
+            }
+            if (!isNested) result.push(layers[j]);
+        }
+        return result;
+    }
+    
+    // Cameras and lights have neither a scale nor a source rect, so they take
+    // no part in bounds measuring or mirroring
+    function isAVLayer(layer) {
+        return (layer instanceof AVLayer);
+    }
+    
+    // Comp-space location of a layer's anchor point (where its position lands)
+    function getLayerCompAnchor(layer, time) {
+        try {
+            var anchor = layer.transform.anchorPoint.value;
+            var point = layer.toComp([anchor[0], anchor[1], anchor[2] || 0], time);
+            return [point[0], point[1], point[2] || 0];
+        } catch (error) {
+            try {
+                var pos = layer.transform.position.value;
+                return [pos[0], pos[1], pos[2] || 0];
+            } catch (innerError) {
+                return null;
+            }
+        }
+    }
+    
+    // Moves a layer so its anchor point lands on a comp-space point, taking
+    // any parent's coordinate space into account
+    function setLayerCompAnchor(layer, target, time) {
+        var current = getLayerCompAnchor(layer, time);
+        if (!current) return;
+        
+        var delta = [target[0] - current[0], target[1] - current[1], (target[2] || 0) - current[2]];
+        
+        if (layer.parent) {
+            try {
+                var origin = layer.parent.fromComp([0, 0, 0], time);
+                var moved = layer.parent.fromComp(delta, time);
+                delta = [
+                    moved[0] - origin[0],
+                    moved[1] - origin[1],
+                    (moved[2] || 0) - (origin[2] || 0)
+                ];
+            } catch (error) {
+                // Parent without a coordinate space (camera/light): use the
+                // comp-space delta unchanged
+            }
+        }
+        
+        var posProp = layer.transform.position;
+        var value = posProp.value;
+        var newValue = (value.length > 2)
+            ? [value[0] + delta[0], value[1] + delta[1], value[2] + delta[2]]
+            : [value[0] + delta[0], value[1] + delta[1]];
+        
+        setPropertyValue(posProp, newValue, time);
+    }
+    
+    // Comp-space bounding box of one layer, or null when it has no source rect
+    function getLayerCompBounds(layer, time) {
+        var rect;
+        try {
+            rect = layer.sourceRectAtTime(time, false);
+        } catch (error) {
+            return null;
+        }
+        if (!rect || rect.width === undefined) return null;
+        
+        var corners = [
+            [rect.left, rect.top],
+            [rect.left + rect.width, rect.top],
+            [rect.left, rect.top + rect.height],
+            [rect.left + rect.width, rect.top + rect.height]
+        ];
+        
+        var bounds = null;
+        for (var i = 0; i < corners.length; i++) {
+            var point;
+            try {
+                point = layer.toComp(corners[i], time);
+            } catch (error) {
+                return null;
+            }
+            if (!bounds) {
+                bounds = { left: point[0], right: point[0], top: point[1], bottom: point[1] };
+            } else {
+                bounds.left = Math.min(bounds.left, point[0]);
+                bounds.right = Math.max(bounds.right, point[0]);
+                bounds.top = Math.min(bounds.top, point[1]);
+                bounds.bottom = Math.max(bounds.bottom, point[1]);
+            }
+        }
+        return bounds;
+    }
+    
+    // Combined comp-space bounding box of a set of layers
+    function getSelectionBounds(layers, time) {
+        var combined = null;
+        var zSum = 0;
+        var zCount = 0;
+        
+        for (var i = 0; i < layers.length; i++) {
+            var layer = layers[i];
+            if (!isAVLayer(layer)) continue;
+            
+            var anchor = getLayerCompAnchor(layer, time);
+            if (anchor) {
+                zSum += anchor[2];
+                zCount++;
+            }
+            
+            var bounds = getLayerCompBounds(layer, time);
+            if (!bounds) {
+                if (!anchor) continue;
+                bounds = { left: anchor[0], right: anchor[0], top: anchor[1], bottom: anchor[1] };
+            }
+            
+            if (!combined) {
+                combined = { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom };
+            } else {
+                combined.left = Math.min(combined.left, bounds.left);
+                combined.right = Math.max(combined.right, bounds.right);
+                combined.top = Math.min(combined.top, bounds.top);
+                combined.bottom = Math.max(combined.bottom, bounds.bottom);
+            }
+        }
+        
+        if (!combined) return null;
+        
+        combined.centerX = (combined.left + combined.right) / 2;
+        combined.centerY = (combined.top + combined.bottom) / 2;
+        combined.centerZ = zCount ? (zSum / zCount) : 0;
+        return combined;
     }
     
     // ========== CORE FUNCTIONS ==========
@@ -672,30 +848,58 @@
         
         app.beginUndoGroup("Add Null Parent");
         try {
+            // Only layers that are not already children of another selected
+            // layer get re-parented, so existing hierarchies stay intact
+            var targets = getTopLevelLayers(layers);
+            
+            // Center of the selection's combined bounding box, measured before
+            // the null exists so it is not part of the calculation
+            var bounds = getSelectionBounds(layers, comp.time);
+            if (!bounds) {
+                updateStatus("Could not measure the selection bounds", true);
+                app.endUndoGroup();
+                return;
+            }
+            
+            var needs3D = false;
+            for (var i = 0; i < targets.length; i++) {
+                if (targets[i].threeDLayer) {
+                    needs3D = true;
+                    break;
+                }
+            }
+            
             // Create a null object
             var nullLayer = comp.layers.addNull();
             nullLayer.name = "Parent Null";
+            if (needs3D) nullLayer.threeDLayer = true;
             
-            // Position null at the center of selected layers
-            var avgPos = [0, 0, 0];
-            for (var i = 0; i < layers.length; i++) {
-                var pos = layers[i].transform.position.value;
-                avgPos[0] += pos[0];
-                avgPos[1] += pos[1];
-                avgPos[2] += (pos[2] || 0);
-            }
-            avgPos[0] /= layers.length;
-            avgPos[1] /= layers.length;
-            avgPos[2] /= layers.length;
-            
-            nullLayer.transform.position.setValue(avgPos);
-            
-            // Parent all selected layers to the null
-            for (var i = 0; i < layers.length; i++) {
-                layers[i].parent = nullLayer;
+            // Put the null's anchor point in the middle of its own square so the
+            // pivot and the visible null both sit on the selection center
+            try {
+                var nullRect = nullLayer.sourceRectAtTime(comp.time, false);
+                var currentAnchor = nullLayer.transform.anchorPoint.value;
+                var centeredAnchor = [
+                    nullRect.left + nullRect.width / 2,
+                    nullRect.top + nullRect.height / 2
+                ];
+                if (currentAnchor.length > 2) centeredAnchor.push(currentAnchor[2]);
+                nullLayer.transform.anchorPoint.setValue(centeredAnchor);
+            } catch (error) {
+                // Keep the default anchor point if the null has no source rect
             }
             
-            updateStatus("Added null parent for " + layers.length + " layer(s)");
+            var currentPos = nullLayer.transform.position.value;
+            var centerPos = [bounds.centerX, bounds.centerY];
+            if (currentPos.length > 2) centerPos.push(needs3D ? bounds.centerZ : 0);
+            nullLayer.transform.position.setValue(centerPos);
+            
+            // Parent the selected layers to the null
+            for (var j = 0; j < targets.length; j++) {
+                targets[j].parent = nullLayer;
+            }
+            
+            updateStatus("Added null parent at the center of " + layers.length + " layer(s)");
         } catch (error) {
             updateStatus("Error: " + error.toString(), true);
         }
@@ -727,44 +931,106 @@
         app.endUndoGroup();
     }
     
-    function flipHorizontal() {
+    // Negates the scale on the flipped axis, around the layer's own anchor point
+    function mirrorLayerScale(layer, isHorizontal, time) {
+        var scaleProp = layer.transform.scale;
+        var scale = scaleProp.value;
+        var newScale = isHorizontal
+            ? [-scale[0], scale[1]]
+            : [scale[0], -scale[1]];
+        if (scale.length > 2) newScale.push(scale[2]);
+        setPropertyValue(scaleProp, newScale, time);
+    }
+    
+    // A true mirror also reverses rotation around the axes that the mirror
+    // plane flips, otherwise rotated layers end up facing the wrong way
+    function mirrorLayerRotation(layer, isHorizontal, time) {
+        function negate(prop) {
+            if (prop && prop.value !== 0) {
+                setPropertyValue(prop, -prop.value, time);
+            }
+        }
+        
+        try {
+            if (layer.threeDLayer) {
+                negate(layer.transform.zRotation);
+                negate(isHorizontal ? layer.transform.yRotation : layer.transform.xRotation);
+            } else {
+                negate(layer.transform.rotation);
+            }
+        } catch (error) {
+            // Cameras, lights and layers without a rotation property
+        }
+    }
+    
+    function flipLayers(isHorizontal) {
         var comp = getActiveComp();
         if (!comp) return;
         var layers = getSelectedLayers(comp);
         if (!layers) return;
         
-        app.beginUndoGroup("Flip Horizontal");
+        var axisName = isHorizontal ? "horizontally" : "vertically";
+        var individually = individualMirrorCheck.value;
+        
+        app.beginUndoGroup(isHorizontal ? "Flip Horizontal" : "Flip Vertical");
         try {
-            for (var i = 0; i < layers.length; i++) {
-                var layer = layers[i];
-                var currentScale = layer.transform.scale.value;
-                layer.transform.scale.setValue([-currentScale[0], currentScale[1]]);
+            if (individually) {
+                for (var i = 0; i < layers.length; i++) {
+                    if (!isAVLayer(layers[i])) continue;
+                    mirrorLayerScale(layers[i], isHorizontal, comp.time);
+                }
+                updateStatus("Flipped " + layers.length + " layer(s) " + axisName + " individually");
+                app.endUndoGroup();
+                return;
             }
-            updateStatus("Flipped " + layers.length + " layer(s) horizontally");
+            
+            // Group mirror: everything is reflected across one shared axis
+            // through the center of the whole selection. The axis comes from
+            // every selected layer, while only the top-level ones are moved -
+            // children follow their parent on their own.
+            var targets = getTopLevelLayers(layers);
+            var bounds = getSelectionBounds(layers, comp.time);
+            if (!bounds) {
+                updateStatus("Could not measure the selection bounds", true);
+                app.endUndoGroup();
+                return;
+            }
+            
+            var axis = isHorizontal ? bounds.centerX : bounds.centerY;
+            
+            for (var j = 0; j < targets.length; j++) {
+                var layer = targets[j];
+                if (!isAVLayer(layer)) continue;
+                
+                var anchor = getLayerCompAnchor(layer, comp.time);
+                
+                mirrorLayerScale(layer, isHorizontal, comp.time);
+                mirrorLayerRotation(layer, isHorizontal, comp.time);
+                
+                if (anchor) {
+                    var target = [anchor[0], anchor[1], anchor[2]];
+                    if (isHorizontal) {
+                        target[0] = 2 * axis - anchor[0];
+                    } else {
+                        target[1] = 2 * axis - anchor[1];
+                    }
+                    setLayerCompAnchor(layer, target, comp.time);
+                }
+            }
+            
+            updateStatus("Flipped " + layers.length + " layer(s) " + axisName + " as a group");
         } catch (error) {
             updateStatus("Error: " + error.toString(), true);
         }
         app.endUndoGroup();
     }
     
+    function flipHorizontal() {
+        flipLayers(true);
+    }
+    
     function flipVertical() {
-        var comp = getActiveComp();
-        if (!comp) return;
-        var layers = getSelectedLayers(comp);
-        if (!layers) return;
-        
-        app.beginUndoGroup("Flip Vertical");
-        try {
-            for (var i = 0; i < layers.length; i++) {
-                var layer = layers[i];
-                var currentScale = layer.transform.scale.value;
-                layer.transform.scale.setValue([currentScale[0], -currentScale[1]]);
-            }
-            updateStatus("Flipped " + layers.length + " layer(s) vertically");
-        } catch (error) {
-            updateStatus("Error: " + error.toString(), true);
-        }
-        app.endUndoGroup();
+        flipLayers(false);
     }
     
     // ========== EVENT LISTENERS ==========
