@@ -1094,8 +1094,17 @@ section("the pivot in the comp looks like the pivot on the panel");
   for (let i = 1; i <= ring.numProperties; i++) {
     if (ring.property(i).matchName === "ADBE Vector Graphic - Stroke") { stroke.push(i); }
   }
-  ok(stroke.length === 1, "stroked, not filled - a fill would close the ring up",
-     stroke.length);
+  ok(stroke.length === (V.P.outline ? 2 : 1),
+     "stroked, not filled - a fill would close the ring up", stroke.length);
+  // every other control gets a dark outline for light artwork; so does this
+  if (V.P.outline) {
+    const dark = ring.property(stroke[1]).property("ADBE Vector Stroke Color").value;
+    ok(dark[0] === 0 && dark[1] === 0 && dark[2] === 0,
+       "with a black outline behind the coloured line", dark.join(","));
+    const wide = ring.property(stroke[1]).property("ADBE Vector Stroke Width").value;
+    const thin = ring.property(stroke[0]).property("ADBE Vector Stroke Width").value;
+    ok(wide > thin, "and wider, so it shows as an edge", thin + " -> " + wide);
+  }
 
   // the proportions are the icon's: ring 0.435, ticks 0.609 to 1, core 0.139
   const r = Math.max(4, V.P.size) / 2;

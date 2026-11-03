@@ -690,6 +690,15 @@
         var st = rv.addProperty(MN_STROKE);
         st.property("ADBE Vector Stroke Color").setValue(paint);
         st.property("ADBE Vector Stroke Width").setValue(Math.max(1, r * 0.191));
+        // A wider black stroke added after this one sits below it in the group,
+        // so it draws first and shows as an edge round the coloured line -
+        // the same dark outline every other control gets on light artwork.
+        if (P.outline) {
+            var ro = rv.addProperty(MN_STROKE);
+            ro.property("ADBE Vector Stroke Color").setValue([0, 0, 0, 1]);
+            ro.property("ADBE Vector Stroke Width")
+              .setValue(Math.max(2, r * 0.191 + Math.max(1, r * 0.16)));
+        }
 
         var gCore = vecs.addProperty(MN_GROUP);
         gCore.name = "Core";
@@ -697,6 +706,11 @@
         var core = cv.addProperty(MN_SHAPEGRP);
         core.name = "Core Path";
         core.property(MN_SHAPE).setValue(circleShape(Math.max(1, r * 0.139)));
+        if (P.outline) {
+            var co = cv.addProperty(MN_STROKE);
+            co.property("ADBE Vector Stroke Color").setValue([0, 0, 0, 1]);
+            co.property("ADBE Vector Stroke Width").setValue(Math.max(1, r * 0.1));
+        }
         var fl = cv.addProperty(MN_FILL);
         fl.property("ADBE Vector Fill Color").setValue(paint);
     }
