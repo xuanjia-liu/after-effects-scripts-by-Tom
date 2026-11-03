@@ -56,13 +56,6 @@ def merge(i):
     i.p([(14,5),(14,23)])
     i.p([(3,14),(9,14)]); i.chev(10,14,4)
     i.p([(25,14),(19,14)]); i.p([(22,10),(18,14),(22,18)])
-def refresh(i):
-    pts = arc(14,14,8.5,-40,250); i.p(pts)
-    a = math.radians(-40)
-    tip = pts[0]
-    for sgn in (148,-148):
-        bb = a - math.radians(90) + math.radians(sgn)
-        i.p([tip, (tip[0]+math.cos(bb)*4.2, tip[1]+math.sin(bb)*4.2)])
 def allpts(i):
     for (x,y) in GRID4: i.s(x,y, 3.6, 0)
 def nonepts(i):
@@ -109,7 +102,7 @@ def prefs(i):
 ORDER = [("create",create),("handles",handles),("delete",delete),("bake",bake),
          ("apply",apply),("pivot",pivot),("addpivot",addpivot),("release",release),
          ("follower",follower),("average",average),("extract",extract),("merge",merge),
-         ("prefs",prefs),("refresh",refresh),("points",points),
+         ("prefs",prefs),("points",points),
          ("all",allpts),("none",nonepts),("invert",invert)]
 
 art = {}

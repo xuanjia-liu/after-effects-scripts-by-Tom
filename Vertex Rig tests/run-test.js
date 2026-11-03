@@ -907,6 +907,41 @@ section("handles: a selected control counts as a pick");
      c3._layers.filter(l => V.kindOf(l) === "handle").length);
 }
 
+// ============================ Refresh is gone; the repair lives in Preferences
+// Everything Refresh re-read is already automatic - the selection watcher,
+// panel activation, every action and a scope change all call refresh. The one
+// thing nothing else did was rebuild every rig's tangent bindings at once, and
+// that is maintenance you want once rather than a button you keep.
+section("no Refresh button; the bulk repair is behind Preferences");
+{
+  ok(!/act\([^)]*"refresh"/.test(raw), "Refresh is off the row");
+  ok(raw.indexOf("bRefresh") < 0, "with nothing left wired to it");
+  ok(!/"refresh":/.test(raw), "and its icon is not carried either");
+
+  // the repair is still reachable, and still only from one place
+  ok(/Rebuild tangent bindings/.test(raw), "Preferences offers the rebuild");
+  ok(/prefsWantRepair/.test(raw),
+     "which runs after the dialog closes, not inside it");
+  // the definition line matches too, so exclude it
+  const calls = (raw.match(/(?<!function )actRepairTangents\(\)/g) || []).length;
+  ok(calls === 1, "called from exactly one place", calls);
+
+  // and the per-path repair that happens as you work is untouched
+  ok((raw.match(/bindTangents\(/g) || []).length >= 4,
+     "rigging a path still binds it on the way",
+     (raw.match(/bindTangents\(/g) || []).length);
+
+  // the row still fits, with more room than before
+  const win = M.NODES.filter(n => n.type === "window")[0];
+  const head = win._kids[0];
+  const w = head._kids.reduce((n, c) => n + c.preferredSize[0], 0) +
+            4 * (head._kids.length - 1);
+  ok(w <= 368, "the top row fits", w + " of 368");
+  ok(head._kids.filter(c => c.type === "iconbutton").length === 7,
+     "seven icons on it now",
+     head._kids.filter(c => c.type === "iconbutton").length);
+}
+
 // ===================== showing a path's own points in the composition
 // After Effects draws the vertices of whatever path property is selected,
 // so the button selects the property rather than drawing anything itself.

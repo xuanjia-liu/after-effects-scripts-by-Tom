@@ -3017,7 +3017,6 @@
         "extract": [["p",2.2,[14,5,14,23]],["p",2.2,[10,14,4,14]],["p",2.2,[7,10,3,14,7,18]],["p",2.2,[18,14,24,14]],["p",2.2,[21,10.0,25,14,21,18.0]]],
         "merge": [["p",2.2,[14,5,14,23]],["p",2.2,[3,14,9,14]],["p",2.2,[6,10.0,10,14,6,18.0]],["p",2.2,[25,14,19,14]],["p",2.2,[22,10,18,14,22,18]]],
         "prefs": [["p",1.54,[4,8,24,8]],["r",0,18,8,2.9],["p",1.54,[4,14,24,14]],["r",0,10,14,2.9],["p",1.54,[4,20,24,20]],["r",0,21,20,2.9]],
-        "refresh": [["p",2.2,[20.5,8.5,21.0,9.2,21.5,10.0,21.9,10.8,22.2,11.7,22.4,12.5,22.5,13.4,22.5,14.3,22.4,15.2,22.2,16.1,22.0,16.9,21.6,17.7,21.2,18.5,20.7,19.2,20.1,19.9,19.5,20.5,18.8,21.0,18.0,21.5,17.2,21.9,16.3,22.2,15.5,22.4,14.6,22.5,13.7,22.5,12.8,22.4,11.9,22.2,11.1,22.0,10.3,21.6,9.5,21.2,8.8,20.7,8.1,20.1,7.5,19.5,7.0,18.8,6.5,18.0,6.1,17.2,5.8,16.3,5.6,15.5,5.5,14.6,5.5,13.7,5.6,12.8,5.8,11.9,6.0,11.1,6.4,10.3,6.8,9.5,7.3,8.8,7.9,8.1,8.5,7.5,9.2,7.0,10.0,6.5,10.8,6.1]],["p",2.2,[20.5,8.5,24.5,9.8]],["p",2.2,[20.5,8.5,21.1,12.7]]],
         "points": [["b",1.65,[3,19,10,22,18,6,25,9]],["r",1.98,3,19,2.9],["r",1.98,14,14,2.9],["r",1.98,25,9,2.9]],
         "all": [["r",0,9,9,3.6],["r",0,19,9,3.6],["r",0,9,19,3.6],["r",0,19,19,3.6]],
         "none": [["r",1.98,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",1.98,19,19,3.6]],
@@ -3311,7 +3310,7 @@
 
         // A hairline between the groups of the row: what it shows, what is
         // picked, what moves shapes between layers, and what the panel does to
-        // the rig. 104 + 8*26 + 3 + 11*4 = 359 of the 368 points inside the
+        // the rig. 104 + 7*26 + 3 + 10*4 = 329 of the 368 points inside the
         // panel's margins.
         function headRule() {
             var sep = head.add("panel");
@@ -3322,8 +3321,6 @@
             return sep;
         }
 
-        var bRefresh = act(head, "refresh", "Refresh",
-                           "Read the composition again and frame it", 62, HEAD_PX);
         var bPoints = act(head, "points", "Show points",
                           "Show the path's own points in the composition", 76, HEAD_PX);
         headRule();
@@ -3812,11 +3809,6 @@
             return comp ? selectedLayers(comp) : [];
         }
 
-        bRefresh.helpTip = "Refresh - reload paths and update older rigs' tangent bindings in the current pose";
-        bRefresh.onClick = function () {
-            state.fitted = false;
-            if (!actRepairTangents()) { refresh(); }
-        };
         bPoints.onClick = function () {
             var list = [], p = picks(), i;
             for (i = 0; i < p.length; i++) {
@@ -3876,11 +3868,19 @@
 
         // ----------------------------------------------------- preferences
         bPrefs.onClick = function () {
-            if (prefsDialog(win)) {
-                modeDd.selection = (P.handleMode === "layers") ? 1 : 0;
+            prefsWantRepair = false;
+            if (!prefsDialog(win)) { return; }
+            modeDd.selection = (P.handleMode === "layers") ? 1 : 0;
+            if (prefsWantRepair) {
+                // actRepairTangents reports through UI.say itself when it finds
+                // something, and says nothing at all when it does not.
+                if (actRepairTangents()) { return; }
                 refresh();
-                setStatus("Preferences saved. New controls use them.");
+                setStatus("Nothing to rebuild - every rig is already up to date.");
+                return;
             }
+            refresh();
+            setStatus("Preferences saved. New controls use them.");
         };
 
         // --------------------------------------------------------- layout
@@ -3986,6 +3986,11 @@
         return g;
     }
 
+    // Set by the maintenance button in Preferences, read by its caller once
+    // the dialog has closed: a bulk rewrite of the comp does not belong inside
+    // a modal window.
+    var prefsWantRepair = false;
+
     function prefsDialog(parent) {
         var d = new Window("dialog", NAME + " preferences");
         d.alignChildren = ["fill", "top"];
@@ -4048,6 +4053,17 @@
         ddBake.preferredSize.width = 160;
         ddBake.selection = P.bakeWorkArea ? 0 : 1;
 
+        // Maintenance rather than a preference: once a rig written before
+        // tangents turned with the rig has been rebuilt, there is no reason to
+        // come back here. That is why it lives behind Preferences and not on
+        // the panel.
+        var gFix = d.add("group");
+        gFix.alignment = ["left", "top"];
+        var bFix = gFix.add("button", undefined, "Rebuild tangent bindings");
+        bFix.preferredSize = [200, 24];
+        bFix.helpTip = "For rigs made before tangents turned with the rig. " +
+                       "Goes over every rig in the composition, in one step.";
+
         var btns = d.add("group");
         btns.alignment = ["right", "top"];
         var bCancel = btns.add("button", undefined, "Cancel", { name: "cancel" });
@@ -4066,6 +4082,10 @@
             d.close();
         };
         bCancel.onClick = function () { d.close(); };
+        bFix.onClick = function () {
+            prefsWantRepair = true;
+            bOk.onClick();
+        };
         d.center(parent);
         d.show();
         return saved;
