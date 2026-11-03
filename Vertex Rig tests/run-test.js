@@ -917,7 +917,9 @@ section("show points selects the path property");
   const B = addShapeLayer(c, "B", "Group 1", star(4, 40), [0, 0], 0, [100, 100]);
   const items = V.scanPaths(c, null);
   ok(items.length === 2, "two paths", items.length);
-  ok(!items[0].prop.selected && !items[1].prop.selected, "neither showing to start");
+  const holder = it => it.prop.propertyGroup(1);
+  ok(!holder(items[0]).selected && !holder(items[1]).selected,
+     "neither showing to start");
 
   let said = "";
   const prev = V.UI.say;
@@ -925,23 +927,28 @@ section("show points selects the path property");
   V.actShowPoints(items);
   V.UI.say = prev;
 
-  ok(items[0].prop.selected && items[1].prop.selected,
-     "both path properties are selected, which is what draws the vertices");
-  ok(items[0].layer.selected && items[1].layer.selected,
-     "and their layers with them, or the viewer shows nothing");
+  ok(holder(items[0]).selected && holder(items[1]).selected,
+     "the group round each path is selected, which draws the path");
+  ok(!items[0].prop.selected && !items[1].prop.selected,
+     "and the path itself is not, so its points are not all grabbed");
+  // After Effects selects the layer itself when a property on it is selected,
+  // and clearing the layer clears the property, so the panel does not touch it
+  ok(!/\.layer\.selected = true/.test(raw),
+     "the panel does not select the layer - After Effects does that itself");
   ok(/Showing the points of 2 paths/.test(said), "it says so", said);
 
   // pressing again puts them away
   V.UI.say = m => { said = String(m); };
   V.actShowPoints(items);
   V.UI.say = prev;
-  ok(!items[0].prop.selected && !items[1].prop.selected, "pressing again hides them");
+  ok(!holder(items[0]).selected && !holder(items[1]).selected,
+     "pressing again hides them");
   ok(/Hid the points of 2 paths/.test(said), "and says that instead", said);
 
   // a half-showing set turns the rest on rather than toggling off
-  items[0].prop.selected = true;
+  holder(items[0]).selected = true;
   V.actShowPoints(items);
-  ok(items[0].prop.selected && items[1].prop.selected,
+  ok(holder(items[0]).selected && holder(items[1]).selected,
      "one already showing means show the rest, not hide the one");
 
   // nothing to show is said, not thrown

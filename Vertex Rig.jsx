@@ -1034,20 +1034,42 @@
     // After Effects draws the vertices of whatever path property is selected,
     // so showing them is a matter of selecting the property itself. Nothing in
     // the composition changes, which is why this is not an undo step.
+    //
+    // The layer is not selected here on purpose: After Effects selects it for
+    // you the moment a property on it is selected, and clearing the layer
+    // clears the property with it - the two cannot be separated. That is also
+    // why the layer's bounding box comes along, and why the vertices show as
+    // selected rather than hollow: the hollow look belongs to clicking the
+    // path in the viewer, which scripting cannot reach.
+    // What to select to put a path on screen: the group that holds it - the
+    // shape group, or the mask for a mask path - rather than the path
+    // property itself. Selecting the path selects all of its vertices with it,
+    // which draws them as handles already grabbed; selecting the group round
+    // it shows the path with its points left alone.
+    function pointsHolder(item) {
+        try {
+            var g = item.prop.propertyGroup(1);
+            if (g) { return g; }
+        } catch (e) {}
+        return item.prop;
+    }
+
     function actShowPoints(items) {
         var comp = activeComp();
         if (!comp) { UI.say("Open a composition first."); return false; }
         if (!items.length) { UI.say("Nothing in view to show."); return false; }
-        var i, showing = 0;
+        var i, showing = 0, holders = [];
         for (i = 0; i < items.length; i++) {
-            try { if (items[i].prop.selected) { showing++; } } catch (e) {}
+            holders.push(pointsHolder(items[i]));
+            try { if (holders[i].selected) { showing++; } } catch (e) {}
         }
         // Every one of them already showing means the press is asking to stop.
         var want = (showing < items.length), done = 0;
         for (i = 0; i < items.length; i++) {
             try {
-                if (want) { items[i].layer.selected = true; }
-                items[i].prop.selected = want;
+                // The path's own selection would grab every vertex, so clear it.
+                if (want) { items[i].prop.selected = false; }
+                holders[i].selected = want;
                 done++;
             } catch (e2) {}
         }
