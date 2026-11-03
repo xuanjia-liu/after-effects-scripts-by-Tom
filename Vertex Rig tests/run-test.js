@@ -840,6 +840,43 @@ section("pivot: one layer, no control per point");
      after ? after.pts.length : "no manifest");
 }
 
+// ============================= the point end of a handle mask does not move
+// A handle mask runs from the point to the handle. The point is wherever its
+// control is, so the near end has nothing to say: dragged, it would quietly
+// bend the curve. It carries an expression that puts it back.
+section("handle masks: the point end is pinned");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Box", "Group 1", star(4, 60), [0, 0], 0, [100, 100]);
+  V.P.handleMode = "masks";
+  let items = V.scanPaths(c, [L]);
+  V.actCreate([{ item: items[0], idx: [0] }], true);
+  items = V.scanPaths(c, [L]);
+  const man = V.readManifest(items[0].prop);
+  const ctrl = V.linkedLayer(L, man.pts[0].fx);
+  ok(!!ctrl && man.pts[0].im, "the handle is a mask on the control");
+
+  const masks = ctrl.property("ADBE Mask Parade");
+  const found = [];
+  for (let i = 1; i <= masks.numProperties; i++) { found.push(masks.property(i)); }
+  ok(found.length === 2, "both ends of the point have one", found.length);
+
+  const pinned = found.filter(mk => {
+    const e = String(mk.property("ADBE Mask Shape").expression || "");
+    return /p\[0\] = \[0, 0\]/.test(e) && /createPath/.test(e);
+  });
+  ok(pinned.length === 2, "and both are pinned at the point", pinned.length);
+
+  const src = String(found[0].property("ADBE Mask Shape").expression || "");
+  ok(/thisProperty\.points\(\)/.test(src),
+     "reading its own points, so the far end still moves");
+  ok(!/p\[1\]/.test(src), "and never touching the far one", src.split("\n")[3]);
+
+  // the repair reaches masks made before this
+  ok(/function pinMaskHandles/.test(raw) && /pinMaskHandles\(item, man\)/.test(raw),
+     "older rigs get pinned when the path is next touched");
+}
+
 // ================================= the pivot marker matches the pivot icon
 section("the pivot in the comp looks like the pivot on the panel");
 {

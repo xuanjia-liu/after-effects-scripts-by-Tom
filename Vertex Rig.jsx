@@ -1164,6 +1164,9 @@
             // on pulling apart under a Pivot for ever.
             var touched = (upgradeRests(comp, probe, item, man) > 0);
             if (bindTangents(probe, item, man, comp.time)) { touched = true; }
+            // Costs nothing when they are already pinned, and puts the ones
+            // made before this right without asking.
+            pinMaskHandles(item, man);
             for (var k = 0; k < idxs.length; k++) {
                 var i = idxs[k];
                 if (i >= sh.vertices.length) { continue; }
@@ -1245,10 +1248,53 @@
 
     // ------------------------------------------------------ bezier handles
 
+    // The end of a handle mask that sits on the point is not for dragging:
+    // the point is wherever its control is, and a mask vertex that wandered
+    // off it would quietly bend the curve. Pinning it to the control's own
+    // origin leaves the far end free, which is the end that means something.
+    var PIN_NEAR_END = [
+        "var p = thisProperty.points();",
+        "var i = thisProperty.inTangents();",
+        "var o = thisProperty.outTangents();",
+        "if (p.length) { p[0] = [0, 0]; i[0] = [0, 0]; o[0] = [0, 0]; }",
+        "createPath(p, i, o, false);"
+    ].join("\n");
+
+    function pinNearEnd(mk) {
+        try {
+            var sp = mk.property(MN_MASKSHAPE);
+            if (String(sp.expression || "") !== PIN_NEAR_END) {
+                sp.expression = PIN_NEAR_END;
+            }
+        } catch (e) {}
+    }
+
+    // Pin the handle masks of a rig that was made before they were pinned.
+    function pinMaskHandles(item, man) {
+        var done = 0;
+        for (var n = 0; n < man.pts.length; n++) {
+            var e = man.pts[n];
+            if (!e.im && !e.om) { continue; }
+            var ctrl = linkedLayer(item.layer, e.fx);
+            var masks = null;
+            try { masks = ctrl ? ctrl.property(MN_MASKS) : null; } catch (e1) { masks = null; }
+            for (var m = 1; masks && m <= masks.numProperties; m++) {
+                var nm = masks.property(m).name;
+                if (nm !== MASK_IN && nm !== MASK_OUT) { continue; }
+                pinNearEnd(masks.property(m));
+                done++;
+            }
+        }
+        return done;
+    }
+
     function addMaskHandle(ctrl, name, offset) {
         var masks = ctrl.property(MN_MASKS);
         for (var i = 1; i <= masks.numProperties; i++) {
-            if (masks.property(i).name === name) { return masks.property(i); }
+            if (masks.property(i).name === name) {
+                pinNearEnd(masks.property(i));
+                return masks.property(i);
+            }
         }
         var mk = masks.addProperty(MN_MASK);
         mk.name = name;
@@ -1261,6 +1307,7 @@
         sh.inTangents = [[0, 0], [0, 0]];
         sh.outTangents = [[0, 0], [0, 0]];
         mk.property(MN_MASKSHAPE).setValue(sh);
+        pinNearEnd(mk);
         return mk;
     }
 
