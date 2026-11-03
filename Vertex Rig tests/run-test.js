@@ -840,6 +840,69 @@ section("pivot: one layer, no control per point");
      after ? after.pts.length : "no manifest");
 }
 
+// ============== Handles works off a selection, not just a pick on the canvas
+// Selecting a point's control, or one of its handles, is as good as picking
+// the point in the preview: Handles can then fill in the side that is
+// missing without hunting for the point again.
+section("handles: a selected control counts as a pick");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Box", "Group 1", star(4, 60), [0, 0], 0, [100, 100]);
+  V.P.handleMode = "layers";
+  let items = V.scanPaths(c, [L]);
+
+  // one point rigged, no handles yet
+  V.actCreate([{ item: items[0], idx: [0] }], false);
+  items = V.scanPaths(c, [L]);
+  let man = V.readManifest(items[0].prop);
+  const ctrl = V.linkedLayer(L, man.pts[0].fx);
+  ok(!!ctrl && !man.pts[0]["if"] && !man.pts[0].of, "a control with no handles");
+
+  // nothing picked on the canvas, the control selected in the timeline
+  V.actCreate([], true, [ctrl]);
+  items = V.scanPaths(c, [L]);
+  man = V.readManifest(items[0].prop);
+  ok(!!(man.pts[0]["if"] && man.pts[0].of),
+     "selecting the control gives it both handles",
+     JSON.stringify([man.pts[0]["if"], man.pts[0].of]));
+
+  // and a selected handle names the point that owns it
+  const c2 = newComp();
+  const L2 = addShapeLayer(c2, "Box", "Group 1", star(4, 60), [0, 0], 0, [100, 100]);
+  let i2 = V.scanPaths(c2, [L2]);
+  V.actCreate([{ item: i2[0], idx: [0] }], true);
+  i2 = V.scanPaths(c2, [L2]);
+  let m2 = V.readManifest(i2[0].prop);
+  const handle = V.linkedLayer(L2, m2.pts[0]["if"]);
+  ok(V.kindOf(handle) === "handle", "that is a handle layer", V.kindOf(handle));
+  // take one side away, then ask for handles with the other side selected
+  V.actDelete([], [handle], false);
+  i2 = V.scanPaths(c2, [L2]);
+  m2 = V.readManifest(i2[0].prop);
+  ok(!m2.pts[0]["if"] && !!m2.pts[0].of, "one side is gone");
+  const other = V.linkedLayer(L2, m2.pts[0].of);
+  V.actCreate([], true, [other]);
+  i2 = V.scanPaths(c2, [L2]);
+  m2 = V.readManifest(i2[0].prop);
+  ok(!!m2.pts[0]["if"], "the missing side comes back from the handle's own selection",
+     JSON.stringify(m2.pts[0]["if"]));
+
+  // picked and selected do not count the point twice
+  const c3 = newComp();
+  const L3 = addShapeLayer(c3, "Box", "Group 1", star(4, 60), [0, 0], 0, [100, 100]);
+  let i3 = V.scanPaths(c3, [L3]);
+  V.actCreate([{ item: i3[0], idx: [0] }], false);
+  i3 = V.scanPaths(c3, [L3]);
+  const ctrl3 = V.linkedLayer(L3, V.readManifest(i3[0].prop).pts[0].fx);
+  V.actCreate([{ item: i3[0], idx: [0] }], true, [ctrl3]);
+  i3 = V.scanPaths(c3, [L3]);
+  const m3 = V.readManifest(i3[0].prop);
+  ok(m3.pts.length === 1, "one entry for the point, not two", m3.pts.length);
+  ok(c3._layers.filter(l => V.kindOf(l) === "handle").length === 2,
+     "and two handles, not four",
+     c3._layers.filter(l => V.kindOf(l) === "handle").length);
+}
+
 // ============================= the point end of a handle mask does not move
 // A handle mask runs from the point to the handle. The point is wherever its
 // control is, so the near end has nothing to say: dragged, it would quietly

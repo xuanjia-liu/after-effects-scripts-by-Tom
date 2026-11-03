@@ -1210,7 +1210,7 @@
                     ? "Those points already have controls and handles."
                     : "Those points already have controls.";
             }
-            return "Pick some points first.";
+            return "Pick some points, or select their controls, first.";
         }
         var bits = [];
         if (r.made) {
@@ -1229,15 +1229,44 @@
         return msg;
     }
 
-    function actCreate(picks, withHandles) {
+    // Points picked on the canvas and points whose controls are selected in
+    // the timeline mean the same thing, so take both and count each once.
+    function mergePicks(a, b) {
+        var all = (a || []).concat(b || []), out = [], byKey = {}, i, k;
+        for (i = 0; i < all.length; i++) {
+            var pick = all[i];
+            if (!pick || !pick.item) { continue; }
+            var key = pick.item.key;
+            if (!byKey[key]) {
+                byKey[key] = { item: pick.item, idx: [] };
+                out.push(byKey[key]);
+            }
+            for (k = 0; k < pick.idx.length; k++) {
+                if (indexOf(byKey[key].idx, pick.idx[k]) < 0) {
+                    byKey[key].idx.push(pick.idx[k]);
+                }
+            }
+        }
+        for (i = 0; i < out.length; i++) {
+            out[i].idx.sort(function (x, y) { return x - y; });
+        }
+        return out;
+    }
+
+    function actCreate(picks, withHandles, selLayers) {
         return run(withHandles ? "Create controls with handles" : "Create controls", function (comp) {
+            // Selecting a point's control, or one of its handles, is as good
+            // as picking the point on the canvas - the same way Delete reads a
+            // selection - so Handles can fill in the side that is missing
+            // without going back to the preview to find the point again.
+            var work = mergePicks(picks, picksFromControls(comp, selLayers || []));
             // Rigging hands a point to a control that sits exactly where it
             // already was, so the curve must come out identical to the pixel.
             var before = allPathSignature(comp);
             var probe = new Probe(comp);
             var r;
             try {
-                r = rigPoints(comp, probe, picks, withHandles);
+                r = rigPoints(comp, probe, work, withHandles);
             } finally {
                 probe.done();
             }
@@ -3690,8 +3719,8 @@
         };
         scopeDd.onChange = function () { state.fitted = false; refresh(); };
 
-        bCreate.onClick = function () { actCreate(picks(), false); };
-        bHand.onClick = function () { actCreate(picks(), true); };
+        bCreate.onClick = function () { actCreate(picks(), false, sel()); };
+        bHand.onClick = function () { actCreate(picks(), true, sel()); };
         bDel.onClick = function () { actDelete(picks(), sel(), false); };
         bBake.onClick = function () { actDelete(picks(), sel(), true); };
         bPivot.onClick = function () { actPivot(picks(), sel()); };
