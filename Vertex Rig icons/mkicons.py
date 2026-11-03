@@ -93,11 +93,6 @@ def average(i):
 def extract(i):
     i.box(3,11,12,25); i.box(16,3,25,12)
     i.p([(8,16),(8,8),(15,8)], W*0.9); i.chev(16,8,3.6, 3.4, W*0.9)
-def tobezier(i):
-    i.box(3,10,11,18, W*0.9)
-    i.p([(13,14),(16,14)], W*0.8); i.chev(17,14,3.2, 3.2, W*0.8)
-    i.p([(20,7),(25,7),(25,14),(20,14),(20,21),(25,21)], W*0.8)
-    i.s(20,7, 2.4, 0); i.s(25,21, 2.4, 0)
 # A path with its vertices showing, which is what the button turns on.
 def points(i):
     i.b((3,19),(10,22),(18,6),(25,9), W*0.75)
@@ -112,7 +107,7 @@ def prefs(i):
 ORDER = [("create",create),("handles",handles),("delete",delete),("bake",bake),
          ("apply",apply),("pivot",pivot),("addpivot",addpivot),("release",release),
          ("follower",follower),("average",average),("extract",extract),("merge",merge),
-         ("tobezier",tobezier),("prefs",prefs),("refresh",refresh),("points",points),
+         ("prefs",prefs),("refresh",refresh),("points",points),
          ("all",allpts),("none",nonepts),("invert",invert)]
 
 art = {}

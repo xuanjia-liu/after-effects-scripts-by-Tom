@@ -372,7 +372,7 @@
             } else if (primKind(p.matchName)) {
                 out.push({
                     layer: layer, prop: p, chain: chain, sname: p.name,
-                    kind: primKind(p.matchName),
+                    kind: primKind(p.matchName), prim: true,
                     label: layer.name + " / " + p.name,
                     key: String(layer.id) + "/prim/" + chain.join("/") + "/" + p.name
                 });
@@ -1079,8 +1079,11 @@
         return true;
     }
 
-    function actToBezier(layers) {
-        return run("Convert to Bezier", function (comp) {
+    // Turn every rectangle, ellipse and star on these layers into a real
+    // path. There is no button for this any more: it happens when a point on
+    // one of them is rigged, which is the only time it was ever wanted.
+    function toBezierOn(comp, layers) {
+        {
             var done = 0;
             for (var n = 0; n < layers.length; n++) {
                 var L = layers[n];
@@ -1113,9 +1116,70 @@
                     done++;
                 }
             }
-            if (!done) { return "Nothing to convert - no rectangles, ellipses or stars found."; }
-            return "Converted " + done + " parametric shape" + (done === 1 ? "" : "s") + " to bezier.";
-        });
+            return done;
+        }
+    }
+
+    // Picking a point on a parametric shape is a request for that shape to
+    // become a path. Do it here, on use, and point the picks at the paths that
+    // come out: the vertex order is the same, because the path is built from
+    // the same parametricShape the preview drew its points from.
+    // Replace one parametric shape with the bezier path it describes, in the
+    // slot it was in and under the name it had.
+    function convertOne(comp, prim) {
+        var sh = parametricShape(prim.prop, comp.time);
+        if (!sh) { return false; }
+        var holder = prim.prop.propertyGroup(1);
+        var at = prim.prop.propertyIndex;
+        var nm = prim.prop.name;
+        // Drop it before adding the replacement: adding renumbers the group.
+        prim.prop.remove();
+        var ng = holder.addProperty(MN_SHAPEGRP);
+        ng.property(MN_SHAPE).setValue(sh);
+        try { ng.name = nm; } catch (e) {}
+        try { ng.moveTo(at); } catch (e2) {}
+        return true;
+    }
+
+    function resolvePrimitives(comp, picks) {
+        var want = [], layers = [], seenL = {}, seenK = {}, i, n, q;
+        for (i = 0; i < picks.length; i++) {
+            var it0 = picks[i].item;
+            if (!it0 || !it0.prim || seenK[it0.key]) { continue; }
+            seenK[it0.key] = true;
+            // Only the shapes whose points were picked: a neighbour on the
+            // same layer is left as it is.
+            want.push({ layer: it0.layer, chain: it0.chain.join("/"), sname: it0.sname });
+            if (!seenL[it0.layer.id]) { seenL[it0.layer.id] = true; layers.push(it0.layer); }
+        }
+        if (!want.length) { return { picks: picks, made: 0 }; }
+
+        var made = 0;
+        for (n = 0; n < want.length; n++) {
+            // Look again each time: converting one renumbers its group and
+            // makes every reference held into that group stale.
+            var prims = scanPrimitives(comp, [want[n].layer]);
+            for (q = 0; q < prims.length; q++) {
+                if (prims[q].sname !== want[n].sname) { continue; }
+                if (prims[q].chain.join("/") !== want[n].chain) { continue; }
+                if (convertOne(comp, prims[q])) { made++; }
+                break;
+            }
+        }
+        var fresh = scanPaths(comp, layers), out = [];
+        for (i = 0; i < picks.length; i++) {
+            var it = picks[i].item;
+            if (!it || !it.prim) { out.push(picks[i]); continue; }
+            var found = null;
+            for (n = 0; n < fresh.length && !found; n++) {
+                if (!sameLayer(fresh[n].layer, it.layer)) { continue; }
+                if (fresh[n].sname !== it.sname) { continue; }
+                if (fresh[n].chain.join("/") !== it.chain.join("/")) { continue; }
+                found = fresh[n];
+            }
+            if (found) { out.push({ item: found, idx: picks[i].idx }); }
+        }
+        return { picks: out, made: made };
     }
 
     // ------------------------------------------------------ create controls
@@ -1308,6 +1372,11 @@
             // selection - so Handles can fill in the side that is missing
             // without going back to the preview to find the point again.
             var work = mergePicks(picks, picksFromControls(comp, selLayers || []));
+            // Any parametric shape among them becomes a path first. This has
+            // to happen before the signature is taken, or the new path would
+            // read as artwork that appeared out of nowhere.
+            var turned = resolvePrimitives(comp, work);
+            work = turned.picks;
             // Rigging hands a point to a control that sits exactly where it
             // already was, so the curve must come out identical to the pixel.
             var before = allPathSignature(comp);
@@ -1319,7 +1388,12 @@
                 probe.done();
             }
             checkUnchanged(comp, before, "Rigging");
-            return rigReport(r, withHandles);
+            var out = rigReport(r, withHandles);
+            if (turned.made) {
+                out += " Turned " + turned.made + " shape" +
+                       (turned.made === 1 ? "" : "s") + " into a bezier path on the way.";
+            }
+            return out;
         });
     }
 
@@ -1751,6 +1825,8 @@
 
     function actPivot(picks, extraLayers) {
         return run("Create Pivot", function (comp) {
+            var turned = resolvePrimitives(comp, picks);
+            picks = turned.picks;
             if (P.pivotMode !== "points") { return pivotOnly(comp, picks, extraLayers); }
             // Picking points and pressing Pivot used to do nothing unless they
             // had been rigged first. Rig whatever still needs it, then group.
@@ -2922,7 +2998,6 @@
         "average": [["p",1.32,[14,13.5,7,8]],["p",1.32,[14,13.5,21,8]],["p",1.32,[14,13.5,14,22]],["r",1.98,7,8,2.8],["r",1.98,21,8,2.8],["r",1.98,14,22,2.8],["r",0,14,13.5,3.2]],
         "extract": [["x",2.2,3,11,12,25],["x",2.2,16,3,25,12],["p",1.98,[8,16,8,8,15,8]],["p",1.98,[12.4,4.6,16,8,12.4,11.4]]],
         "merge": [["p",2.2,[14,5,14,23]],["p",2.2,[3,14,9,14]],["p",2.2,[6,10.0,10,14,6,18.0]],["p",2.2,[25,14,19,14]],["p",2.2,[22,10,18,14,22,18]]],
-        "tobezier": [["x",1.98,3,10,11,18],["p",1.76,[13,14,16,14]],["p",1.76,[13.8,10.8,17,14,13.8,17.2]],["p",1.76,[20,7,25,7,25,14,20,14,20,21,25,21]],["r",0,20,7,2.4],["r",0,25,21,2.4]],
         "prefs": [["p",1.54,[4,8,24,8]],["r",0,18,8,2.9],["p",1.54,[4,14,24,14]],["r",0,10,14,2.9],["p",1.54,[4,20,24,20]],["r",0,21,20,2.9]],
         "refresh": [["p",2.2,[20.5,8.5,21.0,9.2,21.5,10.0,21.9,10.8,22.2,11.7,22.4,12.5,22.5,13.4,22.5,14.3,22.4,15.2,22.2,16.1,22.0,16.9,21.6,17.7,21.2,18.5,20.7,19.2,20.1,19.9,19.5,20.5,18.8,21.0,18.0,21.5,17.2,21.9,16.3,22.2,15.5,22.4,14.6,22.5,13.7,22.5,12.8,22.4,11.9,22.2,11.1,22.0,10.3,21.6,9.5,21.2,8.8,20.7,8.1,20.1,7.5,19.5,7.0,18.8,6.5,18.0,6.1,17.2,5.8,16.3,5.6,15.5,5.5,14.6,5.5,13.7,5.6,12.8,5.8,11.9,6.0,11.1,6.4,10.3,6.8,9.5,7.3,8.8,7.9,8.1,8.5,7.5,9.2,7.0,10.0,6.5,10.8,6.1]],["p",2.2,[20.5,8.5,24.5,9.8]],["p",2.2,[20.5,8.5,21.1,12.7]]],
         "points": [["b",1.65,[3,19,10,22,18,6,25,9]],["r",1.98,3,19,2.9],["r",1.98,14,14,2.9],["r",1.98,25,9,2.9]],
@@ -3042,7 +3117,6 @@
         items: [],
         geom: [],
         prims: [],
-        ghosts: [],
         status: "",
         sel: {},
         view: { s: 1, tx: 0, ty: 0 },
@@ -3068,20 +3142,17 @@
         return poly;
     }
 
-    // What a primitive would look like as a path, for drawing only - nothing
-    // is written back, so the shape stays parametric until To Bezier is used.
-    function ghostFor(item, t) {
-        var sh = null;
-        try { sh = parametricShape(item.prop, t); } catch (e) { return null; }
-        if (!sh || !sh.vertices.length) { return null; }
-        var poly = flattenPath(sh, itemMatrix(item, t));
-        if (!poly.length) { return null; }
-        return { poly: poly, kind: item.kind };
-    }
-
     function geomFor(item, t) {
         var sh;
-        try { sh = item.prop.valueAtTime(t, false); } catch (e) { return null; }
+        if (item.prim) {
+            // A rectangle, ellipse or star is a handful of numbers rather
+            // than a path. Draw the path it would make, so its points can be
+            // seen and picked like any other.
+            try { sh = parametricShape(item.prop, t); } catch (e0) { return null; }
+            if (!sh) { return null; }
+        } else {
+            try { sh = item.prop.valueAtTime(t, false); } catch (e) { return null; }
+        }
         var m = itemMatrix(item, t);
         var n = sh.vertices.length;
         if (!n) { return null; }
@@ -3108,7 +3179,8 @@
             }
         }
         return { verts: verts, poly: poly, rigged: rigged, hands: hands,
-                 closed: sh.closed, foreign: isForeignRig(item.prop) };
+                 closed: sh.closed, prim: !!item.prim,
+                 foreign: !item.prim && isForeignRig(item.prop) };
     }
 
     function toCanvas(p) {
@@ -3131,21 +3203,6 @@
                 if (p[1] < miny) { miny = p[1]; }
                 if (p[0] > maxx) { maxx = p[0]; }
                 if (p[1] > maxy) { maxy = p[1]; }
-            }
-        }
-        // A layer of nothing but a rectangle has no vertices to frame, so the
-        // dimmed outlines have to count towards the fit or it falls back to
-        // the whole comp and the shape comes up tiny.
-        for (i = 0; i < state.ghosts.length; i++) {
-            var gh = state.ghosts[i];
-            if (!gh) { continue; }
-            for (var q = 0; q < gh.poly.length; q++) {
-                var c = gh.poly[q];
-                any = true;
-                if (c[0] < minx) { minx = c[0]; }
-                if (c[1] < miny) { miny = c[1]; }
-                if (c[0] > maxx) { maxx = c[0]; }
-                if (c[1] > maxy) { maxy = c[1]; }
             }
         }
         var comp = activeComp();
@@ -3175,15 +3232,6 @@
                 saw = true;
                 var p = toCanvas(g.verts[v]);
                 if (p[0] >= 0 && p[0] <= w && p[1] >= 0 && p[1] <= h) { return true; }
-            }
-        }
-        for (i = 0; i < state.ghosts.length; i++) {
-            var gh = state.ghosts[i];
-            if (!gh) { continue; }
-            for (var q = 0; q < gh.poly.length; q++) {
-                saw = true;
-                var c = toCanvas(gh.poly[q]);
-                if (c[0] >= 0 && c[0] <= w && c[1] >= 0 && c[1] <= h) { return true; }
             }
         }
         return !saw;
@@ -3405,8 +3453,6 @@
         var gLay = tabRow(tLay);
         var bExtract = act(gLay, "extract", "Extract", "Move the picked shapes into layers of their own");
         var bMerge = act(gLay, "merge", "Merge", "Fold the selected shape layers into the topmost one");
-        var bBez = act(gLay, "tobezier", "To Bezier",
-                       "Turn rectangles, ellipses and stars into editable paths", 72);
 
         tabs.selection = 0;
 
@@ -3452,30 +3498,16 @@
 
             var i, k, p, q;
 
-            // The parametric shapes first and underneath, in a dimmer, cooler
-            // line and with no vertex dots: enough to show the user where
-            // their artwork is, clearly not something that can be picked.
+            // A parametric shape is drawn in a dimmer, cooler line, but with
+            // its points on show: they can be picked, and picking one asks for
+            // the shape to become a path.
             var ghostPen = g.newPen(g.PenType.SOLID_COLOR, [0.42, 0.46, 0.56, 1], 1);
-            for (i = 0; i < state.ghosts.length; i++) {
-                var gh = state.ghosts[i];
-                if (!gh) { continue; }
-                var gper = FLATTEN + 1;
-                for (var gs = 0; gs * gper < gh.poly.length; gs++) {
-                    g.newPath();
-                    for (k = 0; k < gper; k++) {
-                        var gat = gs * gper + k;
-                        if (gat >= gh.poly.length) { break; }
-                        p = toCanvas(gh.poly[gat]);
-                        if (k === 0) { g.moveTo(p[0], p[1]); } else { g.lineTo(p[0], p[1]); }
-                    }
-                    g.strokePath(ghostPen);
-                }
-            }
+            var dotPrim = g.newBrush(g.BrushType.SOLID_COLOR, [0.52, 0.57, 0.68, 1]);
 
             for (i = 0; i < state.geom.length; i++) {
                 var gm = state.geom[i];
                 if (!gm) { continue; }
-                var pen = gm.foreign ? foreignPen : pathPen;
+                var pen = gm.prim ? ghostPen : (gm.foreign ? foreignPen : pathPen);
                 var per = FLATTEN + 1;
                 for (var seg = 0; seg * per < gm.poly.length; seg++) {
                     g.newPath();
@@ -3504,7 +3536,7 @@
                 for (k = 0; k < gm.verts.length; k++) {
                     p = toCanvas(gm.verts[k]);
                     var r = 3.5;
-                    var brush = gm.rigged[k] ? dotRig : dotFree;
+                    var brush = gm.prim ? dotPrim : (gm.rigged[k] ? dotRig : dotFree);
                     if (has(sel, k)) { brush = dotSel; r = 5; }
                     g.newPath();
                     g.rectPath(p[0] - r, p[1] - r, r * 2, r * 2);
@@ -3593,6 +3625,15 @@
 
         // Name the dimmed shapes, so a layer that came up with nothing to pick
         // says why instead of leaving the user hunting for their artwork.
+        // Is any picked point on a shape that is still a handful of numbers?
+        function pickedPrims(list) {
+            var n = 0;
+            for (var i = 0; i < list.length; i++) {
+                if (list[i].item && list[i].item.prim) { n++; }
+            }
+            return n;
+        }
+
         function primNote() {
             var n = state.prims.length;
             if (!n) { return ""; }
@@ -3608,20 +3649,10 @@
                 bits.push(c + " " + order[i] + (c === 1 ? "" : "s"));
             }
             // Kept short: it shares its line with whatever else is in view.
-            return bits.join(" and ") + " dimmed; press To Bezier to rig " +
-                   (n === 1 ? "it" : "them") + ".";
+            return bits.join(" and ") + " dimmed - rigging one turns it into a " +
+                   "bezier path.";
         }
 
-        function primLayers() {
-            var seen = {}, out = [];
-            for (var i = 0; i < state.prims.length; i++) {
-                var L = state.prims[i].layer;
-                if (seen[L.id]) { continue; }
-                seen[L.id] = true;
-                out.push(L);
-            }
-            return out;
-        }
 
         function countOf(n, word) {
             return n + " " + word + (n === 1 ? "" : "s");
@@ -3641,9 +3672,21 @@
             if (!activeComp()) { setStatus("Open a composition to start."); return; }
             var note = primNote();
             if (n) {
-                setStatus(countOf(n, "point") + " picked on " +
-                          countOf(currentPicks().length, "path") + "." +
-                          (note ? " " + note : ""));
+                var list = currentPicks();
+                var np = pickedPrims(list);
+                var msg = countOf(n, "point") + " picked on " +
+                          countOf(list.length, "path") + ".";
+                if (np) {
+                    // The point is on a rectangle, ellipse or star, which has
+                    // no vertices of its own to rig. Say so before they press
+                    // anything, not after.
+                    msg += " " + countOf(np, "shape") + " will be turned into a " +
+                           "bezier path when you rig " +
+                           (np === 1 ? "it" : "them") + ".";
+                } else if (note) {
+                    msg += " " + note;
+                }
+                setStatus(msg);
                 return;
             }
             if (state.items.length) {
@@ -3666,7 +3709,6 @@
             state.items = [];
             state.geom = [];
             state.prims = [];
-            state.ghosts = [];
             if (!comp) {
                 state.sel = {};
                 setStatus("Open a composition to start.");
@@ -3686,12 +3728,15 @@
                 state.items.push(all[i]);
                 state.geom.push(g);
             }
+            // Primitives join the same list, so they are framed, drawn and
+            // picked by the same code that handles real paths.
             var prims = scanPrimitives(comp, layers);
-            for (i = 0; i < prims.length && state.prims.length < cap; i++) {
-                var gh = ghostFor(prims[i], comp.time);
-                if (!gh) { continue; }
+            for (i = 0; i < prims.length && state.items.length < cap * 2; i++) {
+                var gp = geomFor(prims[i], comp.time);
+                if (!gp) { continue; }
+                state.items.push(prims[i]);
+                state.geom.push(gp);
                 state.prims.push(prims[i]);
-                state.ghosts.push(gh);
             }
             // Keep whatever picks still point at a path that is still here.
             state.sel = {};
@@ -3794,15 +3839,6 @@
         bAvg.onClick = function () { actAverageFollower(picks(), sel()); };
         bExtract.onClick = function () { actExtract(picks(), sel()); };
         bMerge.onClick = function () { actMerge(sel()); };
-        bBez.onClick = function () {
-            var layers = sel();
-            // The dimmed shapes are the ones the status line just offered to
-            // convert, so take those rather than refuse the press.
-            if (!layers.length) { layers = primLayers(); }
-            if (!layers.length) { setStatus("Select the shape layers to convert."); return; }
-            state.fitted = false;
-            actToBezier(layers);
-        };
         modeDd.onChange = function () {
             P.handleMode = (modeDd.selection.index === 1) ? "layers" : "masks";
             savePrefs();

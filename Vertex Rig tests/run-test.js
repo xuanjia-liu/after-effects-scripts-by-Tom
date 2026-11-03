@@ -20,10 +20,10 @@ if (src.indexOf(marker) < 0) { throw new Error("boot marker not found"); }
 src = src.replace(marker, marker + `
     globalThis.__VXR = { scanPaths, actCreate, rigPoints, actSwitchHandleMode,
         actPivot, actAddToPivot, actRelease, actFollower, actAverageFollower, actDelete,
-        actExtract, actMerge, actToBezier, readManifest, buildPathExpression, geomFor,
+        actExtract, actMerge, toBezierOn, resolvePrimitives, readManifest, buildPathExpression, geomFor,
         itemMatrix, P, UI, state, kindOf, linkedLayer, findEffect, compOfExpression,
         allPathSignature, checkUnchanged, carriesData, childrenOf,
-        scanPrimitives, ghostFor, actAddToPivot, actToBezier, nearestT,
+        scanPrimitives, actAddToPivot, nearestT,
         followPositionExpr, setupFollower, actShowPoints, ICON_ART, drawArt, paintIconButton,
         ICON_PX, ICON_UNITS, roundRectPath };`);
 
@@ -298,7 +298,7 @@ const rv = rg.property("ADBE Vectors Group");
 const rp = rv.addProperty("ADBE Vector Shape - Rect");
 rp.property("ADBE Vector Rect Size").setValue([200, 100]);
 rp.property("ADBE Vector Rect Roundness").setValue(20);
-V.actToBezier([rectL]);
+V.toBezierOn(comp, [rectL]);
 const conv = V.scanPaths(comp, [rectL]);
 ok(conv.length === 1, "rectangle is now a bezier path");
 ok(conv.length === 1 && conv[0].prop.value.vertices.length === 8, "rounded rect has 8 vertices",
@@ -442,8 +442,8 @@ mv.addProperty("ADBE Vector Graphic - Stroke");
 mv.addProperty("ADBE Vector Graphic - Fill");
 ok(mv.numProperties === 3, "group starts with path, stroke and fill", mv.numProperties);
 let threw = null;
-try { V.actToBezier([mixL]); } catch (e) { threw = e.message; }
-ok(threw === null, "actToBezier does not throw", threw);
+try { V.toBezierOn(comp, [mixL]); } catch (e) { threw = e.message; }
+ok(threw === null, "converting does not throw", threw);
 ok(mv.numProperties === 3, "still three children afterwards", mv.numProperties);
 const mnames = [];
 for (let i = 1; i <= mv.numProperties; i++) { mnames.push(mv.property(i).matchName); }
@@ -1611,10 +1611,14 @@ section("primitive shapes are shown dimmed, and named");
 
   V.UI.refresh();
   ok(V.state.prims.length === 1, "the panel is holding it", V.state.prims.length);
-  ok(V.state.ghosts.length === 1 && V.state.ghosts[0].poly.length > 0,
-     "with an outline to draw");
-  ok(/1 rectangle/.test(V.state.status) && /To Bezier/.test(V.state.status),
-     "the status line says what it is and what to do", V.state.status);
+  // it is an item like any other now, so its points can be seen and picked
+  ok(V.state.items.length === 1 && V.state.items[0].prim === true,
+     "and it is in the pickable list", V.state.items.length);
+  const pg = V.state.geom[0];
+  ok(pg && pg.prim === true && pg.verts.length === 4,
+     "with four points of its own", pg ? pg.verts.length : "none");
+  ok(/1 rectangle/.test(V.state.status) && /bezier path/.test(V.state.status),
+     "the status says what it is and what rigging will do", V.state.status);
   ok(!/^0 path/.test(V.state.status),
      "and does not just report nothing", V.state.status);
 
@@ -1622,7 +1626,7 @@ section("primitive shapes are shown dimmed, and named");
   // comp and a 200x100 rectangle comes up as a speck
   const CW = 320, CH = 260;
   let inside = 0, seen = 0;
-  for (const pt of V.state.ghosts[0].poly) {
+  for (const pt of V.state.geom[0].poly) {
     seen++;
     const x = pt[0] * V.state.view.s + V.state.view.tx;
     const y = pt[1] * V.state.view.s + V.state.view.ty;
@@ -1652,7 +1656,7 @@ section("to bezier: two primitives in one group");
   let saidMsg = "";
   const prevSay = V.UI.say;
   V.UI.say = m => { saidMsg = String(m); };
-  V.actToBezier([L]);
+  V.toBezierOn(c, [L]);
   V.UI.say = prevSay;
   ok(saidMsg.indexOf("Rolled back") < 0, "it does not roll back", saidMsg);
   ok(V.scanPrimitives(c, [L]).length === 0, "none left parametric",
@@ -1685,7 +1689,7 @@ section("primitives inside a shape group count too");
   ok(prims[0].kind === "ellipse" && prims[0].chain.join("/") === "Outer/Inner",
      "with the group chain that places it", prims[0].chain.join("/"));
 
-  const gh = V.ghostFor(prims[0], 0);
+  const gh = V.geomFor(prims[0], 0);
   let cx = 0;
   for (const pt of gh.poly) { cx += pt[0]; }
   cx /= gh.poly.length;
@@ -1709,21 +1713,26 @@ section("a path and a primitive on one layer: both are reported");
   L.selected = true;
 
   V.UI.refresh();
-  ok(V.state.items.length === 1, "the bezier path is still pickable",
+  ok(V.state.items.length === 3, "the path and both primitives are pickable",
      V.state.items.length);
-  ok(V.state.prims.length === 2, "and both primitives are shown",
+  ok(V.state.prims.length === 2, "two of the three are primitives",
      V.state.prims.length);
-  ok(/1 path in view/.test(V.state.status) &&
+  ok(/3 paths in view/.test(V.state.status) &&
      /1 rectangle and 1 star/.test(V.state.status),
      "the status covers both", V.state.status);
 
-  // and To Bezier turns them into something pickable
-  V.actToBezier([L]);
+  // rigging a point on one of them converts it, with no button pressed
+  const primItem = V.state.items.filter(i => i.prim)[0];
+  const sname = primItem.sname;
+  V.actCreate([{ item: primItem, idx: [0, 1] }], false);
   V.UI.refresh();
-  ok(V.state.prims.length === 0, "after To Bezier nothing is dimmed",
+  ok(V.state.prims.length === 1, "the one that was rigged is a path now",
      V.state.prims.length);
-  ok(V.state.items.length === 3, "all three are paths now", V.state.items.length);
-  ok(V.state.status.indexOf("dimmed") < 0, "and the note is gone", V.state.status);
+  const asPath = V.scanPaths(c, [L]).filter(i => i.sname === sname)[0];
+  ok(!!asPath, "it is a real path, under the name it had", sname);
+  ok(V.readManifest(asPath.prop).pts.length === 2,
+     "with its two picked points rigged",
+     V.readManifest(asPath.prop) ? V.readManifest(asPath.prop).pts.length : "none");
 }
 
 // ======================================= the pivot offset is the real centre
@@ -1754,6 +1763,72 @@ section("pivot: the offset lands on the position, not through the rotation");
   ok(piv.transform.position.expression === pos,
      "Add to Pivot puts an old pivot's expression right",
      piv.transform.position.expression);
+}
+
+// ================== rigging a primitive turns it into a path, with no button
+// To Bezier used to be a button you had to find and press first. Picking a
+// point on a rectangle, ellipse or star is the same request, so the panel
+// does it when the point is rigged - and says so before you press anything.
+section("primitives: rigged on demand, converted on the way");
+{
+  const c = newComp();
+  const L = addPrimLayer(c, "Box", "Rectangle 1", "ADBE Vector Shape - Rect",
+    p => { p.property("ADBE Vector Rect Size").setValue([200, 100]); }, [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+
+  const item = V.state.items[0];
+  const hadName = item.sname;
+  ok(item.prim === true, "the rectangle is pickable");
+  ok(V.state.geom[0].verts.length === 4, "with its four corners on show",
+     V.state.geom[0].verts.length);
+
+  // picking a point says what rigging it will cost, before anything happens
+  V.state.sel = {};
+  V.state.sel[item.key] = [0, 2];
+  V.UI.refresh();
+  ok(/will be turned into a bezier path/.test(V.state.status),
+     "picking one warns that rigging converts it", V.state.status);
+  ok(V.scanPaths(c, [L]).length === 0, "and nothing is converted yet");
+
+  // rigging does the conversion and the rig in one step
+  let said = "";
+  const prev = V.UI.say;
+  V.UI.say = m => { said = String(m); };
+  V.actCreate([{ item: item, idx: [0, 2] }], false);
+  V.UI.say = prev;
+
+  const paths = V.scanPaths(c, [L]);
+  ok(paths.length === 1, "it is a real path now", paths.length);
+  ok(paths[0].sname === hadName, "under the name it had",
+     paths[0].sname + " vs " + hadName);
+  const man = V.readManifest(paths[0].prop);
+  ok(man && man.pts.length === 2, "with the two picked points rigged",
+     man ? man.pts.length : "none");
+  ok(man.pts[0].i === 0 && man.pts[1].i === 2,
+     "the same two, in the same order",
+     man.pts.map(e => e.i).join(","));
+  ok(/Turned 1 shape into a bezier path/.test(said), "and it says so", said);
+  ok(V.scanPrimitives(c, [L]).length === 0, "nothing parametric is left");
+
+  // a neighbour on the same layer is left alone
+  const c2 = newComp();
+  const L2 = addPrimLayer(c2, "Two", "Group 1", "ADBE Vector Shape - Rect",
+    p => { p.property("ADBE Vector Rect Size").setValue([120, 60]); }, [0, 0]);
+  const vecs = L2.property("ADBE Root Vectors Group").property("Group 1")
+                 .property("ADBE Vectors Group");
+  const el = vecs.addProperty("ADBE Vector Shape - Ellipse");
+  el.property("ADBE Vector Ellipse Size").setValue([80, 80]);
+  L2.selected = true;
+  V.UI.refresh();
+  const two = V.state.items.filter(i => i.prim);
+  ok(two.length === 2, "two primitives to start", two.length);
+  V.actCreate([{ item: two[0], idx: [0] }], false);
+  ok(V.scanPrimitives(c2, [L2]).length === 1,
+     "rigging one leaves its neighbour parametric",
+     V.scanPrimitives(c2, [L2]).length);
+
+  ok(!/act\([^)]*"tobezier"/.test(raw), "and there is no To Bezier button any more");
 }
 
 // ================================= the moved-artwork guard has to see tangents
