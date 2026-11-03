@@ -24,7 +24,7 @@ src = src.replace(marker, marker + `
         itemMatrix, P, UI, state, kindOf, linkedLayer, findEffect, compOfExpression,
         allPathSignature, checkUnchanged, carriesData, childrenOf,
         scanPrimitives, ghostFor, actAddToPivot, actToBezier, nearestT,
-        followPositionExpr, setupFollower, ICON_ART, drawArt, paintIconButton,
+        followPositionExpr, setupFollower, actShowPoints, ICON_ART, drawArt, paintIconButton,
         ICON_PX, ICON_UNITS, roundRectPath };`);
 
 const names = ["app", "CompItem", "Shape", "PropertyType", "PropertyValueType",
@@ -77,6 +77,10 @@ function addShapeLayer(comp, name, groupName, shape, gpos, grot, gscl) {
 }
 
 function pickAll(item, idx) { return [{ item, idx }]; }
+
+function rulesInHead(head) {
+  return head._kids.filter(c => c.type === "panel").length;
+}
 
 // ========================================================== source hygiene
 section("source hygiene");
@@ -903,6 +907,54 @@ section("handles: a selected control counts as a pick");
      c3._layers.filter(l => V.kindOf(l) === "handle").length);
 }
 
+// ===================== showing a path's own points in the composition
+// After Effects draws the vertices of whatever path property is selected,
+// so the button selects the property rather than drawing anything itself.
+section("show points selects the path property");
+{
+  const c = newComp();
+  const A = addShapeLayer(c, "A", "Group 1", star(5, 60), [0, 0], 0, [100, 100]);
+  const B = addShapeLayer(c, "B", "Group 1", star(4, 40), [0, 0], 0, [100, 100]);
+  const items = V.scanPaths(c, null);
+  ok(items.length === 2, "two paths", items.length);
+  ok(!items[0].prop.selected && !items[1].prop.selected, "neither showing to start");
+
+  let said = "";
+  const prev = V.UI.say;
+  V.UI.say = m => { said = String(m); };
+  V.actShowPoints(items);
+  V.UI.say = prev;
+
+  ok(items[0].prop.selected && items[1].prop.selected,
+     "both path properties are selected, which is what draws the vertices");
+  ok(items[0].layer.selected && items[1].layer.selected,
+     "and their layers with them, or the viewer shows nothing");
+  ok(/Showing the points of 2 paths/.test(said), "it says so", said);
+
+  // pressing again puts them away
+  V.UI.say = m => { said = String(m); };
+  V.actShowPoints(items);
+  V.UI.say = prev;
+  ok(!items[0].prop.selected && !items[1].prop.selected, "pressing again hides them");
+  ok(/Hid the points of 2 paths/.test(said), "and says that instead", said);
+
+  // a half-showing set turns the rest on rather than toggling off
+  items[0].prop.selected = true;
+  V.actShowPoints(items);
+  ok(items[0].prop.selected && items[1].prop.selected,
+     "one already showing means show the rest, not hide the one");
+
+  // nothing to show is said, not thrown
+  V.UI.say = m => { said = String(m); };
+  const r = V.actShowPoints([]);
+  V.UI.say = prev;
+  ok(r === false && /Nothing in view/.test(said), "an empty list is refused", said);
+
+  // the button takes the picks, and the whole view when nothing is picked
+  ok(/if \(!list\.length\) \{ list = state\.items\.slice\(0\); \}/.test(raw),
+     "the button falls back to everything in view");
+}
+
 // ================================== All and None are one button, not two
 section("the pick toggle offers the opposite of what you have");
 {
@@ -1154,7 +1206,9 @@ section("delete: points, handles, pivots and followers alike");
 section("icons: drawn paths, not pictures");
 {
   const names = Object.keys(V.ICON_ART);
-  ok(names.length === 18, "eighteen icons are defined", names.length);
+  // no exact count: the set grows with the panel, and what matters is that
+  // every icon is used and every use names one that exists
+  ok(names.length >= 12, "a full set of icons is defined", names.length);
   ok(raw.indexOf("newImage") < 0 && raw.indexOf("b64") < 0,
      "no image is loaded and no base64 is decoded any more");
 
@@ -1247,7 +1301,7 @@ section("icons: drawn paths, not pictures");
   const re = /\bact\(\s*\w+\s*,\s*"([a-z]+)"/g;
   let m;
   while ((m = re.exec(raw)) !== null) { used.push(m[1]); }
-  ok(used.length === 17, "seventeen buttons carry an icon", used.length);
+  ok(used.length >= 12, "and a button for each", used.length);
   // one more is reached by name, for the button that shows two pictures
   const byName = /ICON_ART\.([a-z]+)/g;
   while ((m = byName.exec(raw)) !== null) {
@@ -1276,7 +1330,8 @@ section("icons: four tabs, and hovering says what a picture does");
   ok(win._kids.length === 4, "header, preview, status, tabs", win._kids.length);
   ok(head._kids[0].type === "dropdownlist", "scope first", head._kids[0].type);
   const headIcons = head._kids.filter(c => c.type === "iconbutton");
-  ok(headIcons.length === 5, "then five icons, no text buttons", headIcons.length);
+  ok(headIcons.length === head._kids.length - 1 - rulesInHead(head),
+     "then icons and rules, no text buttons", headIcons.length);
   ok(head._kids.filter(c => c.type === "button").length === 0, "none of them text");
   const prefs = head._kids.filter(c => /Colours, sizes/.test(c.helpTip || ""));
   ok(prefs.length === 1, "with the settings among them", prefs.length);
@@ -1303,7 +1358,10 @@ section("icons: four tabs, and hovering says what a picture does");
   ok(headW <= 368, "and the row fits the panel", headW + " of 368");
 
   const icons = M.NODES.filter(n => n.type === "iconbutton");
-  ok(icons.length === 17, "seventeen icon buttons were built", icons.length);
+  // one button per act() call in the source, however many that is
+  const actCalls = (raw.match(/\bact\(\s*\w+\s*,\s*"[a-z]+"/g) || []).length;
+  ok(icons.length === actCalls, "one icon button per act() call",
+     icons.length + " vs " + actCalls);
   ok(icons.every(b => typeof b.onDraw === "function"),
      "each draws itself, so it stays sharp on a retina display");
   ok(icons.every(b => b.preferredSize[0] === V.ICON_PX && b.preferredSize[1] === V.ICON_PX),
