@@ -394,6 +394,7 @@
     //     im 1 when the in handle is a mask on the point control
     //     om 1 when the out handle is a mask on the point control
     //     if / of  Layer Control effect naming a separate handle control
+    //     tf linear map from an original path tangent to the control's bind frame
 
     function readManifest(prop) {
         if (!prop.expressionEnabled) { return null; }
@@ -474,6 +475,14 @@
         L.push("  if (l == null) { return null; }");
         L.push("  return _toG(fromCompToSurface(l.toComp([rx, ry])));");
         L.push("}");
+        // Tangents are vectors, not positions. Transform both ends through
+        // the same control frame so translation cancels and the curve keeps
+        // its proportions and local angle when a Pivot scales or turns.
+        L.push("function _tv(n, v, a, b, c, d) {");
+        L.push("  var o = _rp(n, 0, 0);");
+        L.push("  var q = _rp(n, a * v[0] + c * v[1], b * v[0] + d * v[1]);");
+        L.push("  return o == null || q == null ? v : q - o;");
+        L.push("}");
         L.push("function _mp(n, m) {");
         L.push("  var l = _lay(n);");
         L.push("  if (l == null) { return null; }");
@@ -500,6 +509,10 @@
                     ? ("_mp(" + estr(e.fx) + ", " + estr(MASK_IN) + ")")
                     : ("_cp(" + estr(e["if"]) + ")")) +
                     "; if (_v != null) { _I[" + e.i + "] = _v - _w; }");
+            } else if (e.tf) {
+                L.push("  _I[" + e.i + "] = _tv(" + estr(e.fx) + ", _I[" + e.i + "], " +
+                       numLit(e.tf[0]) + ", " + numLit(e.tf[1]) + ", " +
+                       numLit(e.tf[2]) + ", " + numLit(e.tf[3]) + ");");
             }
             if (e.om || e.of) {
                 L.push("  _w = " + outAt + "; if (_w == null) { _w = " + at + "; }");
@@ -507,6 +520,10 @@
                     ? ("_mp(" + estr(e.fx) + ", " + estr(MASK_OUT) + ")")
                     : ("_cp(" + estr(e.of) + ")")) +
                     "; if (_v != null) { _O[" + e.i + "] = _v - _w; }");
+            } else if (e.tf) {
+                L.push("  _O[" + e.i + "] = _tv(" + estr(e.fx) + ", _O[" + e.i + "], " +
+                       numLit(e.tf[0]) + ", " + numLit(e.tf[1]) + ", " +
+                       numLit(e.tf[2]) + ", " + numLit(e.tf[3]) + ");");
             }
             L.push("}");
         }
@@ -1071,6 +1088,61 @@
         try { return item.prop.valueAtTime(t, false); } catch (e) { return item.prop.value; }
     }
 
+    // Capture the path-to-control linear map at attachment. Reading original
+    // tangents live (rather than storing their current values) also preserves
+    // tangent animation on the underlying path. Probe includes layer, parent
+    // and nested shape-group transforms, including nonuniform scale.
+    function tangentFrame(probe, item, ctrl, at, t) {
+        var pts = [at, [at[0] + 1, at[1]], [at[0], at[1] + 1]], loc = [];
+        for (var i = 0; i < pts.length; i++) {
+            loc.push(probe.intoLayer(ctrl, probe.at(item, pts[i], t), t));
+        }
+        return [loc[1][0] - loc[0][0], loc[1][1] - loc[0][1],
+                loc[2][0] - loc[0][0], loc[2][1] - loc[0][1]];
+    }
+
+    function bindTangents(probe, item, man, t) {
+        var base = null, fixed = 0;
+        for (var i = 0; i < man.pts.length; i++) {
+            var e = man.pts[i];
+            if (e.tf) { continue; }
+            var ctrl = linkedLayer(item.layer, e.fx);
+            if (!ctrl) { continue; }
+            if (!base) { base = basePath(item, t); }
+            var at = base.vertices[e.i];
+            if (!at) { continue; }
+            e.tf = tangentFrame(probe, item, ctrl, at, t);
+            fixed++;
+        }
+        return fixed;
+    }
+
+    // Explicit Refresh upgrades older Vertex Rig expressions in one undo
+    // step. Bind the current pose so existing artwork does not jump.
+    function actRepairTangents() {
+        var comp = activeComp();
+        if (!comp) { return false; }
+        var rigs = rigIndex(comp), needs = false;
+        for (var i = 0; i < rigs.length && !needs; i++) {
+            for (var j = 0; j < rigs[i].man.pts.length; j++) {
+                if (!rigs[i].man.pts[j].tf) { needs = true; break; }
+            }
+        }
+        if (!needs) { return false; }
+        return run("Update tangent bindings", function (c) {
+            var probe = new Probe(c), fixed = 0;
+            try {
+                for (var r = 0; r < rigs.length; r++) {
+                    var n = bindTangents(probe, rigs[r].item, rigs[r].man, c.time);
+                    if (!n) { continue; }
+                    fixed += n;
+                    writeBack(rigs[r].item, rigs[r].man);
+                }
+            } finally { probe.done(); }
+            return "Updated tangent bindings on " + fixed + " point(s).";
+        });
+    }
+
     // Put a control on every picked point that has not got one yet, and, when
     // handles are asked for, give handles both to the new controls and to the
     // points that were already rigged without them. Returns a tally; the caller
@@ -1091,6 +1163,7 @@
             // already handled would otherwise never be rewritten, and would go
             // on pulling apart under a Pivot for ever.
             var touched = (upgradeRests(comp, probe, item, man) > 0);
+            if (bindTangents(probe, item, man, comp.time)) { touched = true; }
             for (var k = 0; k < idxs.length; k++) {
                 var i = idxs[k];
                 if (i >= sh.vertices.length) { continue; }
@@ -1110,6 +1183,7 @@
                 var cp = probe.at(item, sh.vertices[i], comp.time);
                 var fresh = makeControl(comp, item.layer.name + " Pt " + (i + 1), K_POINT, cp);
                 entry = { i: i, fx: addLink(item.layer, fresh) };
+                entry.tf = tangentFrame(probe, item, fresh, sh.vertices[i], comp.time);
                 man.pts.push(entry);
                 r.made++;
                 touched = true;
@@ -1491,7 +1565,8 @@
                 var man = readManifest(it.prop) || { v: 1, pts: [] };
                 var base = basePath(it, comp.time);
                 var fx = addLink(it.layer, piv);
-                var touched = false;
+                var touched = bindTangents(probe, it, man, comp.time) > 0;
+                var added = false;
                 for (i = 0; i < picks[n].idx.length; i++) {
                     var idx = picks[n].idx[i];
                     if (idx >= base.vertices.length) { continue; }
@@ -1509,16 +1584,17 @@
                     }
                     var cp = probe.at(it, base.vertices[idx], comp.time);
                     var loc = probe.intoLayer(piv, cp, comp.time);
-                    man.pts.push({ i: idx, fx: fx, pp: [loc[0], loc[1]] });
+                    man.pts.push({ i: idx, fx: fx, pp: [loc[0], loc[1]],
+                                   tf: tangentFrame(probe, it, piv, base.vertices[idx], comp.time) });
                     done++;
                     touched = true;
+                    added = true;
                 }
+                if (!added) { removeEffect(it.layer, fx); }
                 if (touched) {
                     man.pts.sort(function (a, b) { return a.i - b.i; });
                     it.prop.expression = buildPathExpression(man, it.chain);
                     paths++;
-                } else {
-                    removeEffect(it.layer, fx);
                 }
             }
 
@@ -1606,6 +1682,19 @@
                 if (kindOf(selLayers[i]) === K_PIVOT) { piv = selLayers[i]; break; }
             }
             if (!piv) { return "Select the Pivot layer as well."; }
+            // Upgrade before reparenting so the binding is made in the old,
+            // visually unchanged frame.
+            var probe = new Probe(comp);
+            try {
+                var old = picks.concat(picksFromControls(comp, selLayers)), seen = {};
+                for (var r = 0; r < old.length; r++) {
+                    var it = old[r].item;
+                    if (seen[it.key]) { continue; }
+                    seen[it.key] = true;
+                    var man = readManifest(it.prop);
+                    if (man && bindTangents(probe, it, man, comp.time)) { writeBack(it, man); }
+                }
+            } finally { probe.done(); }
             setPivotExpressions(piv);
             var ctrls = pickedControls(picks);
             for (i = 0; i < selLayers.length; i++) {
@@ -2443,7 +2532,19 @@
                 } catch (e2) {}
             }
         } else {
-            try { dp.setValue(sp.value); } catch (e3) { if (carriesData(sp)) { copyLost++; } }
+            // A rigged path's visible value already contains the Pivot's
+            // tangent transform. Copy its underlying shape before installing
+            // the expression, otherwise Merge applies that transform twice.
+            var rawShape = sp.expressionEnabled &&
+                           (sp.matchName === MN_SHAPE || sp.matchName === MN_MASKSHAPE);
+            try {
+                if (rawShape) { sp.expressionEnabled = false; }
+                dp.setValue(sp.value);
+            } catch (e3) {
+                if (carriesData(sp)) { copyLost++; }
+            } finally {
+                if (rawShape) { sp.expressionEnabled = true; }
+            }
         }
         if (sp.expressionEnabled) {
             try { dp.expression = sp.expression; } catch (e4) {}
@@ -2460,7 +2561,7 @@
                     try { dp = dst.addProperty(sp.matchName); } catch (e) { dp = null; }
                 }
                 if (!dp) { if (carriesData(sp)) { copyLost++; } continue; }
-                try { if (dp.canSetName) { dp.name = sp.name; } } catch (e1) {}
+                try { dp.name = sp.name; } catch (e1) {}
                 copyLeaf(sp, dp);
             } else {
                 var can = false;
@@ -2470,7 +2571,7 @@
                 }
                 if (!dp) { dp = childByMatch(dst, sp.matchName, sp.name); }
                 if (!dp) { if (carriesData(sp)) { copyLost++; } continue; }
-                try { if (dp.canSetName) { dp.name = sp.name; } } catch (e4) {}
+                try { dp.name = sp.name; } catch (e4) {}
                 copyTree(sp, dp);
             }
         }
@@ -2584,6 +2685,7 @@
                         ctrls.push({
                             i: e.i,
                             im: e.im, om: e.om,
+                            pp: e.pp, tf: e.tf, bi: e.bi, bo: e.bo, ri: e.ri, ro: e.ro,
                             pt: linkedLayer(src, e.fx),
                             hi: e["if"] ? linkedLayer(src, e["if"]) : null,
                             ho: e.of ? linkedLayer(src, e.of) : null
@@ -2609,7 +2711,7 @@
                     var dp = null;
                     try { dp = into.addProperty(sp.matchName); } catch (e2) { dp = null; }
                     if (!dp) { copyLost++; continue; }
-                    try { if (dp.canSetName) { dp.name = sp.name; } } catch (e3) {}
+                    try { dp.name = sp.name; } catch (e3) {}
                     copyTree(sp, dp);
                 }
 
@@ -2624,6 +2726,12 @@
                         var c2 = cr.pts[n];
                         if (!c2.pt) { continue; }
                         var ent = { i: c2.i, fx: addLink(target, c2.pt) };
+                        if (c2.pp) { ent.pp = c2.pp; }
+                        if (c2.tf) { ent.tf = c2.tf; }
+                        if (c2.bi) { ent.bi = c2.bi; }
+                        if (c2.bo) { ent.bo = c2.bo; }
+                        if (c2.ri) { ent.ri = c2.ri; }
+                        if (c2.ro) { ent.ro = c2.ro; }
                         if (c2.im) { ent.im = 1; }
                         if (c2.om) { ent.om = 1; }
                         if (c2.hi) { ent["if"] = addLink(target, c2.hi); }
@@ -3501,7 +3609,11 @@
             return comp ? selectedLayers(comp) : [];
         }
 
-        bRefresh.onClick = function () { state.fitted = false; refresh(); };
+        bRefresh.helpTip = "Refresh - reload paths and update older rigs' tangent bindings in the current pose";
+        bRefresh.onClick = function () {
+            state.fitted = false;
+            if (!actRepairTangents()) { refresh(); }
+        };
         bFit.onClick = function () {
             fitView(Math.max(60, cv.size.width), Math.max(60, cv.size.height));
             redraw();

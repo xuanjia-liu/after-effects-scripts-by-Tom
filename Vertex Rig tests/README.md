@@ -62,3 +62,20 @@ The 2026-11-03 AE 26.5 run produced 63 passing assertions and 6 failures.
 These are assertion counts, including expression-evaluation checks, rather
 than counts of independent workflows. `qa-cleanup.jsx` is a narrowly scoped
 cleanup helper for this recorded session, not a general cleanup command.
+
+### Pivot scale and rotation regression
+
+Run `pivot-regression.jsx` from AE's script runner. It checks the evaluated
+vertices and both tangent vectors against independent affine-transform maths:
+direct Pivot and point controls, rotated/nonuniform shape groups, 878.43% group
+scale, mirrored scaling, partial selections, animated tangents, mask/layer
+handles, conversion, Merge, and old-rig migration. It removes its temporary
+compositions, restores the original comp, and writes `pivot-results.txt`.
+The recorded AE 26.5 JavaScript-engine run has 139 passing assertions and
+zero failures; the captured pre-fix source reproduces the tangent defects.
+
+New rigs bind tangents when created. For an existing rig, reopen the updated
+panel, put its Pivot in the intended rest pose (normally 100% scale and 0-degree
+rotation), and click Refresh once. Refresh upgrades old Vertex Rig expressions
+in one undo step, preserving the pose used for binding. Subsequent transforms
+carry the tangents with their points. Existing keyframes are not replaced.

@@ -1,0 +1,334 @@
+AE 26.5x89 | javascript-1.0 | Tue Nov 03 2026 22:00:22 GMT+0900
+
+SOURCE Before fix | /private/tmp/vxr-pivot-fix/Vertex-Rig-before.jsx
+
+CASE direct
+  Pivot driving 4 points on 1 path.
+PASS direct expression 100/100/0
+PASS direct vertices 100/100/0
+PASS direct local handle geometry 100/100/0
+PASS direct expression 200/200/0
+PASS direct vertices 200/200/0
+FAIL direct local handle geometry 200/200/0 | expected [44,0] actual [22,0]
+PASS direct expression 100/100/65
+PASS direct vertices 100/100/65
+FAIL direct local handle geometry 100/100/65 | expected [9.29760175829539,19.9387713148063] actual [22,0]
+PASS direct expression 160/65/-37
+PASS direct vertices 160/65/-37
+FAIL direct local handle geometry 160/65/-37 | expected [28.1119699536647,-21.1838888149521] actual [22,0]
+PASS direct expression -120/80/23
+PASS direct vertices -120/80/23
+FAIL direct local handle geometry -120/80/23 | expected [-24.3013281311444,-10.3153017921168] actual [22,0]
+  Merged 1 layer into Merge target. 1 propert(y/ies) could not be copied - check gradients.
+PASS direct merged Pivot rig is retained
+FAIL direct curve stays correct after Merge and another Pivot transform
+
+CASE direct transformed
+  Pivot driving 4 points on 1 path.
+PASS direct transformed expression 100/100/0
+PASS direct transformed vertices 100/100/0
+PASS direct transformed local handle geometry 100/100/0
+PASS direct transformed expression 200/200/0
+PASS direct transformed vertices 200/200/0
+FAIL direct transformed local handle geometry 200/200/0 | expected [64.2150954875971,6.00601886826377] actual [32.1075477437986,3.00300943413188]
+PASS direct transformed expression 100/100/65
+PASS direct transformed vertices 100/100/65
+FAIL direct transformed local handle geometry 100/100/65 | expected [10.8475851815424,30.3684471698994] actual [32.1075477437986,3.00300943413191]
+PASS direct transformed expression 160/65/-37
+PASS direct transformed vertices 160/65/-37
+FAIL direct transformed local handle geometry 160/65/-37 | expected [42.2022809548613,-29.3575858608453] actual [32.1075477437985,3.00300943413185]
+PASS direct transformed expression -120/80/23
+PASS direct transformed vertices -120/80/23
+FAIL direct transformed local handle geometry -120/80/23 | expected [-36.4048796487968,-12.8430742282837] actual [32.1075477437986,3.00300943413191]
+
+CASE large shape-group scale
+  Pivot driving 4 points on 1 path.
+PASS large shape-group scale expression 100/100/0
+PASS large shape-group scale vertices 100/100/0
+PASS large shape-group scale local handle geometry 100/100/0
+PASS large shape-group scale expression 200/200/0
+PASS large shape-group scale vertices 200/200/0
+FAIL large shape-group scale local handle geometry 200/200/0 | expected [417.840491327185,39.0804974403624] actual [208.920245663592,19.5402487201812]
+PASS large shape-group scale expression 100/100/65
+PASS large shape-group scale vertices 100/100/65
+FAIL large shape-group scale local handle geometry 100/100/65 | expected [70.5840314890542,197.604111462628] actual [208.920245663592,19.5402487201812]
+PASS large shape-group scale expression 160/65/-37
+PASS large shape-group scale vertices 160/65/-37
+FAIL large shape-group scale local handle geometry 160/65/-37 | expected [274.605553030954,-191.026549242536] actual [208.920245663592,19.5402487201812]
+PASS large shape-group scale expression -120/80/23
+PASS large shape-group scale vertices -120/80/23
+FAIL large shape-group scale local handle geometry -120/80/23 | expected [-236.882506888094,-83.5684569951944] actual [208.920390566772,19.5402622729328]
+
+CASE point controls
+  Pivot driving 4 controls. Rigged 4 new points on the way.
+PASS point controls expression 100/100/0
+PASS point controls vertices 100/100/0
+PASS point controls local handle geometry 100/100/0
+PASS point controls expression 200/200/0
+PASS point controls vertices 200/200/0
+FAIL point controls local handle geometry 200/200/0 | expected [64.2150954875971,6.00601886826377] actual [32.1075477437985,3.00300943413185]
+PASS point controls expression 100/100/65
+PASS point controls vertices 100/100/65
+FAIL point controls local handle geometry 100/100/65 | expected [10.8475851815424,30.3684471698994] actual [32.1075477437986,3.00300943413188]
+PASS point controls expression 160/65/-37
+PASS point controls vertices 160/65/-37
+FAIL point controls local handle geometry 160/65/-37 | expected [42.2022809548613,-29.3575858608453] actual [32.1075477437985,3.00300943413191]
+PASS point controls expression -120/80/23
+PASS point controls vertices -120/80/23
+FAIL point controls local handle geometry -120/80/23 | expected [-36.4048796487968,-12.8430742282837] actual [32.1075477437986,3.00300943413185]
+
+CASE mask handles
+  Rigged 4 points with handles.
+  Pivot driving 4 controls.
+PASS mask handles expression 100/100/0
+PASS mask handles vertices 100/100/0
+PASS mask handles local handle geometry 100/100/0
+PASS mask handles expression 200/200/0
+PASS mask handles vertices 200/200/0
+PASS mask handles local handle geometry 200/200/0
+PASS mask handles expression 100/100/65
+PASS mask handles vertices 100/100/65
+PASS mask handles local handle geometry 100/100/65
+PASS mask handles expression 160/65/-37
+PASS mask handles vertices 160/65/-37
+PASS mask handles local handle geometry 160/65/-37
+PASS mask handles expression -120/80/23
+PASS mask handles vertices -120/80/23
+PASS mask handles local handle geometry -120/80/23
+  Switched 8 handle set to layers.
+PASS mask handles handle conversion at transformed pose
+
+CASE layer handles
+  Rigged 4 points with handles.
+  Pivot driving 4 controls.
+PASS layer handles expression 100/100/0
+PASS layer handles vertices 100/100/0
+PASS layer handles local handle geometry 100/100/0
+PASS layer handles expression 200/200/0
+PASS layer handles vertices 200/200/0
+PASS layer handles local handle geometry 200/200/0
+PASS layer handles expression 100/100/65
+PASS layer handles vertices 100/100/65
+PASS layer handles local handle geometry 100/100/65
+PASS layer handles expression 160/65/-37
+PASS layer handles vertices 160/65/-37
+PASS layer handles local handle geometry 160/65/-37
+PASS layer handles expression -120/80/23
+PASS layer handles vertices -120/80/23
+PASS layer handles local handle geometry -120/80/23
+  Switched 8 handle set to masks.
+PASS layer handles handle conversion at transformed pose
+
+CASE partial selection
+  Pivot driving 2 points on 1 path.
+PASS partial selection expression 100/100/0
+PASS partial selection vertices 100/100/0
+PASS partial selection local handle geometry 100/100/0
+PASS partial selection expression 200/200/0
+PASS partial selection vertices 200/200/0
+FAIL partial selection local handle geometry 200/200/0 | expected [64.2150954875971,6.00601886826377] actual [32.1075477437986,3.00300943413185]
+PASS partial selection expression 100/100/65
+PASS partial selection vertices 100/100/65
+FAIL partial selection local handle geometry 100/100/65 | expected [10.8475851815424,30.3684471698994] actual [32.1075700129939,3.00301151696311]
+PASS partial selection expression 160/65/-37
+PASS partial selection vertices 160/65/-37
+FAIL partial selection local handle geometry 160/65/-37 | expected [42.2022809548613,-29.3575858608453] actual [32.1075477437985,3.00300943413185]
+PASS partial selection expression -120/80/23
+PASS partial selection vertices -120/80/23
+FAIL partial selection local handle geometry -120/80/23 | expected [-36.4048796487968,-12.8430742282837] actual [32.1075477437986,3.00300943413191]
+
+CASE animated tangents
+  Pivot driving 4 points on 1 path.
+PASS animated tangents expression 100/100/0
+PASS animated tangents vertices 100/100/0
+PASS animated tangents local handle geometry 100/100/0
+PASS animated tangents expression 200/200/0
+PASS animated tangents vertices 200/200/0
+FAIL animated tangents local handle geometry 200/200/0 | expected [102.160379184814,9.55503001769239] actual [51.0801895924068,4.77751500884617]
+PASS animated tangents expression 100/100/65
+PASS animated tangents vertices 100/100/65
+FAIL animated tangents local handle geometry 100/100/65 | expected [17.2575218797265,48.3134386793854] actual [51.0801895924068,4.77751500884619]
+PASS animated tangents expression 160/65/-37
+PASS animated tangents vertices 160/65/-37
+FAIL animated tangents local handle geometry 160/65/-37 | expected [67.1399924281884,-46.705250233163] actual [51.0801895924068,4.77751500884619]
+PASS animated tangents expression -120/80/23
+PASS animated tangents vertices -120/80/23
+FAIL animated tangents local handle geometry -120/80/23 | expected [-57.9168539867223,-20.4321635449967] actual [51.0801895924069,4.77751500884619]
+
+TOTAL Before fix: 99 passed, 25 failed
+
+SOURCE After fix | /Users/xuanjialiu/Desktop/AE pulgins/motion tools scripts/Vertex Rig.jsx
+
+CASE direct
+  Pivot driving 4 points on 1 path.
+PASS direct expression 100/100/0
+PASS direct vertices 100/100/0
+PASS direct local handle geometry 100/100/0
+PASS direct expression 200/200/0
+PASS direct vertices 200/200/0
+PASS direct local handle geometry 200/200/0
+PASS direct expression 100/100/65
+PASS direct vertices 100/100/65
+PASS direct local handle geometry 100/100/65
+PASS direct expression 160/65/-37
+PASS direct vertices 160/65/-37
+PASS direct local handle geometry 160/65/-37
+PASS direct expression -120/80/23
+PASS direct vertices -120/80/23
+PASS direct local handle geometry -120/80/23
+  Merged 1 layer into Merge target.
+PASS direct merged Pivot rig is retained
+PASS direct curve stays correct after Merge and another Pivot transform
+
+CASE direct transformed
+  Pivot driving 4 points on 1 path.
+PASS direct transformed expression 100/100/0
+PASS direct transformed vertices 100/100/0
+PASS direct transformed local handle geometry 100/100/0
+PASS direct transformed expression 200/200/0
+PASS direct transformed vertices 200/200/0
+PASS direct transformed local handle geometry 200/200/0
+PASS direct transformed expression 100/100/65
+PASS direct transformed vertices 100/100/65
+PASS direct transformed local handle geometry 100/100/65
+PASS direct transformed expression 160/65/-37
+PASS direct transformed vertices 160/65/-37
+PASS direct transformed local handle geometry 160/65/-37
+PASS direct transformed expression -120/80/23
+PASS direct transformed vertices -120/80/23
+PASS direct transformed local handle geometry -120/80/23
+
+CASE large shape-group scale
+  Pivot driving 4 points on 1 path.
+PASS large shape-group scale expression 100/100/0
+PASS large shape-group scale vertices 100/100/0
+PASS large shape-group scale local handle geometry 100/100/0
+PASS large shape-group scale expression 200/200/0
+PASS large shape-group scale vertices 200/200/0
+PASS large shape-group scale local handle geometry 200/200/0
+PASS large shape-group scale expression 100/100/65
+PASS large shape-group scale vertices 100/100/65
+PASS large shape-group scale local handle geometry 100/100/65
+PASS large shape-group scale expression 160/65/-37
+PASS large shape-group scale vertices 160/65/-37
+PASS large shape-group scale local handle geometry 160/65/-37
+PASS large shape-group scale expression -120/80/23
+PASS large shape-group scale vertices -120/80/23
+PASS large shape-group scale local handle geometry -120/80/23
+
+CASE point controls
+  Pivot driving 4 controls. Rigged 4 new points on the way.
+PASS point controls expression 100/100/0
+PASS point controls vertices 100/100/0
+PASS point controls local handle geometry 100/100/0
+PASS point controls expression 200/200/0
+PASS point controls vertices 200/200/0
+PASS point controls local handle geometry 200/200/0
+PASS point controls expression 100/100/65
+PASS point controls vertices 100/100/65
+PASS point controls local handle geometry 100/100/65
+PASS point controls expression 160/65/-37
+PASS point controls vertices 160/65/-37
+PASS point controls local handle geometry 160/65/-37
+PASS point controls expression -120/80/23
+PASS point controls vertices -120/80/23
+PASS point controls local handle geometry -120/80/23
+
+CASE mask handles
+  Rigged 4 points with handles.
+  Pivot driving 4 controls.
+PASS mask handles expression 100/100/0
+PASS mask handles vertices 100/100/0
+PASS mask handles local handle geometry 100/100/0
+PASS mask handles expression 200/200/0
+PASS mask handles vertices 200/200/0
+PASS mask handles local handle geometry 200/200/0
+PASS mask handles expression 100/100/65
+PASS mask handles vertices 100/100/65
+PASS mask handles local handle geometry 100/100/65
+PASS mask handles expression 160/65/-37
+PASS mask handles vertices 160/65/-37
+PASS mask handles local handle geometry 160/65/-37
+PASS mask handles expression -120/80/23
+PASS mask handles vertices -120/80/23
+PASS mask handles local handle geometry -120/80/23
+  Switched 8 handle set to layers.
+PASS mask handles handle conversion at transformed pose
+
+CASE layer handles
+  Rigged 4 points with handles.
+  Pivot driving 4 controls.
+PASS layer handles expression 100/100/0
+PASS layer handles vertices 100/100/0
+PASS layer handles local handle geometry 100/100/0
+PASS layer handles expression 200/200/0
+PASS layer handles vertices 200/200/0
+PASS layer handles local handle geometry 200/200/0
+PASS layer handles expression 100/100/65
+PASS layer handles vertices 100/100/65
+PASS layer handles local handle geometry 100/100/65
+PASS layer handles expression 160/65/-37
+PASS layer handles vertices 160/65/-37
+PASS layer handles local handle geometry 160/65/-37
+PASS layer handles expression -120/80/23
+PASS layer handles vertices -120/80/23
+PASS layer handles local handle geometry -120/80/23
+  Switched 8 handle set to masks.
+PASS layer handles handle conversion at transformed pose
+
+CASE partial selection
+  Pivot driving 2 points on 1 path.
+PASS partial selection expression 100/100/0
+PASS partial selection vertices 100/100/0
+PASS partial selection local handle geometry 100/100/0
+PASS partial selection expression 200/200/0
+PASS partial selection vertices 200/200/0
+PASS partial selection local handle geometry 200/200/0
+PASS partial selection expression 100/100/65
+PASS partial selection vertices 100/100/65
+PASS partial selection local handle geometry 100/100/65
+PASS partial selection expression 160/65/-37
+PASS partial selection vertices 160/65/-37
+PASS partial selection local handle geometry 160/65/-37
+PASS partial selection expression -120/80/23
+PASS partial selection vertices -120/80/23
+PASS partial selection local handle geometry -120/80/23
+
+CASE animated tangents
+  Pivot driving 4 points on 1 path.
+PASS animated tangents expression 100/100/0
+PASS animated tangents vertices 100/100/0
+PASS animated tangents local handle geometry 100/100/0
+PASS animated tangents expression 200/200/0
+PASS animated tangents vertices 200/200/0
+PASS animated tangents local handle geometry 200/200/0
+PASS animated tangents expression 100/100/65
+PASS animated tangents vertices 100/100/65
+PASS animated tangents local handle geometry 100/100/65
+PASS animated tangents expression 160/65/-37
+PASS animated tangents vertices 160/65/-37
+PASS animated tangents local handle geometry 160/65/-37
+PASS animated tangents expression -120/80/23
+PASS animated tangents vertices -120/80/23
+PASS animated tangents local handle geometry -120/80/23
+
+CASE existing rig upgrade
+  Pivot driving 4 points on 1 path.
+  Updated tangent bindings on 4 point(s).
+PASS existing rig upgrade expression 100/100/0
+PASS existing rig upgrade vertices 100/100/0
+PASS existing rig upgrade local handle geometry 100/100/0
+PASS existing rig upgrade expression 200/200/0
+PASS existing rig upgrade vertices 200/200/0
+PASS existing rig upgrade local handle geometry 200/200/0
+PASS existing rig upgrade expression 100/100/65
+PASS existing rig upgrade vertices 100/100/65
+PASS existing rig upgrade local handle geometry 100/100/65
+PASS existing rig upgrade expression 160/65/-37
+PASS existing rig upgrade vertices 160/65/-37
+PASS existing rig upgrade local handle geometry 160/65/-37
+PASS existing rig upgrade expression -120/80/23
+PASS existing rig upgrade vertices -120/80/23
+PASS existing rig upgrade local handle geometry -120/80/23
+
+TOTAL After fix: 139 passed, 0 failed
