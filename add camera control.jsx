@@ -1,774 +1,985 @@
-﻿(function() {
-    // Utility function to get unique names for camera system components
-    function getUniqueCameraNames(layers, baseName, controllerType, controllerText) {
-        var cameraName = baseName;
-        var controllerName = baseName;
-        var targetName = "camTarget1";
+/**
+ * Add Camera Control - camera rig builder for After Effects
+ *
+ *   Run                  Wraps the selected camera(s) in a rig, or creates a
+ *                        brand new camera rig when nothing is selected.
+ *   Alt / Option or      Opens the options dialog. Settings are remembered
+ *   Shift while running  between runs.
+ *
+ * The rig is three layers: a camera, a controller null it is parented to, and
+ * a target null it aims at. Every camera setting is exposed as an effect
+ * control on the controller, so the camera itself never has to be touched.
+ *
+ * Expressions reach the controller through `parent` rather than
+ * thisComp.layer("name"), so renaming layers cannot break the rig, and read
+ * effect parameters by index - effect("X")(1) - so a localised After Effects
+ * UI cannot break it either.
+ */
+(function () {
 
-        // Create naming based on prefix/suffix choice
-        if (controllerType === "prefix") {
-            controllerName = controllerText + "_" + baseName;
-            targetName = controllerText + "_camTarget1";
-        } else if (controllerType === "suffix") {
-            controllerName = baseName + "_" + controllerText;
-            targetName = "camTarget1_" + controllerText;
+    // -----------------------------------------------------------------
+    // Configuration
+    // -----------------------------------------------------------------
+
+    var SETTINGS_SECTION = "MotionTools_CameraRig";
+
+    // A 50 mm lens on a 36 mm sensor: zoom(px) = compWidth * 50 / 36.
+    // Using the same figure for zoom and distance puts a layer at z = 0 at
+    // exactly 100% scale, so a fresh rig starts out looking like no camera.
+    var LENS_50MM = 50 / 36;
+
+    // After Effects label indices, 0-16.
+    var LABEL_NAMES = ["None", "Red", "Yellow", "Aqua", "Pink", "Lavender",
+                       "Peach", "Sea Foam", "Blue", "Green", "Purple",
+                       "Orange", "Brown", "Fuchsia", "Cyan", "Sandstone",
+                       "Dark Green"];
+
+    var DEFAULTS = {
+        cameraName:     "Cam1",
+        controllerType: "prefix",
+        controllerText: "ctrl",
+        camDistance:    0,      // 0 = derive from the comp width
+        focalLength:    0,      // 0 = derive from the comp width
+        addTarget:      true,
+        targetDistance: 1000,
+        dofEnabled:     true,
+        aperture:       200,
+        blurLevel:      200,
+        dollyZoom:      false,
+        expose:         true,
+        labelColor:     11,     // Orange
+        lockCamera:     true
+    };
+
+    // Match names, so nothing here depends on the language of the AE UI.
+    var MN = {
+        effects:    "ADBE Effect Parade",
+        slider:     "ADBE Slider Control",
+        sliderVal:  "ADBE Slider Control-0001",
+        checkbox:   "ADBE Checkbox Control",
+        checkVal:   "ADBE Checkbox Control-0001",
+        camOptions: "ADBE Camera Options Group",
+        dof:        "ADBE Camera Depth of Field",
+        focusDist:  "ADBE Camera Focus Distance",
+        aperture:   "ADBE Camera Aperture",
+        blurLevel:  "ADBE Camera Blur Level",
+        zoom:       "ADBE Camera Zoom"
+    };
+
+    // -----------------------------------------------------------------
+    // Small utilities
+    // -----------------------------------------------------------------
+
+    var warnings = [];
+
+    function errText(e) {
+        if (!e) { return "unknown error"; }
+        var msg = e.toString();
+        if (e.line) { msg += "  (line " + e.line + ")"; }
+        return msg;
+    }
+
+    function warn(context, e) {
+        warnings.push(context + " - " + errText(e));
+    }
+
+    function note(message) {
+        warnings.push(message);
+    }
+
+    function flushWarnings(title) {
+        if (!warnings.length) { return; }
+        alert(title + "\n\n- " + warnings.join("\n- "));
+        warnings = [];
+    }
+
+    function trim(s) {
+        return String(s).replace(/^\s+|\s+$/g, "");
+    }
+
+    function clamp(v, lo, hi) {
+        return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    function toNumber(text, fallback) {
+        var v = parseFloat(trim(text));
+        return isNaN(v) ? fallback : v;
+    }
+
+    function formatNum(v) {
+        return String(Math.round(v * 100) / 100);
+    }
+
+    // Escape a layer name so it is safe inside a double quoted expression string.
+    function esc(s) {
+        return String(s).replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+    }
+
+    function defaultDistance(comp) {
+        return comp.width * LENS_50MM;
+    }
+
+    // -----------------------------------------------------------------
+    // Property helpers
+    // -----------------------------------------------------------------
+
+    function camOpt(camera, matchName) {
+        try {
+            var group = camera.property(MN.camOptions);
+            return group ? group.property(matchName) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function setValueSafe(prop, value, label) {
+        if (!prop) { return false; }
+        try {
+            if (prop.canSetValue) {
+                prop.setValue(value);
+                return true;
+            }
+        } catch (e) {
+            warn(label, e);
+        }
+        return false;
+    }
+
+    function setExpressionSafe(prop, expression, label) {
+        if (!prop) { return false; }
+        try {
+            if (prop.canSetExpression) {
+                prop.expression = expression;
+                return true;
+            }
+        } catch (e) {
+            warn(label, e);
+        }
+        return false;
+    }
+
+    function hasLiveExpression(prop) {
+        try {
+            return !!prop && prop.expression !== "" && prop.expressionEnabled;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function addSlider(effects, name, value) {
+        var ctrl = effects.addProperty(MN.slider);
+        ctrl.name = name;
+        ctrl.property(MN.sliderVal).setValue(value);
+        return ctrl;
+    }
+
+    function addCheckbox(effects, name, value) {
+        var ctrl = effects.addProperty(MN.checkbox);
+        ctrl.name = name;
+        ctrl.property(MN.checkVal).setValue(value ? 1 : 0);
+        return ctrl;
+    }
+
+    function getSelectedCameras(comp) {
+        var found = [];
+        var selected = comp.selectedLayers;
+        for (var i = 0; i < selected.length; i++) {
+            if (selected[i] instanceof CameraLayer) {
+                found.push(selected[i]);
+            }
+        }
+        return found;
+    }
+
+    function deselectAll(comp) {
+        for (var i = 1; i <= comp.numLayers; i++) {
+            try { comp.layer(i).selected = false; } catch (e) { /* locked layer */ }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Naming
+    // -----------------------------------------------------------------
+
+    function buildNameSet(comp) {
+        var taken = {};
+        for (var i = 1; i <= comp.numLayers; i++) {
+            // Prefixed so layer names such as "toString" cannot collide with
+            // Object.prototype members.
+            taken["|" + comp.layer(i).name] = true;
+        }
+        return taken;
+    }
+
+    function decorate(base, controllerType, controllerText) {
+        var text = trim(controllerText);
+        if (!text) { return base; }
+        if (controllerType === "prefix") { return text + "_" + base; }
+        if (controllerType === "suffix") { return base + "_" + text; }
+        return base;
+    }
+
+    // Camera / controller / target names that share one index and collide with
+    // nothing already in the comp.
+    function getNewRigNames(comp, baseName, controllerType, controllerText) {
+        var taken = buildNameSet(comp);
+        var parts = trim(baseName).match(/^(.*?)(\d*)$/);
+        var stem  = (parts && parts[1]) ? parts[1] : "Cam";
+        var num   = (parts && parts[2]) ? parseInt(parts[2], 10) : 1;
+        if (!(num >= 1)) { num = 1; }
+
+        for (var guard = 0; guard < 2000; guard++, num++) {
+            var names = {
+                camera:     stem + num,
+                controller: decorate(stem + num, controllerType, controllerText),
+                target:     decorate("camTarget" + num, controllerType, controllerText)
+            };
+            if (!taken["|" + names.camera] &&
+                !taken["|" + names.controller] &&
+                !taken["|" + names.target]) {
+                return names;
+            }
+        }
+        return null;
+    }
+
+    // Controller / target names for a camera that already exists. The camera
+    // keeps the name it has.
+    function getWrapRigNames(comp, cameraName, controllerType, controllerText) {
+        var taken = buildNameSet(comp);
+
+        var controller = decorate(cameraName, controllerType, controllerText);
+        if (taken["|" + controller] || controller === cameraName) {
+            var stem = controller;
+            var n = 2;
+            while (n < 2000 && (taken["|" + (stem + " " + n)] || (stem + " " + n) === cameraName)) {
+                n++;
+            }
+            controller = stem + " " + n;
         }
 
+        var target = "";
         var num = 1;
-        var baseNameWithoutNumber = baseName.replace(/\d+$/, "");
-
-        // Keep incrementing number until finding unique names
-        while (true) {
-            var cameraExists = false;
-            var controllerExists = false;
-            var targetExists = false;
-
-            // Check all layers for name conflicts
-            for (var i = 1; i <= layers.length; i++) {
-                var layer = layers[i];
-                if (!layer) continue;
-                
-                if (layer.name === cameraName) {
-                    cameraExists = true;
-                }
-                if (layer.name === controllerName) {
-                    controllerExists = true;
-                }
-                if (layer.name === targetName) {
-                    targetExists = true;
-                }
-            }
-
-            if (!cameraExists && !controllerExists && !targetExists) {
-                break;
-            } else {
-                num++;
-                cameraName = baseNameWithoutNumber + num;
-                
-                if (controllerType === "prefix") {
-                    controllerName = controllerText + "_" + baseNameWithoutNumber + num;
-                    targetName = controllerText + "_camTarget" + num;
-                } else if (controllerType === "suffix") {
-                    controllerName = baseNameWithoutNumber + num + "_" + controllerText;
-                    targetName = "camTarget" + num + "_" + controllerText;
-                }
-            }
+        while (num < 2000) {
+            target = decorate("camTarget" + num, controllerType, controllerText);
+            if (!taken["|" + target] && target !== controller) { break; }
+            num++;
         }
-        
-        return {
-            camera: cameraName,
-            controller: controllerName,
-            target: targetName
-        };
+
+        return { camera: cameraName, controller: controller, target: target };
     }
 
-    // Add focus distance expression to connect camera to target null
-    // and make camera point at the target
-    function addFocusDistanceExpression(comp, cameraLayer, targetName, controllerLayer) {
+    // -----------------------------------------------------------------
+    // Expressions
+    // -----------------------------------------------------------------
+
+    function exprControllerValue(effectName, comment) {
+        return "// " + comment + " - driven by the controller null.\n" +
+               "hasParent ? parent.effect(\"" + esc(effectName) + "\")(1) : value;";
+    }
+
+    function exprCameraPosition() {
+        return [
+            "// Z comes from the controller's Camera Distance slider.",
+            "// X and Y read `value`, never `transform.position`, which would",
+            "// make this expression reference itself.",
+            "var x = value[0];",
+            "var y = value[1];",
+            "var z = value[2];",
+            "",
+            "if (hasParent) {",
+            "    var c = parent;",
+            "    var dist = c.effect(\"Camera Distance\")(1);",
+            "",
+            "    if (c.effect(\"Dolly Zoom Effect\")(1) > 0) {",
+            "        // Hold the subject the same size while the lens changes:",
+            "        // distance scales with focal length.",
+            "        var ref = c.effect(\"Ref Focal Length\")(1);",
+            "        if (ref > 0) { dist = dist * c.effect(\"Focal Length\")(1) / ref; }",
+            "    }",
+            "",
+            "    z = -dist;",
+            "}",
+            "",
+            "[x, y, z];"
+        ].join("\n");
+    }
+
+    function exprAimAtTarget(targetName) {
+        return [
+            "// Point of Interest follows the target null. Falls back to the",
+            "// property's own value if the target is ever deleted.",
+            "var t = null;",
+            "try { t = thisComp.layer(\"" + esc(targetName) + "\"); } catch (e) { t = null; }",
+            "",
+            "var r = value;",
+            "if (t) {",
+            "    var w = t.toWorld(t.anchorPoint);",
+            "    r = hasParent ? parent.fromWorld(w) : w;",
+            "}",
+            "r;"
+        ].join("\n");
+    }
+
+    function exprFocusOnTarget(targetName) {
+        return [
+            "// Focus distance = distance from this camera to the target null.",
+            "var t = null;",
+            "try { t = thisComp.layer(\"" + esc(targetName) + "\"); } catch (e) { t = null; }",
+            "",
+            "var r = value;",
+            "if (t) { r = length(toWorld([0, 0, 0]), t.toWorld(t.anchorPoint)); }",
+            "r;"
+        ].join("\n");
+    }
+
+    // -----------------------------------------------------------------
+    // Rig construction
+    // -----------------------------------------------------------------
+
+    function applyDOFSettings(camera, dofEnabled, aperture, blurLevel) {
+        if (!(camera instanceof CameraLayer)) { return; }
+        if (dofEnabled !== null) {
+            setValueSafe(camOpt(camera, MN.dof), dofEnabled, "Depth of Field");
+        }
+        if (aperture !== null) {
+            setValueSafe(camOpt(camera, MN.aperture), aperture, "Aperture");
+        }
+        if (blurLevel !== null) {
+            setValueSafe(camOpt(camera, MN.blurLevel), blurLevel, "Blur Level");
+        }
+    }
+
+    // Build the controller's effect rig and wire the camera to it. The
+    // controller is the single source of truth: nothing is written to the
+    // camera directly, so no value can be silently overwritten afterwards.
+    function exposeCameraSettings(camera, controller, wiring) {
+        var effects = controller.property(MN.effects);
+
+        addCheckbox(effects, "DOF Enabled",      wiring.dofEnabled);
+        addSlider(effects,   "Aperture",         wiring.aperture);
+        addSlider(effects,   "Blur Level",       wiring.blurLevel);
+        addSlider(effects,   "Focal Length",     wiring.focalLength);
+        addSlider(effects,   "Ref Focal Length", wiring.focalLength);
+        addSlider(effects,   "Camera Distance",  wiring.camDistance);
+        addCheckbox(effects, "Dolly Zoom Effect", wiring.dollyZoom);
+
+        setExpressionSafe(camOpt(camera, MN.dof),
+            exprControllerValue("DOF Enabled", "Depth of Field"), "DOF expression");
+        setExpressionSafe(camOpt(camera, MN.aperture),
+            exprControllerValue("Aperture", "Aperture"), "Aperture expression");
+        setExpressionSafe(camOpt(camera, MN.blurLevel),
+            exprControllerValue("Blur Level", "Blur Level"), "Blur Level expression");
+        setExpressionSafe(camOpt(camera, MN.zoom),
+            exprControllerValue("Focal Length", "Zoom, in pixels"), "Focal Length expression");
+        setExpressionSafe(camera.transform.position,
+            exprCameraPosition(), "Camera position expression");
+    }
+
+    function createController(comp, name, labelColor) {
+        var controller = comp.layers.addNull(comp.duration);
+        // Only the layer is renamed. Writing to source.name would rename the
+        // null's item in the Project panel as well.
+        controller.name = name;
+        // 3D before anything is parented to it, so children are computed in 3D.
+        controller.threeDLayer = true;
+        controller.label = labelColor;
+        return controller;
+    }
+
+    function addTargetNull(comp, camera, controller, targetName, localPosition, labelColor) {
+        var target = comp.layers.addNull(comp.duration);
+        target.name = targetName;
+        target.threeDLayer = true;
+        target.label = labelColor;
+        target.parent = controller;
+        target.transform.position.setValue(localPosition);
+
+        setExpressionSafe(camera.transform.pointOfInterest,
+            exprAimAtTarget(targetName), "Point of Interest expression");
+        setExpressionSafe(camOpt(camera, MN.focusDist),
+            exprFocusOnTarget(targetName), "Focus Distance expression");
+
+        return target;
+    }
+
+    function createRig(comp, names, camDistance, labelColor) {
+        var center = [comp.width / 2, comp.height / 2];
+
+        var controller = createController(comp, names.controller, labelColor);
+        controller.transform.position.setValue([center[0], center[1], 0]);
+
+        var camera = comp.layers.addCamera(names.camera, center);
+        camera.label = labelColor;
+        camera.parent = controller;
+        camera.transform.position.setValue([0, 0, -camDistance]);
+        // Aim at the controller origin. Overridden by the target, if there is one.
+        setValueSafe(camera.transform.pointOfInterest, [0, 0, 0], "Point of Interest");
+
+        return { camera: camera, controller: controller };
+    }
+
+    // Wrap an existing camera without moving it. Everything stays in the
+    // camera's current parent space, so no world space maths is needed and a
+    // camera that is already parented keeps working.
+    function wrapCamera(comp, camera, names, labelColor) {
+        var oldParent = camera.parent;
+        var camPos    = camera.transform.position.value;
+        var poi       = camera.transform.pointOfInterest.value;
+
+        var controller = createController(comp, names.controller, labelColor);
+        controller.parent = oldParent;
+        controller.transform.position.setValue([poi[0], poi[1], poi[2]]);
+
+        // AE rewrites the camera's local values on reparent, so it does not move.
+        camera.parent = controller;
+        camera.label = labelColor;
+
+        // Camera Distance drives local Z, so measure the signed Z gap to
+        // reproduce the camera's current position exactly.
+        var distance = poi[2] - camPos[2];
+        if (Math.abs(distance) < 1) {
+            var dx = camPos[0] - poi[0];
+            var dy = camPos[1] - poi[1];
+            var dz = camPos[2] - poi[2];
+            var straightLine = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            distance = straightLine >= 1 ? straightLine : defaultDistance(comp);
+            note("\"" + camera.name + "\": the camera sits at the same depth as its " +
+                 "Point of Interest, so Camera Distance was set to " +
+                 formatNum(distance) + " and the camera moved.");
+        }
+
+        return { camera: camera, controller: controller, targetLocal: [0, 0, 0],
+                 camDistance: distance };
+    }
+
+    function readZoom(camera, fallback) {
+        var zoom = camOpt(camera, MN.zoom);
+        try {
+            if (zoom) {
+                var v = zoom.value;
+                if (typeof v === "number" && v > 0) { return v; }
+            }
+        } catch (e) { /* fall through */ }
+        return fallback > 0 ? fallback : 1000;
+    }
+
+    // Say out loud what wrapping is about to replace, rather than doing it silently.
+    function noteReplacedWork(camera) {
+        var clashes = [];
+        var position = camera.transform.position;
+        var zoom = camOpt(camera, MN.zoom);
+
+        if (position.numKeys > 0) { clashes.push("Position keyframes (Z is overridden)"); }
+        if (hasLiveExpression(position)) { clashes.push("a Position expression"); }
+        if (zoom && zoom.numKeys > 0) { clashes.push("Zoom keyframes"); }
+        if (hasLiveExpression(zoom)) { clashes.push("a Zoom expression"); }
+
+        if (clashes.length) {
+            note("\"" + camera.name + "\" already had " + clashes.join(", ") +
+                 ". The rig replaced them - undo if that is not what you wanted.");
+        }
+    }
+
+    function buildRig(comp, opts, existingCamera) {
+        var names, camera, controller, targetLocal, camDistance, focalLength;
+        var wasLocked = false;
+
+        if (existingCamera) {
+            wasLocked = existingCamera.locked;
+            if (wasLocked) { existingCamera.locked = false; }
+
+            names = getWrapRigNames(comp, existingCamera.name,
+                                    opts.controllerType, opts.controllerText);
+            if (opts.expose) { noteReplacedWork(existingCamera); }
+
+            focalLength = readZoom(existingCamera, opts.focalLength);
+
+            var wrapped = wrapCamera(comp, existingCamera, names, opts.labelColor);
+            camera      = wrapped.camera;
+            controller  = wrapped.controller;
+            targetLocal = wrapped.targetLocal;
+            camDistance = wrapped.camDistance;
+        } else {
+            names = getNewRigNames(comp, opts.cameraName,
+                                   opts.controllerType, opts.controllerText);
+            if (!names) {
+                throw new Error("Could not build a unique set of layer names. " +
+                                "Rename a few layers and try again.");
+            }
+            camDistance = opts.camDistance > 0 ? opts.camDistance : defaultDistance(comp);
+            focalLength = opts.focalLength > 0 ? opts.focalLength : defaultDistance(comp);
+
+            var created = createRig(comp, names, camDistance, opts.labelColor);
+            camera      = created.camera;
+            controller  = created.controller;
+            targetLocal = [0, 0, opts.targetDistance];
+        }
+
+        var wiring = {
+            dofEnabled:  opts.dofEnabled,
+            aperture:    opts.aperture,
+            blurLevel:   opts.blurLevel,
+            focalLength: focalLength,
+            camDistance: camDistance,
+            dollyZoom:   opts.dollyZoom
+        };
+
+        if (opts.expose) {
+            exposeCameraSettings(camera, controller, wiring);
+        } else {
+            applyDOFSettings(camera, wiring.dofEnabled, wiring.aperture, wiring.blurLevel);
+            setValueSafe(camOpt(camera, MN.zoom), wiring.focalLength, "Zoom");
+        }
+
+        var target = null;
+        if (opts.addTarget) {
+            target = addTargetNull(comp, camera, controller, names.target,
+                                   targetLocal, opts.labelColor);
+
+            if (camera.autoOrient !== AutoOrientType.CAMERA_OR_POINT_OF_INTEREST) {
+                note("\"" + camera.name + "\": Auto-Orient is off, so the target only " +
+                     "drives focus distance. Set Layer > Transform > Auto-Orient to " +
+                     "\"Orient Towards Point of Interest\" to aim the camera at it.");
+            }
+        }
+
+        // Tidy stack: camera, then controller, then target.
+        try {
+            controller.moveAfter(camera);
+            if (target) { target.moveAfter(controller); }
+        } catch (e) {
+            warn("Layer order", e);
+        }
+
+        return { camera: camera, controller: controller, target: target,
+                 wasLocked: wasLocked };
+    }
+
+    function applyDOFToSelectedCameras(dofEnabled, aperture, blurLevel) {
+        var comp = app.project ? app.project.activeItem : null;
         if (!(comp instanceof CompItem)) {
-            alert("Please select a composition.");
-            return null;
-        }
-
-        var myCam = cameraLayer;
-        if (!myCam) {
-            if (comp.activeCamera instanceof CameraLayer) {
-                myCam = comp.activeCamera;
-            } else {
-                myCam = comp.layers.addCamera("Target Camera", [comp.width / 2, comp.height / 2]);
-            }
-        }
-
-        // Create and properly name the null object
-        var myNull = comp.layers.addNull();
-        myNull.name = targetName; // This is the key change - setting the name explicitly
-        myNull.threeDLayer = true;
-        
-        // IMPORTANT CHANGE: Parent the target to the controller
-        if (controllerLayer) {
-            myNull.parent = controllerLayer;
-            
-            // Position the target in front of the camera system
-            myNull.transform.position.setValue([0, 0, 1000]); // Position the target in front of the controller
-        }
-        
-        try {
-            // Add expression to link camera focus to null object
-            if (myCam.cameraOption.focusDistance.canSetExpression) {
-                myCam.cameraOption.focusDistance.expression = 
-                    "target = thisComp.layer(\"" + targetName + "\");\n" +
-                    "v1 = target.toWorld(target.anchorPoint) - toWorld([0,0,0]);\n" +
-                    "v2 = toWorldVec([0,0,1]);\n" +
-                    "length(v1);";
-            }
-                
-            // Make camera point at target
-            myCam.autoOrient = AutoOrientType.NO_AUTO_ORIENT; // Disable auto-orient first
-            
-            // Point camera at target with expression - FIXED VERSION
-            if (myCam.transform.orientation.canSetExpression) {
-                myCam.transform.orientation.expression = 
-                    "target = thisComp.layer(\"" + targetName + "\");\n" +
-                    "// Convert world coordinates to local space relative to parent\n" +
-                    "if (hasParent) {\n" +
-                    "    // Get target position in world space\n" +
-                    "    targetWorld = target.toWorld(target.anchorPoint);\n" +
-                    "    // Convert target world position to camera's parent space\n" +
-                    "    targetLocal = parent.fromWorld(targetWorld);\n" +
-                    "    // Look at target from local coordinates\n" +
-                    "    lookAt(position, targetLocal);\n" +
-                    "} else {\n" +
-                    "    lookAt(toWorld([0,0,0]), target.toWorld(target.anchorPoint));\n" +
-                    "}";
-            }
-        } catch(e) {
-            alert("Warning: Could not set all camera expressions. " + e.toString());
-        }
-            
-        return {
-            camera: myCam,
-            target: myNull
-        };
-    }
-
-    // Function to apply DOF settings to camera
-    function applyDOFSettings(camera, enabled, aperture, blurLevel) {
-        if (!(camera instanceof CameraLayer)) return;
-        
-        try {
-            // Check if these properties exist and can be set
-            if (camera.property("ADBE Camera Options Group").property("ADBE Camera Depth of Field") && 
-                camera.property("ADBE Camera Options Group").property("ADBE Camera Depth of Field").canSetValue) {
-                camera.property("ADBE Camera Options Group").property("ADBE Camera Depth of Field").setValue(enabled);
-            }
-            
-            if (camera.property("ADBE Camera Options Group").property("ADBE Camera Focus Distance") && 
-                camera.property("ADBE Camera Options Group").property("ADBE Camera Focus Distance").canSetValue) {
-                camera.property("ADBE Camera Options Group").property("ADBE Camera Aperture").setValue(aperture);
-            }
-            
-            if (camera.property("ADBE Camera Options Group").property("ADBE Camera Blur Level") && 
-                camera.property("ADBE Camera Options Group").property("ADBE Camera Blur Level").canSetValue) {
-                camera.property("ADBE Camera Options Group").property("ADBE Camera Blur Level").setValue(blurLevel);
-            }
-        } catch(e) {
-            alert("Warning: Could not set all DOF properties. " + e.toString());
-        }
-    }
-
-    // Function to update DOF settings on selected cameras
-    function updateSelectedCamerasDOF(enabled, aperture, blurLevel) {
-        var comp = app.project.activeItem;
-        if (!(comp instanceof CompItem)) return;
-        
-        var layers = comp.selectedLayers;
-        var cameraLayers = [];
-        
-        for (var i = 0; i < layers.length; i++) {
-            if (layers[i] instanceof CameraLayer) {
-                cameraLayers.push(layers[i]);
-            }
-        }
-        
-        app.beginUndoGroup("Update DOF Settings");
-        for (var i = 0; i < cameraLayers.length; i++) {
-            var camera = cameraLayers[i];
-            try {
-                var cameraOptions = camera.property("ADBE Camera Options Group");
-                
-                if (enabled !== null && cameraOptions.property("ADBE Camera Depth of Field").canSetValue) {
-                    cameraOptions.property("ADBE Camera Depth of Field").setValue(enabled);
-                }
-                
-                if (aperture !== null && cameraOptions.property("ADBE Camera Aperture").canSetValue) {
-                    cameraOptions.property("ADBE Camera Aperture").setValue(aperture);
-                }
-                
-                if (blurLevel !== null && cameraOptions.property("ADBE Camera Blur Level").canSetValue) {
-                    cameraOptions.property("ADBE Camera Blur Level").setValue(blurLevel);
-                }
-            } catch(e) {
-                // Silently continue with next camera
-            }
-        }
-        app.endUndoGroup();
-    }
-
-    // Function to expose camera settings to controller null
-    function exposeCameraSettingsToController(camera, controller) {
-        if (!(camera instanceof CameraLayer) || !controller) return;
-        
-        try {
-            // Add Effect Controls to the controller null
-            var effectsProperty = controller.property("Effects");
-            
-            // Add DOF controls
-            var dofControl = effectsProperty.addProperty("ADBE Checkbox Control");
-            dofControl.name = "DOF Enabled";
-            
-            try {
-                var dofValue = camera.property("ADBE Camera Options Group").property("ADBE Camera Depth of Field").value;
-                dofControl.property("Checkbox").setValue(dofValue);
-                
-                if (camera.property("ADBE Camera Options Group").property("ADBE Camera Depth of Field").canSetExpression) {
-                    camera.property("ADBE Camera Options Group").property("ADBE Camera Depth of Field").expression = 
-                        "thisComp.layer(\"" + controller.name + "\").effect(\"DOF Enabled\")(\"Checkbox\")";
-                }
-            } catch(e) {
-                // Continue with other properties
-            }
-            
-            var apertureControl = effectsProperty.addProperty("ADBE Slider Control");
-            apertureControl.name = "Aperture";
-            apertureControl.property("Slider").setValue(200);
-            
-            try {
-                var apertureValue = camera.property("ADBE Camera Options Group").property("ADBE Camera Aperture").value;
-                // Use default value of 200 instead of camera's current value
-                // apertureControl.property("Slider").setValue(apertureValue);
-                
-                if (camera.property("ADBE Camera Options Group").property("ADBE Camera Aperture").canSetExpression) {
-                    camera.property("ADBE Camera Options Group").property("ADBE Camera Aperture").expression = 
-                        "thisComp.layer(\"" + controller.name + "\").effect(\"Aperture\")(\"Slider\")";
-                }
-            } catch(e) {
-                // Continue with other properties
-            }
-            
-            var blurControl = effectsProperty.addProperty("ADBE Slider Control");
-            blurControl.name = "Blur Level";
-            blurControl.property("Slider").setValue(200);
-            
-            try {
-                var blurValue = camera.property("ADBE Camera Options Group").property("ADBE Camera Blur Level").value;
-                // Use default value of 200 instead of camera's current value
-                // blurControl.property("Slider").setValue(blurValue);
-                
-                if (camera.property("ADBE Camera Options Group").property("ADBE Camera Blur Level").canSetExpression) {
-                    camera.property("ADBE Camera Options Group").property("ADBE Camera Blur Level").expression = 
-                        "thisComp.layer(\"" + controller.name + "\").effect(\"Blur Level\")(\"Slider\")";
-                }
-            } catch(e) {
-                // Continue with other properties
-            }
-            
-            // Add camera position/zoom controls
-            var focalLengthControl = effectsProperty.addProperty("ADBE Slider Control");
-            focalLengthControl.name = "Focal Length";
-            
-            try {
-                var zoomValue = camera.property("ADBE Camera Options Group").property("ADBE Camera Zoom").value;
-                focalLengthControl.property("Slider").setValue(zoomValue);
-                
-                if (camera.property("ADBE Camera Options Group").property("ADBE Camera Zoom").canSetExpression) {
-                    camera.property("ADBE Camera Options Group").property("ADBE Camera Zoom").expression = 
-                        "thisComp.layer(\"" + controller.name + "\").effect(\"Focal Length\")(\"Slider\")";
-                }
-            } catch(e) {
-                // Continue silently
-            }
-            
-            // Add Camera Distance slider control
-            var camDistanceControl = effectsProperty.addProperty("ADBE Slider Control");
-            camDistanceControl.name = "Camera Distance";
-            
-            try {
-                // Get current Z position value (as a negative number in camera space)
-                var camDistValue = Math.abs(camera.transform.position.value[2]);
-                camDistanceControl.property("Slider").setValue(camDistValue);
-                
-                if (camera.transform.position.canSetExpression) {
-                    camera.transform.position.expression = 
-                        "// Keep X and Y position values, change only Z based on Camera Distance\n" +
-                        "x = transform.position[0];\n" +
-                        "y = transform.position[1];\n" +
-                        "z = -thisComp.layer(\"" + controller.name + "\").effect(\"Camera Distance\")(\"Slider\");\n" +
-                        "[x, y, z];";
-                }
-            } catch(e) {
-                // Continue silently
-            }
-            
-            // Add Dolly Zoom checkbox
-            var dollyZoomControl = effectsProperty.addProperty("ADBE Checkbox Control");
-            dollyZoomControl.name = "Dolly Zoom Effect";
-            dollyZoomControl.property("Checkbox").setValue(false);
-            
-            // Add expressions to link focal length and camera distance for dolly zoom effect
-            try {
-                if (camera.property("ADBE Camera Options Group").property("ADBE Camera Zoom").canSetExpression) {
-                    // Simple expression to link focal length to controller slider
-                    camera.property("ADBE Camera Options Group").property("ADBE Camera Zoom").expression = 
-                        "thisComp.layer(\"" + controller.name + "\").effect(\"Focal Length\")(\"Slider\");";
-                }
-                
-                // Instead of adding expression to the slider, add dolly zoom effect to camera position
-                // This approach avoids issues with expression references
-                if (camera.transform.position.canSetExpression) {
-                    var initialFocal = camera.property("ADBE Camera Options Group").property("ADBE Camera Zoom").value;
-                    var initialDist = Math.abs(camera.transform.position.value[2]);
-                    
-                    camera.transform.position.expression = 
-                        "// Dolly zoom effect on camera position\n" +
-                        "ctrl = thisComp.layer(\"" + controller.name + "\");\n" +
-                        "dollyZoom = ctrl.effect(\"Dolly Zoom Effect\")(\"Checkbox\");\n" +
-                        "focalLength = ctrl.effect(\"Focal Length\")(\"Slider\");\n" +
-                        "camDist = ctrl.effect(\"Camera Distance\")(\"Slider\");\n" +
-                        "\n" +
-                        "// Get X and Y position\n" +
-                        "x = transform.position[0];\n" +
-                        "y = transform.position[1];\n" +
-                        "\n" +
-                        "// Initial reference values\n" +
-                        "initialFocal = " + initialFocal + ";\n" +
-                        "initialDist = " + initialDist + ";\n" +
-                        "\n" +
-                        "// Calculate Z position\n" +
-                        "if (dollyZoom == 1) {\n" +
-                        "    // Apply the inverse relationship - as focal length increases, distance increases\n" +
-                        "    z = -camDist * (focalLength / initialFocal);\n" +
-                        "} else {\n" +
-                        "    // Use direct distance when dolly zoom is off\n" +
-                        "    z = -camDist;\n" +
-                        "}\n" +
-                        "\n" +
-                        "[x, y, z];";
-                }
-            } catch(e) {
-                alert("Warning: Could not set dolly zoom expressions. " + e.toString());
-            }
-        } catch(e) {
-            alert("Warning: Could not expose all camera settings. " + e.toString());
-        }
-    }
-
-    // Function to add camera rig (camera + controller)
-    function addCameraRig(comp, cameraName, controllerName, camDistance) {
-        if (!(comp instanceof CompItem)) {
-            alert("Please select a composition.");
-            return null;
-        }
-        
-        var layers = comp.layers;
-        var centerPoint = [comp.width / 2, comp.height / 2];
-        
-        var cameraLayer = layers.addCamera(cameraName, centerPoint);
-        var cameraControllerLayer = layers.addNull();
-        
-        cameraLayer.parent = cameraControllerLayer;
-        
-        var position = [0, 0, -camDistance];
-        cameraLayer.transform.position.setValue(position);
-        
-        cameraControllerLayer.name = controllerName;
-        cameraControllerLayer.source.name = controllerName;
-        cameraControllerLayer.threeDLayer = true;
-        
-        return {
-            camera: cameraLayer,
-            controller: cameraControllerLayer
-        };
-    }
-
-    // Check if alt key is pressed to show UI
-    if (ScriptUI.environment.keyboardState.altKey) {
-        var comp = app.project.activeItem;
-        
-        if (!comp || !(comp instanceof CompItem)) {
-            alert("Please select a composition.");
+            alert("Open a composition first.");
             return;
         }
-        
-        var layers = comp.layers;
-        
-        // Create the UI
-        function buildUI() {
-            var win = new Window('dialog', "Camera Rig Setup", undefined, {
-                resizeable: true
-            });
-            win.orientation = 'column';
-            win.alignChildren = ['fill', 'top'];
-            win.margins = 16;
-            win.spacing = 10;
 
-            // Camera name section
-            var nameGroup = win.add('group');
-            nameGroup.orientation = 'row';
-            nameGroup.alignChildren = ['left', 'center'];
-            nameGroup.spacing = 10;
-            
-            nameGroup.add('statictext', undefined, 'Camera Name:');
-            var camNameInput = nameGroup.add('edittext', undefined, 'Cam1');
-            camNameInput.minimumSize.width = 150;
-            
-            // Camera distance section
-            var distanceGroup = win.add('group');
-            distanceGroup.orientation = 'row';
-            distanceGroup.alignChildren = ['left', 'center'];
-            distanceGroup.spacing = 10;
-            
-            distanceGroup.add('statictext', undefined, 'Camera Distance:');
-            var camDistInput = distanceGroup.add('edittext', undefined, '1000');
-            camDistInput.minimumSize.width = 80;
-            
-            var camDistSlider = distanceGroup.add('slider', undefined, 1000, 0, 5000);
-            camDistSlider.preferredSize.width = 150;
-            
-            // Synchronize slider and text field
-            camDistInput.onChange = function() {
-                var value = parseInt(camDistInput.text);
-                if (!isNaN(value)) {
-                    camDistSlider.value = value;
-                }
-            };
-            
-            camDistSlider.onChanging = function() {
-                camDistInput.text = Math.round(camDistSlider.value);
-            };
-            
-            // Controller naming section
-            var controllerGroup = win.add('group');
-            controllerGroup.orientation = 'row';
-            controllerGroup.alignChildren = ['left', 'center'];
-            controllerGroup.spacing = 10;
-            
-            controllerGroup.add('statictext', undefined, 'Controller:');
-            
-            var radioGroup = controllerGroup.add('group');
-            radioGroup.orientation = 'row';
-            radioGroup.spacing = 5;
-            
-            var prefixRadio = radioGroup.add('radiobutton', undefined, 'Prefix');
-            var suffixRadio = radioGroup.add('radiobutton', undefined, 'Suffix');
-            prefixRadio.value = true;
-            
-            var controllerText = controllerGroup.add('edittext', undefined, 'ctrl');
-            controllerText.minimumSize.width = 80;
-            
-            // Target checkbox
-            var targetGroup = win.add('group');
-            targetGroup.orientation = 'row';
-            targetGroup.alignChildren = ['left', 'center'];
-            
-            var addTargetCheckbox = targetGroup.add('checkbox', undefined, 'Add Camera Target');
-            addTargetCheckbox.value = true; // Default to true
-            
-            // Target distance section
-            var targetDistGroup = win.add('group');
-            targetDistGroup.orientation = 'row';
-            targetDistGroup.alignChildren = ['left', 'center'];
-            targetDistGroup.spacing = 10;
-            
-            targetDistGroup.add('statictext', undefined, 'Target Distance:');
-            var targetDistInput = targetDistGroup.add('edittext', undefined, '1000');
-            targetDistInput.minimumSize.width = 80;
-            
-            var targetDistSlider = targetDistGroup.add('slider', undefined, 1000, 0, 5000);
-            targetDistSlider.preferredSize.width = 150;
-            
-            // Synchronize target distance slider and text field
-            targetDistInput.onChange = function() {
-                var value = parseInt(targetDistInput.text);
-                if (!isNaN(value)) {
-                    targetDistSlider.value = value;
-                }
-            };
-            
-            targetDistSlider.onChanging = function() {
-                targetDistInput.text = Math.round(targetDistSlider.value);
-            };
-            
-            // DOF settings panel
-            var dofPanel = win.add('panel', undefined, 'Depth of Field Settings');
-            dofPanel.orientation = 'column';
-            dofPanel.alignChildren = ['fill', 'top'];
-            dofPanel.margins = 16;
-            dofPanel.spacing = 8;
-            
-            // DOF Enable checkbox
-            var dofEnableGroup = dofPanel.add('group');
-            dofEnableGroup.orientation = 'row';
-            
-            var dofEnabledCheckbox = dofEnableGroup.add('checkbox', undefined, 'Enable Depth of Field');
-            dofEnabledCheckbox.value = false;
-            
-            // Aperture controls
-            var apertureGroup = dofPanel.add('group');
-            apertureGroup.orientation = 'row';
-            apertureGroup.alignChildren = ['left', 'center'];
-            apertureGroup.spacing = 10;
-            
-            apertureGroup.add('statictext', undefined, 'Aperture:');
-            var apertureInput = apertureGroup.add('edittext', undefined, '200');
-            apertureInput.minimumSize.width = 80;
-            
-            var apertureSlider = apertureGroup.add('slider', undefined, 200, 0, 2000);
-            apertureSlider.preferredSize.width = 150;
-            
-            // Synchronize aperture controls
-            apertureInput.onChange = function() {
-                var value = parseInt(apertureInput.text);
-                if (!isNaN(value)) {
-                    apertureSlider.value = value;
-                    updateSelectedCamerasDOF(null, value, null);
-                }
-            };
-            
-            apertureSlider.onChanging = function() {
-                apertureInput.text = Math.round(apertureSlider.value);
-            };
-            
-            apertureSlider.onChange = function() {
-                updateSelectedCamerasDOF(null, Math.round(apertureSlider.value), null);
-            };
-            
-            // Blur level controls
-            var blurGroup = dofPanel.add('group');
-            blurGroup.orientation = 'row';
-            blurGroup.alignChildren = ['left', 'center'];
-            blurGroup.spacing = 10;
-            
-            blurGroup.add('statictext', undefined, 'Blur Level:');
-            var blurInput = blurGroup.add('edittext', undefined, '200');
-            blurInput.minimumSize.width = 80;
-            
-            var blurSlider = blurGroup.add('slider', undefined, 200, 0, 1000);
-            blurSlider.preferredSize.width = 150;
-            
-            // Synchronize blur controls
-            blurInput.onChange = function() {
-                var value = parseInt(blurInput.text);
-                if (!isNaN(value)) {
-                    blurSlider.value = value;
-                    updateSelectedCamerasDOF(null, null, value);
-                }
-            };
-            
-            blurSlider.onChanging = function() {
-                blurInput.text = Math.round(blurSlider.value);
-            };
-            
-            blurSlider.onChange = function() {
-                updateSelectedCamerasDOF(null, null, Math.round(blurSlider.value));
-            };
-            
-            // DOF checkbox event
-            dofEnabledCheckbox.onClick = function() {
-                updateSelectedCamerasDOF(dofEnabledCheckbox.value, null, null);
-            };
-            
-            // Dolly Zoom checkbox
-            var dollyZoomGroup = win.add('group');
-            dollyZoomGroup.orientation = 'row';
-            dollyZoomGroup.alignChildren = ['left', 'center'];
-            
-            var dollyZoomCheckbox = dollyZoomGroup.add('checkbox', undefined, 'Enable Dolly Zoom Effect');
-            dollyZoomCheckbox.value = false;
-            
-            // Focal length controls
-            var focalLengthGroup = win.add('group');
-            focalLengthGroup.orientation = 'row';
-            focalLengthGroup.alignChildren = ['left', 'center'];
-            focalLengthGroup.spacing = 10;
-            
-            focalLengthGroup.add('statictext', undefined, 'Focal Length:');
-            var focalLengthInput = focalLengthGroup.add('edittext', undefined, '1000');
-            focalLengthInput.minimumSize.width = 80;
-            
-            var focalLengthSlider = focalLengthGroup.add('slider', undefined, 1000, 50, 5000);
-            focalLengthSlider.preferredSize.width = 150;
-            
-            // Synchronize focal length controls
-            focalLengthInput.onChange = function() {
-                var value = parseInt(focalLengthInput.text);
-                if (!isNaN(value)) {
-                    focalLengthSlider.value = value;
-                }
-            };
-            
-            focalLengthSlider.onChanging = function() {
-                focalLengthInput.text = Math.round(focalLengthSlider.value);
-            };
-            
-            // Expose settings checkbox
-            var exposeGroup = win.add('group');
-            exposeGroup.orientation = 'row';
-            exposeGroup.alignChildren = ['left', 'center'];
-            
-            var exposeCheckbox = exposeGroup.add('checkbox', undefined, 'Expose Camera Settings to Controller');
-            exposeCheckbox.value = true; // Default to true
-            
-            // Buttons row
-            var buttonGroup = win.add('group');
-            buttonGroup.orientation = 'row';
-            buttonGroup.alignChildren = ['center', 'center'];
-            buttonGroup.margins.top = 10;
-            
-            var createButton = buttonGroup.add('button', undefined, 'Create Camera Rig', {name: 'ok'});
-            var cancelButton = buttonGroup.add('button', undefined, 'Cancel', {name: 'cancel'});
-            
-            // Create button click handler
-            createButton.onClick = function() {
-                app.beginUndoGroup("Enhanced Camera Rig Creation");
-                
-                try {
-                    var controllerType = prefixRadio.value ? "prefix" : "suffix";
-                    var uniqueNames = getUniqueCameraNames(
-                        layers, 
-                        camNameInput.text, 
-                        controllerType, 
-                        controllerText.text
-                    );
-                    
-                    var camDistance = Math.round(parseFloat(camDistInput.text));
-                    if (isNaN(camDistance) || camDistance <= 0) {
-                        alert("Please enter a valid camera distance.");
-                        app.endUndoGroup();
-                        return;
-                    }
-                    
-                    var rigData = addCameraRig(
-                        comp, 
-                        uniqueNames.camera, 
-                        uniqueNames.controller, 
-                        camDistance
-                    );
-                    
-                    if (!rigData) {
-                        app.endUndoGroup();
-                        return;
-                    }
-                    
-                    // Apply DOF settings with updated default values
-                    applyDOFSettings(
-                        rigData.camera, 
-                        dofEnabledCheckbox.value,
-                        parseInt(apertureInput.text) || 200,
-                        parseInt(blurInput.text) || 200
-                    );
-                    
-                    // Expose settings to controller if requested
-                    if (exposeCheckbox.value) {
-                        exposeCameraSettingsToController(rigData.camera, rigData.controller);
-                        
-                        // Update Focal Length to match the UI value
-                        var effectsProperty = rigData.controller.property("Effects");
-                        var focalLengthEffect = effectsProperty.property("Focal Length");
-                        if (focalLengthEffect) {
-                            var focalLengthValue = parseInt(focalLengthInput.text) || 1000;
-                            focalLengthEffect.property("Slider").setValue(focalLengthValue);
-                        }
-                        
-                        // Set dolly zoom checkbox value
-                        var dollyZoomEffect = effectsProperty.property("Dolly Zoom Effect");
-                        if (dollyZoomEffect) {
-                            dollyZoomEffect.property("Checkbox").setValue(dollyZoomCheckbox.value);
-                        }
-                    }
-                    
-                    // Add focus target if requested
-                    var dofTarget = null;
-                    if (addTargetCheckbox.value) {
-                        // Pass controller layer to addFocusDistanceExpression 
-                        // to parent the target to it
-                        var targetDistance = parseInt(targetDistInput.text) || 1000;
-                        var dofResult = addFocusDistanceExpression(
-                            comp, 
-                            rigData.camera, 
-                            uniqueNames.target, 
-                            rigData.controller
-                        );
-                        
-                        if (dofResult) {
-                            dofTarget = dofResult.target;
-                            // Set target distance
-                            dofTarget.transform.position.setValue([0, 0, targetDistance]);
-                        }
-                    }
-                    
-                    // Select new layers
-                    if (rigData.camera) rigData.camera.selected = true;
-                    if (rigData.controller) rigData.controller.selected = true;
-                    if (dofTarget) dofTarget.selected = true;
-                    
-                    app.endUndoGroup();
-                    win.close();
-                } catch (err) {
-                    alert("Error: " + err.message);
-                    app.endUndoGroup();
-                }
-            };
-            
-            // Cancel button handler
-            cancelButton.onClick = function() {
-                win.close();
-            };
-            
-            win.layout.layout(true);
-            win.center();
-            return win;
+        var cameras = getSelectedCameras(comp);
+        if (!cameras.length) {
+            alert("Select one or more camera layers first.");
+            return;
         }
-        
-        var dialog = buildUI();
-        dialog.show();
-    } else {
-        // Simple mode - just create a basic rig with default settings
-        app.beginUndoGroup("Add Camera Rig and Target");
-        
-        var comp = app.project.activeItem;
-        if (!comp || !(comp instanceof CompItem)) {
-            alert("Please select a composition.");
+
+        app.beginUndoGroup("Apply DOF to Selected Cameras");
+        try {
+            for (var i = 0; i < cameras.length; i++) {
+                if (hasLiveExpression(camOpt(cameras[i], MN.aperture))) {
+                    note("\"" + cameras[i].name + "\" is rigged - change these values " +
+                         "on its controller instead.");
+                    continue;
+                }
+                applyDOFSettings(cameras[i], dofEnabled, aperture, blurLevel);
+            }
+        } catch (e) {
+            warn("Apply DOF", e);
+        } finally {
             app.endUndoGroup();
-            return;
         }
-        
-        var layers = comp.layers;
-        
+
+        flushWarnings("Depth of field");
+    }
+
+    // -----------------------------------------------------------------
+    // Saved settings
+    // -----------------------------------------------------------------
+
+    function getSetting(key, fallback) {
         try {
-            var uniqueNames = getUniqueCameraNames(layers, "Cam1", "prefix", "ctrl");
-            
-            var centerPoint = [comp.width / 2, comp.height / 2];
-            var cameraLayer = layers.addCamera(uniqueNames.camera, centerPoint);
-            var cameraControllerLayer = layers.addNull();
-            
-            cameraLayer.parent = cameraControllerLayer;
-            
-            // Calculate a good starting distance based on comp size
-            var camDistance = comp.width / 0.72;
-            var position = [0, 0, -camDistance];
-            cameraLayer.transform.position.setValue(position);
-            
-            cameraControllerLayer.name = uniqueNames.controller;
-            cameraControllerLayer.source.name = uniqueNames.controller;
-            cameraControllerLayer.threeDLayer = true;
-            
-            // Apply DOF settings with updated default values
-            applyDOFSettings(cameraLayer, true, 200, 200);
-            
-            // Expose camera settings to controller
-            exposeCameraSettingsToController(cameraLayer, cameraControllerLayer);
-            
-            // Set default focal length to 1000
-            var effectsProperty = cameraControllerLayer.property("Effects");
-            var focalLengthEffect = effectsProperty.property("Focal Length");
-            if (focalLengthEffect) {
-                focalLengthEffect.property("Slider").setValue(1000);
+            if (app.settings.haveSetting(SETTINGS_SECTION, key)) {
+                return app.settings.getSetting(SETTINGS_SECTION, key);
             }
-            
-            // Add DOF target and expression
-            var dofResult = addFocusDistanceExpression(comp, cameraLayer, uniqueNames.target, cameraControllerLayer);
-            
-            // Select the created items
-            cameraLayer.selected = true;
-            cameraControllerLayer.selected = true;
-            if (dofResult && dofResult.target) {
-                dofResult.target.selected = true;
-            }
-            
-        } catch (err) {
-            alert("Error: " + err.message);
+        } catch (e) { /* fall through */ }
+        return fallback;
+    }
+
+    function setSetting(key, value) {
+        try {
+            app.settings.saveSetting(SETTINGS_SECTION, key, String(value));
+        } catch (e) { /* preferences are optional */ }
+    }
+
+    function getNum(key, fallback) {
+        return toNumber(getSetting(key, ""), fallback);
+    }
+
+    function getBool(key, fallback) {
+        var v = getSetting(key, null);
+        if (v === null) { return fallback; }
+        return v === "true" || v === "1";
+    }
+
+    function loadOptions() {
+        return {
+            cameraName:     getSetting("cameraName", DEFAULTS.cameraName),
+            controllerType: getSetting("controllerType", DEFAULTS.controllerType),
+            controllerText: getSetting("controllerText", DEFAULTS.controllerText),
+            camDistance:    getNum("camDistance", DEFAULTS.camDistance),
+            focalLength:    getNum("focalLength", DEFAULTS.focalLength),
+            addTarget:      getBool("addTarget", DEFAULTS.addTarget),
+            targetDistance: getNum("targetDistance", DEFAULTS.targetDistance),
+            dofEnabled:     getBool("dofEnabled", DEFAULTS.dofEnabled),
+            aperture:       getNum("aperture", DEFAULTS.aperture),
+            blurLevel:      getNum("blurLevel", DEFAULTS.blurLevel),
+            dollyZoom:      getBool("dollyZoom", DEFAULTS.dollyZoom),
+            expose:         getBool("expose", DEFAULTS.expose),
+            labelColor:     getNum("labelColor", DEFAULTS.labelColor),
+            lockCamera:     getBool("lockCamera", DEFAULTS.lockCamera)
+        };
+    }
+
+    function saveOptions(opts) {
+        for (var key in opts) {
+            if (key === "mode") { continue; }
+            setSetting(key, opts[key]);
         }
-        
+    }
+
+    // -----------------------------------------------------------------
+    // Dialog
+    // -----------------------------------------------------------------
+
+    function addNumberRow(parent, label, value, min, max, labelWidth) {
+        var group = parent.add("group");
+        group.orientation = "row";
+        group.alignChildren = ["left", "center"];
+        group.spacing = 8;
+
+        var caption = group.add("statictext", undefined, label);
+        caption.preferredSize.width = labelWidth;
+
+        var input = group.add("edittext", undefined, formatNum(value));
+        input.characters = 7;
+
+        var slider = group.add("slider", undefined, clamp(value, min, max), min, max);
+        slider.preferredSize.width = 150;
+
+        input.onChange = function () {
+            var v = toNumber(input.text, value);
+            input.text = formatNum(v);
+            slider.value = clamp(v, min, max);
+        };
+
+        slider.onChanging = function () {
+            input.text = formatNum(Math.round(slider.value));
+        };
+
+        return {
+            group: group,
+            value: function () { return toNumber(input.text, value); },
+            set: function (v) {
+                input.text = formatNum(v);
+                slider.value = clamp(v, min, max);
+            },
+            enable: function (state) {
+                caption.enabled = state;
+                input.enabled = state;
+                slider.enabled = state;
+            }
+        };
+    }
+
+    function buildDialog(comp, selectedCameras, opts) {
+        var LABEL_W = 108;
+        var chosen = null;
+
+        var win = new Window("dialog", "Camera Rig");
+        win.orientation = "column";
+        win.alignChildren = ["fill", "top"];
+        win.margins = 16;
+        win.spacing = 10;
+
+        // --- Mode -----------------------------------------------------
+        var modeGroup = win.add("group");
+        modeGroup.orientation = "row";
+        modeGroup.alignChildren = ["left", "center"];
+        modeGroup.spacing = 12;
+
+        var modeCaption = modeGroup.add("statictext", undefined, "Mode:");
+        modeCaption.preferredSize.width = LABEL_W - 12;
+
+        var createRadio = modeGroup.add("radiobutton", undefined, "Create new camera");
+        var wrapLabel = selectedCameras.length === 1
+            ? "Wrap selected camera"
+            : "Wrap " + selectedCameras.length + " selected cameras";
+        var wrapRadio = modeGroup.add("radiobutton", undefined, wrapLabel);
+
+        wrapRadio.enabled = selectedCameras.length > 0;
+        if (wrapRadio.enabled) { wrapRadio.value = true; } else { createRadio.value = true; }
+
+        var hint = win.add("statictext", undefined, "", { multiline: true });
+        hint.preferredSize = [430, 28];
+
+        // --- Camera ---------------------------------------------------
+        var camPanel = win.add("panel", undefined, "Camera");
+        camPanel.orientation = "column";
+        camPanel.alignChildren = ["fill", "top"];
+        camPanel.margins = [14, 16, 14, 14];
+        camPanel.spacing = 8;
+
+        var nameGroup = camPanel.add("group");
+        nameGroup.orientation = "row";
+        nameGroup.alignChildren = ["left", "center"];
+        nameGroup.spacing = 8;
+        var nameCaption = nameGroup.add("statictext", undefined, "Camera name:");
+        nameCaption.preferredSize.width = LABEL_W;
+        var nameInput = nameGroup.add("edittext", undefined, opts.cameraName);
+        nameInput.characters = 18;
+
+        var distRow = addNumberRow(camPanel, "Camera distance:",
+            opts.camDistance > 0 ? opts.camDistance : defaultDistance(comp),
+            0, 10000, LABEL_W);
+        var focalRow = addNumberRow(camPanel, "Focal length:",
+            opts.focalLength > 0 ? opts.focalLength : defaultDistance(comp),
+            10, 10000, LABEL_W);
+
+        var ctrlGroup = camPanel.add("group");
+        ctrlGroup.orientation = "row";
+        ctrlGroup.alignChildren = ["left", "center"];
+        ctrlGroup.spacing = 8;
+        var ctrlCaption = ctrlGroup.add("statictext", undefined, "Controller name:");
+        ctrlCaption.preferredSize.width = LABEL_W;
+        var prefixRadio = ctrlGroup.add("radiobutton", undefined, "Prefix");
+        var suffixRadio = ctrlGroup.add("radiobutton", undefined, "Suffix");
+        prefixRadio.value = opts.controllerType !== "suffix";
+        suffixRadio.value = !prefixRadio.value;
+        var ctrlInput = ctrlGroup.add("edittext", undefined, opts.controllerText);
+        ctrlInput.characters = 8;
+
+        var exposeCheck = camPanel.add("checkbox", undefined,
+            "Expose camera settings as controls on the controller");
+        exposeCheck.value = opts.expose;
+
+        var dollyCheck = camPanel.add("checkbox", undefined,
+            "Enable dolly zoom (distance follows focal length)");
+        dollyCheck.value = opts.dollyZoom;
+
+        // --- Target ---------------------------------------------------
+        var targetPanel = win.add("panel", undefined, "Target");
+        targetPanel.orientation = "column";
+        targetPanel.alignChildren = ["fill", "top"];
+        targetPanel.margins = [14, 16, 14, 14];
+        targetPanel.spacing = 8;
+
+        var targetCheck = targetPanel.add("checkbox", undefined,
+            "Add a target null for the camera to aim at and focus on");
+        targetCheck.value = opts.addTarget;
+
+        var targetDistRow = addNumberRow(targetPanel, "Target distance:",
+            opts.targetDistance, 0, 10000, LABEL_W);
+
+        // --- Depth of field -------------------------------------------
+        var dofPanel = win.add("panel", undefined, "Depth of Field");
+        dofPanel.orientation = "column";
+        dofPanel.alignChildren = ["fill", "top"];
+        dofPanel.margins = [14, 16, 14, 14];
+        dofPanel.spacing = 8;
+
+        var dofCheck = dofPanel.add("checkbox", undefined, "Enable depth of field");
+        dofCheck.value = opts.dofEnabled;
+
+        var apertureRow = addNumberRow(dofPanel, "Aperture:", opts.aperture, 0, 2000, LABEL_W);
+        var blurRow     = addNumberRow(dofPanel, "Blur level:", opts.blurLevel, 0, 1000, LABEL_W);
+
+        var applyGroup = dofPanel.add("group");
+        applyGroup.orientation = "row";
+        applyGroup.alignment = ["right", "top"];
+        var applyButton = applyGroup.add("button", undefined, "Apply to selected cameras");
+
+        applyButton.onClick = function () {
+            applyDOFToSelectedCameras(dofCheck.value, apertureRow.value(), blurRow.value());
+        };
+
+        // --- Rig layers -----------------------------------------------
+        var rigPanel = win.add("panel", undefined, "Rig Layers");
+        rigPanel.orientation = "row";
+        rigPanel.alignChildren = ["left", "center"];
+        rigPanel.margins = [14, 16, 14, 14];
+        rigPanel.spacing = 8;
+
+        var labelCaption = rigPanel.add("statictext", undefined, "Label colour:");
+        labelCaption.preferredSize.width = LABEL_W;
+        var labelList = rigPanel.add("dropdownlist", undefined, LABEL_NAMES);
+        labelList.selection = clamp(Math.round(opts.labelColor), 0, LABEL_NAMES.length - 1);
+
+        var lockCheck = rigPanel.add("checkbox", undefined, "Lock and shy the camera");
+        lockCheck.value = opts.lockCamera;
+
+        // --- Buttons ---------------------------------------------------
+        var buttonGroup = win.add("group");
+        buttonGroup.orientation = "row";
+        buttonGroup.alignment = ["right", "top"];
+        buttonGroup.spacing = 8;
+        buttonGroup.margins.top = 6;
+
+        // Deliberately not named "ok": a button with that name closes the dialog
+        // whatever its handler does, which would defeat validation. defaultElement
+        // keeps the Enter key working.
+        var createButton = buttonGroup.add("button", undefined, "Create Rig");
+        var cancelButton = buttonGroup.add("button", undefined, "Cancel", { name: "cancel" });
+        win.defaultElement = createButton;
+        win.cancelElement = cancelButton;
+
+        // --- Wiring ----------------------------------------------------
+        function syncMode() {
+            var wrap = wrapRadio.value;
+
+            nameCaption.enabled = !wrap;
+            nameInput.enabled = !wrap;
+            distRow.enable(!wrap);
+            focalRow.enable(!wrap);
+            targetDistRow.enable(!wrap && targetCheck.value);
+
+            var dofLive = exposeCheck.value || !wrap;
+            apertureRow.enable(dofLive);
+            blurRow.enable(dofLive);
+
+            dollyCheck.enabled = exposeCheck.value;
+
+            createButton.text = wrap
+                ? (selectedCameras.length > 1 ? "Wrap Cameras" : "Wrap Camera")
+                : "Create Rig";
+
+            hint.text = wrap
+                ? "A controller and target are built around each selected camera. " +
+                  "Position, aim and lens are preserved."
+                : "A new camera, controller and target are created at the centre of the comp.";
+        }
+
+        createRadio.onClick = syncMode;
+        wrapRadio.onClick = syncMode;
+        targetCheck.onClick = syncMode;
+        exposeCheck.onClick = syncMode;
+        syncMode();
+
+        function collect() {
+            var problems = [];
+
+            var cameraName = trim(nameInput.text) || DEFAULTS.cameraName;
+            var camDistance = distRow.value();
+            var focalLength = focalRow.value();
+            var targetDistance = targetDistRow.value();
+            var aperture = apertureRow.value();
+            var blurLevel = blurRow.value();
+
+            if (createRadio.value) {
+                if (!(camDistance > 0)) { problems.push("Camera distance must be greater than 0."); }
+                if (!(focalLength > 0)) { problems.push("Focal length must be greater than 0."); }
+            }
+            if (!(aperture > 0)) { problems.push("Aperture must be greater than 0."); }
+            if (!(blurLevel >= 0)) { problems.push("Blur level cannot be negative."); }
+            if (isNaN(targetDistance)) { problems.push("Target distance must be a number."); }
+
+            if (problems.length) {
+                alert("Check these values before building the rig:\n\n- " +
+                      problems.join("\n- "));
+                return null;
+            }
+
+            return {
+                mode:           wrapRadio.value ? "wrap" : "create",
+                cameraName:     cameraName,
+                controllerType: prefixRadio.value ? "prefix" : "suffix",
+                controllerText: trim(ctrlInput.text),
+                camDistance:    camDistance,
+                focalLength:    focalLength,
+                addTarget:      targetCheck.value,
+                targetDistance: targetDistance,
+                dofEnabled:     dofCheck.value,
+                aperture:       aperture,
+                blurLevel:      blurLevel,
+                dollyZoom:      dollyCheck.value,
+                expose:         exposeCheck.value,
+                labelColor:     labelList.selection ? labelList.selection.index : 0,
+                lockCamera:     lockCheck.value
+            };
+        }
+
+        createButton.onClick = function () {
+            var settings = collect();
+            if (!settings) { return; }
+            chosen = settings;
+            win.close(1);
+        };
+
+        win.layout.layout(true);
+        win.center();
+        win.show();
+
+        return chosen;
+    }
+
+    // -----------------------------------------------------------------
+    // Entry point
+    // -----------------------------------------------------------------
+
+    var comp = app.project ? app.project.activeItem : null;
+    if (!(comp instanceof CompItem)) {
+        alert("Open a composition first.");
+        return;
+    }
+
+    var selectedCameras = getSelectedCameras(comp);
+    var options = loadOptions();
+
+    var keys = ScriptUI.environment.keyboardState;
+    if (keys.altKey || keys.shiftKey) {
+        var chosen = buildDialog(comp, selectedCameras, options);
+        if (!chosen) { return; }   // cancelled
+        saveOptions(chosen);
+        options = chosen;
+    } else {
+        options.mode = selectedCameras.length ? "wrap" : "create";
+    }
+
+    var cameras = (options.mode === "wrap" && selectedCameras.length)
+        ? selectedCameras
+        : [null];
+
+    app.beginUndoGroup(cameras[0] ? "Wrap Camera in Rig" : "Add Camera Rig");
+    var built = [];
+    try {
+        for (var i = 0; i < cameras.length; i++) {
+            built.push(buildRig(comp, options, cameras[i]));
+        }
+
+        // Selection and locking come last: a locked layer cannot be changed,
+        // and creating a layer clears the selection.
+        deselectAll(comp);
+        for (i = 0; i < built.length; i++) {
+            var rig = built[i];
+            try {
+                rig.controller.selected = true;
+                if (rig.target) { rig.target.selected = true; }
+            } catch (e) {
+                warn("Selection", e);
+            }
+
+            try {
+                if (options.lockCamera) {
+                    rig.camera.shy = true;
+                    rig.camera.locked = true;
+                } else {
+                    rig.camera.locked = rig.wasLocked;
+                    if (!rig.wasLocked) { rig.camera.selected = true; }
+                }
+            } catch (e) {
+                warn("Lock camera", e);
+            }
+        }
+    } catch (e) {
+        alert("Camera rig failed: " + errText(e) + "\n\nUndo to roll back any partial work.");
+    } finally {
         app.endUndoGroup();
     }
+
+    flushWarnings("Camera rig - please read");
 })();
