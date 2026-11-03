@@ -1164,9 +1164,9 @@
             // on pulling apart under a Pivot for ever.
             var touched = (upgradeRests(comp, probe, item, man) > 0);
             if (bindTangents(probe, item, man, comp.time)) { touched = true; }
-            // Costs nothing when they are already pinned, and puts the ones
-            // made before this right without asking.
-            pinMaskHandles(item, man);
+            // Free any handle mask still carrying that expression, so a rig
+            // made while it was there becomes draggable again.
+            unpinMaskHandles(item, man);
             for (var k = 0; k < idxs.length; k++) {
                 var i = idxs[k];
                 if (i >= sh.vertices.length) { continue; }
@@ -1277,10 +1277,11 @@
 
     // ------------------------------------------------------ bezier handles
 
-    // The end of a handle mask that sits on the point is not for dragging:
-    // the point is wherever its control is, and a mask vertex that wandered
-    // off it would quietly bend the curve. Pinning it to the control's own
-    // origin leaves the far end free, which is the end that means something.
+    // A handle mask was briefly given an expression that held its near end on
+    // the point. After Effects will not let you drag a mask path that has an
+    // expression, so that froze the far end too - the one end that matters -
+    // and it has to come back off. Dragging the near end was only ever untidy:
+    // the rig reads points()[1] and has never looked at the other end.
     var PIN_NEAR_END = [
         "var p = thisProperty.points();",
         "var i = thisProperty.inTangents();",
@@ -1289,18 +1290,8 @@
         "createPath(p, i, o, false);"
     ].join("\n");
 
-    function pinNearEnd(mk) {
-        try {
-            var sp = mk.property(MN_MASKSHAPE);
-            if (String(sp.expression || "") !== PIN_NEAR_END) {
-                sp.expression = PIN_NEAR_END;
-            }
-        } catch (e) {}
-    }
-
-    // Pin the handle masks of a rig that was made before they were pinned.
-    function pinMaskHandles(item, man) {
-        var done = 0;
+    function unpinMaskHandles(item, man) {
+        var freed = 0;
         for (var n = 0; n < man.pts.length; n++) {
             var e = man.pts[n];
             if (!e.im && !e.om) { continue; }
@@ -1308,22 +1299,26 @@
             var masks = null;
             try { masks = ctrl ? ctrl.property(MN_MASKS) : null; } catch (e1) { masks = null; }
             for (var m = 1; masks && m <= masks.numProperties; m++) {
-                var nm = masks.property(m).name;
-                if (nm !== MASK_IN && nm !== MASK_OUT) { continue; }
-                pinNearEnd(masks.property(m));
-                done++;
+                var mk = masks.property(m);
+                if (mk.name !== MASK_IN && mk.name !== MASK_OUT) { continue; }
+                try {
+                    var sp = mk.property(MN_MASKSHAPE);
+                    if (String(sp.expression || "") !== PIN_NEAR_END) { continue; }
+                    // Keep where the handle is now, then let it go.
+                    var here = sp.valueAtTime(item.layer.containingComp.time, false);
+                    sp.expression = "";
+                    sp.setValue(here);
+                    freed++;
+                } catch (e2) {}
             }
         }
-        return done;
+        return freed;
     }
 
     function addMaskHandle(ctrl, name, offset) {
         var masks = ctrl.property(MN_MASKS);
         for (var i = 1; i <= masks.numProperties; i++) {
-            if (masks.property(i).name === name) {
-                pinNearEnd(masks.property(i));
-                return masks.property(i);
-            }
+            if (masks.property(i).name === name) { return masks.property(i); }
         }
         var mk = masks.addProperty(MN_MASK);
         mk.name = name;
@@ -1336,7 +1331,6 @@
         sh.inTangents = [[0, 0], [0, 0]];
         sh.outTangents = [[0, 0], [0, 0]];
         mk.property(MN_MASKSHAPE).setValue(sh);
-        pinNearEnd(mk);
         return mk;
     }
 

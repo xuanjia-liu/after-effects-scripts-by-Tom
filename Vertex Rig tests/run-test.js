@@ -903,11 +903,12 @@ section("handles: a selected control counts as a pick");
      c3._layers.filter(l => V.kindOf(l) === "handle").length);
 }
 
-// ============================= the point end of a handle mask does not move
-// A handle mask runs from the point to the handle. The point is wherever its
-// control is, so the near end has nothing to say: dragged, it would quietly
-// bend the curve. It carries an expression that puts it back.
-section("handle masks: the point end is pinned");
+// ========================== a handle mask has to stay draggable, both ends
+// The near end was briefly pinned to the point with an expression. After
+// Effects will not let you drag a mask path that carries one, so that froze
+// the far end as well - the end that actually sets the tangent. Nothing may
+// put an expression on a handle mask.
+section("handle masks: nothing holds them still");
 {
   const c = newComp();
   const L = addShapeLayer(c, "Box", "Group 1", star(4, 60), [0, 0], 0, [100, 100]);
@@ -923,21 +924,34 @@ section("handle masks: the point end is pinned");
   const found = [];
   for (let i = 1; i <= masks.numProperties; i++) { found.push(masks.property(i)); }
   ok(found.length === 2, "both ends of the point have one", found.length);
+  const driven = found.filter(mk => mk.property("ADBE Mask Shape").expressionEnabled);
+  ok(driven.length === 0, "and neither carries an expression", driven.length);
 
-  const pinned = found.filter(mk => {
-    const e = String(mk.property("ADBE Mask Shape").expression || "");
-    return /p\[0\] = \[0, 0\]/.test(e) && /createPath/.test(e);
-  });
-  ok(pinned.length === 2, "and both are pinned at the point", pinned.length);
+  // one made while the pin existed is freed the next time the path is touched
+  const pin = found[0].property("ADBE Mask Shape");
+  const was = pin.value;
+  try {
+    pin.expression = [
+      "var p = thisProperty.points();",
+      "var i = thisProperty.inTangents();",
+      "var o = thisProperty.outTangents();",
+      "if (p.length) { p[0] = [0, 0]; i[0] = [0, 0]; o[0] = [0, 0]; }",
+      "createPath(p, i, o, false);"
+    ].join("\n");
+  } catch (e) { /* a mock that will not hold one is fine */ }
+  if (pin.expressionEnabled) {
+    V.actCreate([{ item: items[0], idx: [0] }], true);
+    ok(!pin.expressionEnabled, "an older pinned mask is let go");
+    ok(pin.value.vertices[1][0] === was.vertices[1][0] &&
+       pin.value.vertices[1][1] === was.vertices[1][1],
+       "keeping the handle where it was",
+       JSON.stringify(pin.value.vertices[1]));
+  } else {
+    ok(/function unpinMaskHandles/.test(raw) && /unpinMaskHandles\(item, man\)/.test(raw),
+       "and an older pinned one would be let go when the path is touched");
+  }
 
-  const src = String(found[0].property("ADBE Mask Shape").expression || "");
-  ok(/thisProperty\.points\(\)/.test(src),
-     "reading its own points, so the far end still moves");
-  ok(!/p\[1\]/.test(src), "and never touching the far one", src.split("\n")[3]);
-
-  // the repair reaches masks made before this
-  ok(/function pinMaskHandles/.test(raw) && /pinMaskHandles\(item, man\)/.test(raw),
-     "older rigs get pinned when the path is next touched");
+  ok(!/pinNearEnd/.test(raw), "nothing pins a mask any more");
 }
 
 // ================================= the pivot marker matches the pivot icon
