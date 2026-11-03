@@ -947,6 +947,164 @@ section("follow: a primitive becomes a path first");
   ok(!!V.findEffect(rider, "VXR Path"), "and carries the link to its layer");
 }
 
+// ============================================ a dial for the follow angle
+// Follow Rotation turns the rider to face along the path. A rider that should
+// sit across the path, or lean, had to be nudged through the Rotation value
+// hidden away in the Transform group - so the dial that does it now sits with
+// the rest of the rig, in the Effect Controls.
+//
+// These run the generated expressions rather than reading them, because the
+// claim is about degrees, not about text.
+function runExpr(expr, effects, globals) {
+  const lines = expr.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].trim()) { lines[i] = "return " + lines[i].trim(); break; }
+  }
+  const effect = name => {
+    if (!(name in effects)) { throw new Error("no effect named " + name); }
+    const v = effects[name];
+    return () => v;
+  };
+  const g = Object.assign({
+    value: 0, time: 0, hasParent: false,
+    radiansToDegrees: r => r * 180 / Math.PI,
+    degreesToRadians: d => d * Math.PI / 180,
+    length: (a, b) => Math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
+  }, globals || {});
+  const names = ["effect"].concat(Object.keys(g));
+  const args = [effect].concat(Object.keys(g).map(k => g[k]));
+  return Function(names.join(","), lines.join("\n")).apply(null, args);
+}
+
+// A dead-straight horizontal path: its tangent angle is 0, so whatever comes
+// out of the rotation expression is the offset and nothing else. It is used
+// with a path that sits straight in the root group, so no group transform
+// stands between the point and the comp - that chain has its own test above,
+// and the arithmetic it does is AE's, not JavaScript's.
+function flatPathLayer() {
+  const node = {
+    content: () => node,
+    path: { pointOnPath: t => [t * 1000, 0] },
+    toComp: v => v
+  };
+  return node;
+}
+
+section("follower: a Rotation Offset dial, in the effect controls");
+{
+  const c = newComp();
+  const L = c.layers.addShape();
+  L.name = "Road";
+  L.transform.position.setValue([640, 360]);
+  L.property("ADBE Root Vectors Group")
+   .addProperty("ADBE Vector Shape - Group")
+   .property("ADBE Vector Shape").setValue(star(5, 100));
+  const rider = addShapeLayer(c, "Rider", "Group 1", star(4, 8), [0, 0], 0, [100, 100]);
+  const item = V.scanPaths(c, [L])[0];
+  V.actFollower([{ item: item, idx: [0] }], [rider]);
+  ok(/function _fgl\(v\) \{ return v; \}/.test(rider.transform.rotation.expression),
+     "no group transform in the way, so these degrees are the dial's");
+
+  const dial = V.findEffect(rider, "VXR Rotation Offset");
+  ok(!!dial, "the dial is there");
+  ok(dial && dial.matchName === "ADBE Angle Control",
+     "as an angle control, not another slider", dial && dial.matchName);
+  ok(dial && dial.property(1).name === "Angle", "with an Angle to turn");
+
+  // it sits last, under the checkbox it modifies, not loose among the others
+  const names = [];
+  const par = rider.property("ADBE Effect Parade");
+  for (let i = 1; i <= par.numProperties; i++) { names.push(par.property(i).name); }
+  ok(names.join("|") === "VXR Path|VXR Offset|VXR Follow Rotation|VXR Rotation Offset",
+     "ordered under Follow Rotation", names.join(" / "));
+
+  const rot = String(rider.transform.rotation.expression || "");
+  const base = {
+    "VXR Path": flatPathLayer(),
+    "VXR Offset": 0,
+    "VXR Follow Rotation": 1,
+    "VXR Rotation Offset": 0
+  };
+  ok(Math.abs(runExpr(rot, base)) < 0.001,
+     "a flat path with the dial at zero leaves the rider alone", runExpr(rot, base));
+
+  const turned = Object.assign({}, base, { "VXR Rotation Offset": 90 });
+  ok(Math.abs(runExpr(rot, turned) - 90) < 0.001,
+     "90 on the dial turns the rider 90", runExpr(rot, turned));
+
+  const leaning = Object.assign({}, base, { "VXR Rotation Offset": -37.5 });
+  ok(Math.abs(runExpr(rot, leaning) + 37.5) < 0.001,
+     "and it reads the real number, not a sign or a step", runExpr(rot, leaning));
+
+  // the layer's own Rotation keeps working, so nobody's existing nudge is lost
+  const both = Object.assign({}, base, { "VXR Rotation Offset": 30 });
+  ok(Math.abs(runExpr(rot, both, { value: 12 }) - 42) < 0.001,
+     "it adds to the layer's own rotation rather than replacing it",
+     runExpr(rot, both, { value: 12 }));
+
+  // off means off: the dial belongs to the follow, not to the layer
+  const off = Object.assign({}, base, { "VXR Follow Rotation": 0, "VXR Rotation Offset": 90 });
+  ok(runExpr(rot, off, { value: 7 }) === 7,
+     "with Follow Rotation off the dial does nothing");
+
+  // an older rig has no dial at all; reading one must not throw
+  const older = Object.assign({}, base);
+  delete older["VXR Rotation Offset"];
+  ok(Math.abs(runExpr(rot, older, { value: 5 }) - 5) < 0.001,
+     "a follower made before the dial existed still turns", runExpr(rot, older, { value: 5 }));
+
+  // and letting the layer go takes the dial with it
+  V.actDelete([], [rider], false);
+  ok(V.findEffect(rider, "VXR Rotation Offset") === null, "release removes it again");
+}
+
+section("average follower: the same dial, the same degrees");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Road", "Group 1", star(5, 100), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  V.actCreate(pickAll(V.state.items[0], [0, 2]), false, []);
+  V.actAverageFollower(pickAll(V.state.items[0], [0, 2]), []);
+  const avg = c._layers.filter(l => V.kindOf(l) === "avg")[0];
+  ok(!!V.findEffect(avg, "VXR Rotation Offset"), "the average rider gets one too");
+
+  const rot = String(avg.transform.rotation.expression || "");
+  // Both points sit exactly where they rested, so the group has not turned and
+  // every degree in the answer came from the dial.
+  const held = {
+    "VXR P1": { toComp: () => [0, 0] },
+    "VXR P2": { toComp: () => [100, 0] },
+    "VXR Follow Rotation": 1,
+    "VXR Follow Scale": 0,
+    "VXR Rotation Offset": 0
+  };
+  const still = runExpr(rot, held);
+  const dialled = runExpr(rot, Object.assign({}, held, { "VXR Rotation Offset": 25 }));
+  ok(Math.abs(dialled - still - 25) < 0.001,
+     "25 on the dial is 25 degrees on top of the group's own turn", still, dialled);
+
+  const noneAt = Object.assign({}, held);
+  delete noneAt["VXR Rotation Offset"];
+  ok(Math.abs(runExpr(rot, noneAt) - still) < 0.001,
+     "and an older average rider is unaffected by its absence");
+}
+
+section("Handles is set in one place, not two");
+{
+  // The panel dropdown saves the moment it changes; the Preferences copy only
+  // took effect on OK. One setting with two interaction models is a bug you
+  // notice as a user before you notice it in the code.
+  const writes = raw.split("\n")
+    .filter(l => /P\.handleMode\s*=[^=]/.test(l));
+  ok(writes.length === 1, "one control writes the setting", writes.length);
+  ok(/modeDd/.test(writes[0]), "and it is the one on the panel", writes.join(" | "));
+  ok(raw.indexOf("Masks inside the point control") < 0,
+     "the Preferences copy is gone");
+  ok(/dropdownlist", undefined, \["Handles: masks"/.test(raw),
+     "the panel still offers both modes");
+}
+
 // ============================ Refresh is gone; the repair lives in Preferences
 // Everything Refresh re-read is already automatic - the selection watcher,
 // panel activation, every action and a scope change all call refresh. The one

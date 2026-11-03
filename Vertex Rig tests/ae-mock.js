@@ -71,7 +71,8 @@ const SCHEMA = {
   "ADBE Layer Control": { name: "Layer Control", kids: [LEAF("ADBE Layer Control-0001", "Layer", 0)] },
   "ADBE Slider Control": { name: "Slider Control", kids: [LEAF("ADBE Slider Control-0001", "Slider", 0)] },
   "ADBE Checkbox Control": { name: "Checkbox Control", kids: [LEAF("ADBE Checkbox Control-0001", "Checkbox", 0)] },
-  "ADBE Point Control": { name: "Point Control", kids: [LEAF("ADBE Point Control-0001", "Point", [0, 0])] }
+  "ADBE Point Control": { name: "Point Control", kids: [LEAF("ADBE Point Control-0001", "Point", [0, 0])] },
+  "ADBE Angle Control": { name: "Angle Control", kids: [LEAF("ADBE Angle Control-0001", "Angle", 0)] }
 };
 
 let UID = 0;

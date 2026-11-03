@@ -26,7 +26,9 @@
  *                         rotation without moving the artwork, and animates
  *             Add/Release join or leave an existing Pivot
  *             Bake        freeze the rig into path keyframes and drop it
- *   Follow    Follower    ride the path, with Offset and Follow Rotation
+ *   Follow    Follower    ride the path, with Offset to slide along it and
+ *                         Follow Rotation to turn with it; Rotation Offset
+ *                         holds the rider at a fixed angle to that turn
  *             Average     sit at the centre of a group of points
  *             Apply       swap those points' handles between masks and layers
  *   Layers    Extract     move the picked shapes into layers of their own
@@ -73,6 +75,7 @@
     var MN_SLIDER = "ADBE Slider Control";
     var MN_CHECKBOX = "ADBE Checkbox Control";
     var MN_POINTCTL = "ADBE Point Control";
+    var MN_ANGLE = "ADBE Angle Control";
 
     var MASK_IN = TAG + " In";
     var MASK_OUT = TAG + " Out";
@@ -1947,6 +1950,7 @@
     var FX_PATH = TAG + " Path";
     var FX_OFFSET = TAG + " Offset";
     var FX_FOLLOWROT = TAG + " Follow Rotation";
+    var FX_ROTOFF = TAG + " Rotation Offset";
     var FX_FOLLOWSCL = TAG + " Follow Scale";
 
     // A point read off a path is in the shape group's own space; toComp wants
@@ -2013,7 +2017,11 @@
         L.push("  var _b = _L.toComp(_fgl(_p.pointOnPath(_t2, time)));");
         L.push("  var _ang = radiansToDegrees(Math.atan2(_b[1] - _a[1], _b[0] - _a[0]));");
         L.push("  if (_d < 0) { _ang = _ang + 180; }");
-        L.push("  _r = value + _ang;");
+        // An older follower has no dial. Reading it has to survive that, or
+        // adding one would stop every rig made before today from turning.
+        L.push("  var _ro = 0;");
+        L.push("  try { _ro = effect(" + estr(FX_ROTOFF) + ")(\"Angle\"); } catch (_e) { _ro = 0; }");
+        L.push("  _r = value + _ang + _ro;");
         L.push("}");
         L.push("_r;");
         return L.join("\n");
@@ -2067,6 +2075,7 @@
         removeEffect(layer, FX_PATH);
         removeEffect(layer, FX_OFFSET);
         removeEffect(layer, FX_FOLLOWROT);
+        removeEffect(layer, FX_ROTOFF);
 
         var e1 = fx.addProperty(MN_LAYERCTL);
         e1.name = FX_PATH;
@@ -2082,6 +2091,10 @@
         var e3 = fx.addProperty(MN_CHECKBOX);
         e3.name = FX_FOLLOWROT;
         e3.property(1).setValue(0);
+
+        var e4 = fx.addProperty(MN_ANGLE);
+        e4.name = FX_ROTOFF;
+        e4.property(1).setValue(0);
 
         layer.transform.position.expression = followPositionExpr(item.ref, item.chain);
         try {
@@ -2110,6 +2123,7 @@
         removeEffect(L, FX_PATH);
         removeEffect(L, FX_OFFSET);
         removeEffect(L, FX_FOLLOWROT);
+        removeEffect(L, FX_ROTOFF);
         removeEffect(L, FX_FOLLOWSCL);
         for (var n = 1; n <= 500; n++) {
             if (!findEffect(L, TAG + " P" + n)) { break; }
@@ -2191,8 +2205,9 @@
 
         var rot = [
             head,
-            "var _sum = 0, _cnt = 0;",
+            "var _sum = 0, _cnt = 0, _ro = 0;",
             "if (effect(" + estr(FX_FOLLOWROT) + ")(\"Checkbox\") > 0) {",
+            "  try { _ro = effect(" + estr(FX_ROTOFF) + ")(\"Angle\"); } catch (_e) { _ro = 0; }",
             "  for (_i = 0; _i < _n; _i++) {",
             "    if (_pts[_i] == null) { continue; }",
             "    var _a0 = Math.atan2(_rest[_i][1] - _rc[1], _rest[_i][0] - _rc[0]);",
@@ -2203,7 +2218,7 @@
             "    _sum = _sum + _d; _cnt++;",
             "  }",
             "}",
-            "value + (_cnt > 0 ? radiansToDegrees(_sum / _cnt) : 0);"
+            "value + _ro + (_cnt > 0 ? radiansToDegrees(_sum / _cnt) : 0);"
         ].join("\n");
 
         var scl = [
@@ -2257,10 +2272,14 @@
                 e.property(1).setValue(ctrls[i - 1].index);
             }
             removeEffect(target, FX_FOLLOWROT);
+            removeEffect(target, FX_ROTOFF);
             removeEffect(target, FX_FOLLOWSCL);
             var r = fx.addProperty(MN_CHECKBOX);
             r.name = FX_FOLLOWROT;
             r.property(1).setValue(0);
+            var ro = fx.addProperty(MN_ANGLE);
+            ro.name = FX_ROTOFF;
+            ro.property(1).setValue(0);
             var s = fx.addProperty(MN_CHECKBOX);
             s.name = FX_FOLLOWSCL;
             s.property(1).setValue(0);
@@ -2830,6 +2849,11 @@
     function retargetFollower(L, newLayer, newRef, newChain) {
         var e = findEffect(L, FX_PATH);
         if (e) { try { e.property(1).setValue(newLayer.index); } catch (err) {} }
+        // Rewriting the expression is the moment a follower made before the
+        // dial existed can quietly gain one, instead of reading a silent zero.
+        if (!findEffect(L, FX_ROTOFF)) {
+            try { effectsOf(L).addProperty(MN_ANGLE).name = FX_ROTOFF; } catch (err1) {}
+        }
         L.transform.position.expression = followPositionExpr(newRef, newChain);
         try {
             L.transform.rotation.expression = followRotationExpr(newRef, newChain);
@@ -3883,7 +3907,6 @@
         bPrefs.onClick = function () {
             prefsWantRepair = false;
             if (!prefsDialog(win)) { return; }
-            modeDd.selection = (P.handleMode === "layers") ? 1 : 0;
             if (prefsWantRepair) {
                 // actRepairTangents reports through UI.say itself when it finds
                 // something, and says nothing at all when it does not.
@@ -4055,12 +4078,6 @@
         cbGuide.value = !!P.guide;
         cbGuide.helpTip = "Controls stay out of the render";
 
-        var gMode = line("Handles");
-        var ddMode = gMode.add("dropdownlist", undefined,
-            ["Masks inside the point control", "Separate layers with a leash"]);
-        ddMode.preferredSize.width = 230;
-        ddMode.selection = (P.handleMode === "layers") ? 1 : 0;
-
         var gBake = line("Bake range");
         var ddBake = gBake.add("dropdownlist", undefined, ["Work area", "Whole composition"]);
         ddBake.preferredSize.width = 160;
@@ -4088,7 +4105,6 @@
             P.size = Math.max(4, Math.min(60, Math.round(szSl.value)));
             P.outline = cbOutline.value;
             P.guide = cbGuide.value;
-            P.handleMode = (ddMode.selection.index === 1) ? "layers" : "masks";
             P.bakeWorkArea = (ddBake.selection.index === 0);
             savePrefs();
             saved = true;
