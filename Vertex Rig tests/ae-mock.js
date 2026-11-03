@@ -322,12 +322,26 @@ function uiNode(type) {
       else if (typeof v === "number") { this._sel = this.items[v] || { index: v, text: "" }; }
       else { this._sel = v; }
     },
-    add(t, b, txt) {
+    add(t, b, txt, mn, mx) {
       const c = uiNode(t);
       if (Array.isArray(txt)) { c.items = txt.map((s, i) => ({ index: i, text: s })); }
+      // ScriptUI's scrollbar and slider take (value, min, max) where the
+      // others take a label, and carry them as value/minvalue/maxvalue.
+      else if ((t === "scrollbar" || t === "slider") && typeof txt === "number") {
+        c.value = txt;
+        c.minvalue = (mn === undefined ? 0 : mn);
+        c.maxvalue = (mx === undefined ? 100 : mx);
+      }
       else { c.text = txt; }
       n._kids.push(c);
       return c;
+    },
+    // What a wheel notch or a drag does to one: move it, then tell the panel,
+    // which is the order After Effects reports it in.
+    turn(v) {
+      this.value = Math.max(this.minvalue, Math.min(this.maxvalue, v));
+      if (this.onChanging) { this.onChanging.call(this); }
+      return this.value;
     },
     // listeners are kept so a test can fire one, the way a pointer would
     addEventListener(type, fn) { (this._on[type] = this._on[type] || []).push(fn); },

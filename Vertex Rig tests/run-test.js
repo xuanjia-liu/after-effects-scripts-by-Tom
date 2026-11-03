@@ -25,7 +25,7 @@ src = src.replace(marker, marker + `
         allPathSignature, checkUnchanged, carriesData, childrenOf,
         scanPrimitives, actAddToPivot, nearestT,
         followPositionExpr, setupFollower, actShowPoints, ICON_ART, drawArt, paintIconButton,
-        ICON_PX, HEAD_PX, ICON_UNITS, roundRectPath };`);
+        ICON_PX, HEAD_PX, ZOOM_PX, ICON_UNITS, roundRectPath };`);
 
 const names = ["app", "CompItem", "Shape", "PropertyType", "PropertyValueType",
   "KeyframeInterpolationType", "MaskMode", "Window", "Panel", "ScriptUI", "$",
@@ -1121,6 +1121,11 @@ section("preview: panning and zooming by hand");
   ok(!!(cv && cv._on.mousedown && cv._on.mousemove && cv._on.mouseup),
      "and for the three mouse events a drag needs");
 
+  // the gestures are invisible, so the canvas has to say what it can do
+  ok(!!(cv.helpTip && /pan/i.test(cv.helpTip) && /zoom/i.test(cv.helpTip) &&
+        /double/i.test(cv.helpTip)),
+     "and the canvas says how to pan, zoom and refit", cv.helpTip);
+
   const start = Object.assign({}, V.state.view);
   ok(V.state.viewManual === false, "a fitted view is not a hand-set one");
 
@@ -1147,43 +1152,78 @@ section("preview: panning and zooming by hand");
   ok(Math.abs(V.state.view.tx - beforeBtn.tx - 15) < 1e-9,
      "the right button pans as well", V.state.view.tx - beforeBtn.tx);
 
-  // --- zoom --------------------------------------------------------------
-  // What sits under the pointer has to stay under it, or the artwork slides
-  // away from you as you lean in on it.
+  // --- zoom ---------------------------------------------------------------
+  // After Effects does not hand a wheel to a custom-drawn canvas, so zoom is
+  // a drag on the same three events the pan and the marquee already use.
+  // What sits under the press has to stay under the pointer, or the artwork
+  // slides away from you as you lean in on it.
   const AT = [180, 120];
   const toComp = p => [(p[0] - V.state.view.tx) / V.state.view.s,
                        (p[1] - V.state.view.ty) / V.state.view.s];
+  const zoomDrag = (keys, dy, steps) => {
+    cv.fire("mousedown", Object.assign({ clientX: AT[0], clientY: AT[1], detail: 1 }, keys));
+    for (let i = 1; i <= (steps || 1); i++) {
+      cv.fire("mousemove", Object.assign(
+        { clientX: AT[0], clientY: AT[1] - Math.round(dy * i / (steps || 1)) }, keys));
+    }
+    cv.fire("mouseup", Object.assign({ clientX: AT[0], clientY: AT[1] - dy }, keys));
+  };
+
   const underBefore = toComp(AT);
   const sBefore = V.state.view.s;
-  cv.fire("mousewheel", { clientX: AT[0], clientY: AT[1], wheelDelta: 120 });
-  ok(V.state.view.s > sBefore, "the wheel zooms in", V.state.view.s / sBefore);
+  zoomDrag({ metaKey: true }, 60);
+  ok(V.state.view.s > sBefore, "dragging up with Command zooms in",
+     V.state.view.s / sBefore);
   const underAfter = toComp(AT);
   ok(Math.abs(underAfter[0] - underBefore[0]) < 1e-9 &&
      Math.abs(underAfter[1] - underBefore[1]) < 1e-9,
-     "and what was under the pointer is still under it",
+     "and what the drag started on is still under the pointer",
      underBefore.join(",") + " -> " + underAfter.join(","));
 
-  cv.fire("mousewheel", { clientX: AT[0], clientY: AT[1], wheelDelta: -120 });
-  ok(Math.abs(V.state.view.s - sBefore) < 1e-9,
-     "a notch back the other way lands exactly where it started",
-     V.state.view.s + " vs " + sBefore);
+  const sIn = V.state.view.s;
+  zoomDrag({ metaKey: true }, -60);
+  ok(V.state.view.s < sIn, "dragging down comes back out", V.state.view.s);
 
-  // the other spelling of the delta, for the builds that send that instead
-  const sAlt = V.state.view.s;
-  cv.fire("mousewheel", { clientX: AT[0], clientY: AT[1], detail: -3 });
-  ok(V.state.view.s > sAlt, "a build that sends detail instead still zooms");
+  // Control does the same, for the platform where that is the free modifier
+  const sCtl = V.state.view.s;
+  zoomDrag({ ctrlKey: true }, 40);
+  ok(V.state.view.s > sCtl, "Control drags the same way");
+
+  // On macOS a Control-drag also arrives as the right button, which pans.
+  // Zoom has to win, or that gesture would do the other thing.
+  const beforeBoth = Object.assign({}, V.state.view);
+  zoomDrag({ ctrlKey: true, button: 2 }, 40);
+  ok(V.state.view.s !== beforeBoth.s,
+     "a Control-drag reported as the right button zooms, not pans");
+
+  // Every move is worked out from the press, not the move before it, so the
+  // same drag in one step and in twenty lands in the same place.
+  V.state.view.s = sBefore;
+  V.state.view.tx = 0; V.state.view.ty = 0;
+  zoomDrag({ metaKey: true }, 50, 1);
+  const oneStep = JSON.stringify(V.state.view);
+  V.state.view.s = sBefore;
+  V.state.view.tx = 0; V.state.view.ty = 0;
+  zoomDrag({ metaKey: true }, 50, 20);
+  ok(JSON.stringify(V.state.view) === oneStep,
+     "a dropped move cannot leave the zoom drifting", oneStep);
+
+  // a zoom is not a pick either
+  ok(Object.keys(V.state.sel).length === 0, "zooming selects nothing");
 
   // --- it cannot be zoomed into nothing -----------------------------------
-  for (let i = 0; i < 200; i++) {
-    cv.fire("mousewheel", { clientX: AT[0], clientY: AT[1], wheelDelta: 120 });
-  }
+  zoomDrag({ metaKey: true }, 4000);
   ok(V.state.view.s <= 64 + 1e-9, "zoom stops somewhere sane going in", V.state.view.s);
-  for (let i = 0; i < 400; i++) {
-    cv.fire("mousewheel", { clientX: AT[0], clientY: AT[1], wheelDelta: -120 });
-  }
+  zoomDrag({ metaKey: true }, -9000);
   ok(V.state.view.s >= 0.02 - 1e-9, "and going out", V.state.view.s);
   ok(isFinite(V.state.view.tx) && isFinite(V.state.view.ty),
      "and the view stays a real place either way");
+
+  // the wheel listener is kept for hosts that do send one, but nothing rests
+  // on it - After Effects is not one of them
+  const sWheel = V.state.view.s;
+  cv.fire("mousewheel", { clientX: AT[0], clientY: AT[1], wheelDelta: 120 });
+  ok(V.state.view.s !== sWheel, "a host that does send a wheel still zooms");
 
   // --- the way back --------------------------------------------------------
   cv.fire("mousedown", { clientX: 4, clientY: 4, detail: 2 });
@@ -1193,6 +1233,103 @@ section("preview: panning and zooming by hand");
      Math.abs(fitted.tx - start.tx) < 1e-9 &&
      Math.abs(fitted.ty - start.ty) < 1e-9,
      "landing back on the framing it had", JSON.stringify(fitted));
+}
+
+section("preview: the zoom strip is what a wheel can reach");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(5, 90), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+
+  const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
+  const bar = M.NODES.filter(n => n.type === "scrollbar")[0];
+  ok(!!bar, "there is a strip beside the canvas");
+  ok(bar && bar.minimumSize[0] > bar.minimumSize[1],
+     "lying flat under the preview, wider than it is tall",
+     bar && bar.minimumSize.join("x"));
+  ok(!!(bar && bar.onChanging), "and it reports while it is being turned");
+  ok(!!(bar && bar.helpTip && /wheel/i.test(bar.helpTip)),
+     "saying the wheel works here", bar && bar.helpTip);
+
+  // Turning it zooms. Right is closer, left is wider, as a horizontal one reads.
+  const fitted = V.state.view.s;
+  const mid = bar.value;
+  bar.turn(mid + 200);
+  ok(V.state.view.s > fitted, "turning it right zooms in", V.state.view.s / fitted);
+  bar.turn(mid - 200);
+  ok(V.state.view.s < fitted, "and left zooms out", V.state.view.s / fitted);
+
+  // the middle of the canvas is what stays put, since the pointer is on the
+  // strip rather than on the artwork
+  const CW = 320, CH = 260;
+  const toComp = p => [(p[0] - V.state.view.tx) / V.state.view.s,
+                       (p[1] - V.state.view.ty) / V.state.view.s];
+  const before = toComp([CW / 2, CH / 2]);
+  bar.turn(bar.value + 120);
+  const after = toComp([CW / 2, CH / 2]);
+  ok(Math.abs(before[0] - after[0]) < 1e-6 && Math.abs(before[1] - after[1]) < 1e-6,
+     "about the middle of the view", before.join(",") + " -> " + after.join(","));
+
+  // it cannot be turned past the ends
+  bar.turn(bar.maxvalue);
+  ok(V.state.view.s <= 64 + 1e-9 && V.state.view.s > 1,
+     "hard right is as far in as it goes", V.state.view.s);
+  bar.turn(bar.minvalue);
+  ok(V.state.view.s >= 0.02 - 1e-9 && V.state.view.s < 1,
+     "hard left as far out", V.state.view.s);
+
+  // --- the strip follows the view, as well as leading it -------------------
+  bar.turn(500);
+  const zoomDragTo = dy => {
+    cv.fire("mousedown", { clientX: 160, clientY: 130, metaKey: true, detail: 1 });
+    cv.fire("mousemove", { clientX: 160, clientY: 130 - dy, metaKey: true });
+    cv.fire("mouseup", { clientX: 160, clientY: 130 - dy, metaKey: true });
+  };
+  const wasBar = bar.value;
+  zoomDragTo(70);
+  ok(bar.value > wasBar, "a Command-drag in slides the strip right with it",
+     wasBar + " -> " + bar.value);
+  zoomDragTo(-140);
+  ok(bar.value < wasBar, "and back left again", bar.value);
+
+  // a double click refits, and the strip lands on the fitted zoom
+  cv.fire("mousedown", { clientX: 3, clientY: 3, detail: 2 });
+  ok(Math.abs(V.state.view.s - fitted) < 1e-9, "a double click refits", V.state.view.s);
+  const expect = Math.round(Math.log(fitted / 0.02) / Math.log(64 / 0.02) * 1000);
+  ok(Math.abs(bar.value - expect) <= 1, "with the strip where that zoom puts it",
+     bar.value + " vs " + expect);
+
+  // --- the arrows at each end -----------------------------------------
+  const arrows = M.NODES.filter(n => n.type === "iconbutton" &&
+                                     /zoom (in|out)/i.test(n.helpTip || ""));
+  ok(arrows.length === 2, "an arrow at each end of the strip", arrows.length);
+  ok(arrows.every(b => b.preferredSize[0] === V.ZOOM_PX &&
+                       b.preferredSize[1] === V.ZOOM_PX),
+     "both sized for the strip's own row",
+     arrows.map(b => b.preferredSize.join("x")).join(" "));
+  const out = arrows.filter(b => /out/i.test(b.helpTip))[0];
+  const inn = arrows.filter(b => /in -/i.test(b.helpTip))[0];
+  ok(!!out && !!inn, "one out, one in");
+
+  bar.turn(500);
+  const atMid = V.state.view.s;
+  inn.onClick();
+  ok(V.state.view.s > atMid && bar.value > 500, "the right arrow steps closer",
+     bar.value + " / " + V.state.view.s.toFixed(3));
+  out.onClick();
+  ok(Math.abs(V.state.view.s - atMid) < 1e-6 && Math.abs(bar.value - 500) < 1,
+     "and the left arrow steps straight back", bar.value);
+  for (let i = 0; i < 30; i++) { out.onClick(); }
+  ok(bar.value === bar.minvalue && V.state.view.s >= 0.02 - 1e-9,
+     "stepping past the end stops at the end", bar.value);
+
+  // writing the strip must not read back as the user turning it
+  const settled = JSON.stringify(V.state.view);
+  V.UI.refresh();
+  V.UI.refresh();
+  ok(JSON.stringify(V.state.view) === settled,
+     "and echoing it back does not creep the view", V.state.view.s);
 }
 
 section("preview: a hand-set view is not thrown away by a refresh");
@@ -1263,6 +1400,138 @@ section("show points: a primitive becomes a path first");
   ok(holder.selected === true, "the group round the path is selected");
   ok(paths[0].prop.selected !== true,
      "and the path itself is not, so its points are not all grabbed");
+}
+
+// ================================= the panel and the timeline pick together
+// After Effects cannot say which vertices are selected - a path property's
+// "selected" is all of them or none, and the Shape object carries no
+// selection at all. What it can say is which layers are selected, and a
+// rigged point has a layer standing for it. That is the channel.
+section("selection sync: the timeline speaks to the panel");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(5, 90), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  V.actCreate(pickAll(V.state.items[0], [0, 2]), false, []);
+  V.UI.refresh();
+
+  const item = V.state.items[0];
+  const man = V.readManifest(item.prop);
+  ok(man && man.pts.length === 2, "two points rigged", man && man.pts.length);
+  const ctrl0 = V.linkedLayer(item.layer, man.pts[0].fx);
+  const ctrl2 = V.linkedLayer(item.layer, man.pts[1].fx);
+  ok(!!ctrl0 && !!ctrl2, "each has a control layer");
+
+  // nothing picked in the panel to begin with
+  V.state.sel = {};
+  V.state.ctrlSig = null;
+
+  // pick one point's control in the timeline
+  for (const l of c._layers) { l.selected = false; }
+  ctrl0.selected = true;
+  V.UI.refresh();
+  let picked = V.state.sel[V.state.items[0].key] || [];
+  ok(picked.length === 1 && picked[0] === man.pts[0].i,
+     "choosing a control in the timeline ticks its point here",
+     JSON.stringify(picked));
+
+  // and the artwork is still on show, though only a control is selected
+  ok(V.state.items.length >= 1 && V.state.items[0].layer.name === "Art",
+     "the layer it rigs comes into view with it", V.state.items.length);
+
+  // both controls
+  ctrl2.selected = true;
+  V.UI.refresh();
+  picked = (V.state.sel[V.state.items[0].key] || []).slice().sort((a, b) => a - b);
+  ok(picked.length === 2, "two controls tick two points", JSON.stringify(picked));
+
+  // a handle stands for its point too
+  V.actCreate(pickAll(V.state.items[0], [0]), true, []);
+  V.UI.refresh();
+  const man2 = V.readManifest(V.state.items[0].prop);
+  const ent = man2.pts.filter(e => e.i === man.pts[0].i)[0];
+  const hName = ent["if"] || ent.of;
+  const handle = hName ? V.linkedLayer(V.state.items[0].layer, hName) : null;
+  if (handle) {
+    for (const l of c._layers) { l.selected = false; }
+    V.state.sel = {};
+    V.state.ctrlSig = null;
+    handle.selected = true;
+    V.UI.refresh();
+    picked = V.state.sel[V.state.items[0].key] || [];
+    ok(picked.length === 1 && picked[0] === ent.i,
+       "and picking a handle ticks the point it belongs to", JSON.stringify(picked));
+  } else {
+    ok(false, "the point got a handle to test with");
+  }
+
+  // a refresh with nothing new from the timeline must not undo a panel pick
+  const held = JSON.stringify(V.state.sel);
+  V.UI.refresh();
+  V.UI.refresh();
+  ok(JSON.stringify(V.state.sel) === held,
+     "and a refresh that brings no news leaves the picks alone", V.state.sel);
+}
+
+section("selection sync: the panel speaks to the timeline");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(5, 90), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  V.actCreate(pickAll(V.state.items[0], [0, 2]), false, []);
+  V.UI.refresh();
+
+  const item = V.state.items[0];
+  const man = V.readManifest(item.prop);
+  const ctrl0 = V.linkedLayer(item.layer, man.pts[0].fx);
+  const ctrl2 = V.linkedLayer(item.layer, man.pts[1].fx);
+  for (const l of c._layers) { l.selected = false; }
+  L.selected = true;
+
+  const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
+  const at = k => {
+    const pt = V.state.geom[0].verts[k];
+    return [pt[0] * V.state.view.s + V.state.view.tx,
+            pt[1] * V.state.view.s + V.state.view.ty];
+  };
+  const click = (k, shift) => {
+    const p = at(k);
+    cv.fire("mousedown", { clientX: p[0], clientY: p[1], detail: 1, shiftKey: !!shift });
+    cv.fire("mouseup", { clientX: p[0], clientY: p[1], shiftKey: !!shift });
+  };
+
+  click(man.pts[0].i);
+  ok(ctrl0.selected === true, "clicking a point here selects its control there");
+  ok(ctrl2.selected === false, "and only that one");
+  ok(L.selected === true, "the artwork layer's own selection is left alone");
+
+  click(man.pts[1].i, true);
+  ok(ctrl0.selected === true && ctrl2.selected === true,
+     "shift-clicking a second point adds its control");
+
+  // clicking empty canvas drops the picks, and the timeline follows
+  cv.fire("mousedown", { clientX: 2, clientY: 2, detail: 1 });
+  cv.fire("mouseup", { clientX: 2, clientY: 2 });
+  ok(ctrl0.selected === false && ctrl2.selected === false,
+     "letting the points go lets the controls go");
+
+  // All/None works the same way
+  const bPick = M.NODES.filter(n => n.type === "iconbutton" && /all|none/i.test(n.says || ""))[0];
+  if (bPick && bPick.onClick) {
+    bPick.onClick();
+    ok(ctrl0.selected === true && ctrl2.selected === true,
+       "and All picks every control with every point");
+  } else {
+    ok(false, "the All/None button was found");
+  }
+
+  // the round trip settles instead of fighting itself
+  const after = JSON.stringify(V.state.sel);
+  V.UI.refresh();
+  ok(JSON.stringify(V.state.sel) === after,
+     "a refresh straight after agrees with what the panel just said", V.state.sel);
 }
 
 // ============================ Refresh is gone; the repair lives in Preferences
@@ -1676,10 +1945,13 @@ section("icons: drawn paths, not pictures");
     try { V.drawArt(g, V.ICON_ART[name], 0, 0, 28, [0.8, 0.8, 0.8], 1); }
     catch (e) { drawFails.push(name + ": " + e.message); continue; }
     const marks = g.log.filter(x => x === "fill" || x === "stroke").length;
-    if (marks < 2) { thin.push(name + ":" + marks); }
+    const arrow = (name === "zoomout" || name === "zoomin");
+    if (marks < (arrow ? 1 : 2)) { thin.push(name + ":" + marks); }
   }
   ok(drawFails.length === 0, "drawing every icon runs clean", drawFails.slice(0, 3).join("; "));
-  ok(thin.length === 0, "and each one puts down several marks", thin.join(", "));
+  ok(thin.length === 0,
+     "and each one puts down a mark - more than one unless it is just an arrow",
+     thin.join(", "));
 
   // the whole button, chrome and all, including the pressed and hover states
   const states = [undefined, { mouseOver: true }, { leftButtonPressed: true }];
@@ -1736,7 +2008,8 @@ section("icons: four tabs, and hovering says what a picture does");
   // the first row: scope, then six icons, settings among them
   const win = M.NODES.filter(n => n.type === "window")[0];
   const head = win._kids[0];
-  ok(win._kids.length === 4, "header, preview, status, tabs", win._kids.length);
+  ok(win._kids.length === 5, "header, preview, zoom strip, status, tabs",
+     win._kids.length);
   ok(head._kids[0].type === "dropdownlist", "scope first", head._kids[0].type);
   const headIcons = head._kids.filter(c => c.type === "iconbutton");
   ok(headIcons.length === head._kids.length - 1 - rulesInHead(head),
@@ -1781,9 +2054,15 @@ section("icons: four tabs, and hovering says what a picture does");
   ok(headKids.every(c => c.preferredSize[1] === V.HEAD_PX),
      "every control on the top row stands the same height",
      headKids.map(c => c.preferredSize[1]).join(","));
+  const zoomKids = M.NODES.filter(n => /zoom (in|out)/i.test(n.helpTip || ""));
+  ok(zoomKids.length === 2 &&
+     zoomKids.every(c => c.preferredSize[1] === V.ZOOM_PX),
+     "the zoom strip's own row stands at its own height",
+     zoomKids.map(c => c.preferredSize[1]).join(","));
   const tabKids = M.NODES.filter(n =>
     (n.type === "iconbutton" || n.type === "dropdownlist") &&
-    headKids.indexOf(n) < 0 && n.preferredSize && n.preferredSize[1]);
+    headKids.indexOf(n) < 0 && zoomKids.indexOf(n) < 0 &&
+    n.preferredSize && n.preferredSize[1]);
   const offTab = tabKids.filter(n => n.preferredSize[1] !== V.ICON_PX);
   ok(offTab.length === 0, "and every control in a tab stands at the other",
      offTab.map(n => (n.text || n.type) + ":" + n.preferredSize[1]).join(", "));

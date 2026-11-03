@@ -2388,6 +2388,79 @@
         return picks;
     }
 
+    // After Effects has no way to say which VERTICES are selected - a path
+    // property's "selected" is all of them or none, and the Shape object
+    // carries no selection at all. What it can say is which LAYERS are
+    // selected, and a rigged point has a layer standing for it. So the two
+    // selections are kept in step through the controls.
+
+    function selectedControls(comp) {
+        var out = [], sel = comp.selectedLayers;
+        for (var i = 0; i < sel.length; i++) {
+            if (isControl(sel[i])) { out.push(sel[i]); }
+        }
+        return out;
+    }
+
+    // Enough to tell one selection of controls from the next, so a refresh
+    // can see whether After Effects has something new to say.
+    function controlSignature(comp) {
+        var c = selectedControls(comp), ids = [], i;
+        for (i = 0; i < c.length; i++) { ids.push(String(c[i].index)); }
+        ids.sort();
+        return ids.join(",");
+    }
+
+    // Picking a point's control in the timeline is a way of saying which
+    // point you mean, so the layer it rigs has to come into view with it.
+    // scanPaths skips controls, so without this the scope comes up empty and
+    // there is nothing for that point to be ticked on.
+    function widenScope(comp, layers) {
+        var ctrls = [], i, j;
+        for (i = 0; i < layers.length; i++) {
+            if (isControl(layers[i])) { ctrls.push(layers[i]); }
+        }
+        if (!ctrls.length) { return layers; }
+        var out = layers.slice(0), picks = picksFromControls(comp, ctrls);
+        for (i = 0; i < picks.length; i++) {
+            var L = picks[i].item.layer, seen = false;
+            for (j = 0; j < out.length && !seen; j++) {
+                if (sameLayer(out[j], L)) { seen = true; }
+            }
+            if (!seen) { out.push(L); }
+        }
+        return out;
+    }
+
+    // The other direction: say in the timeline what the panel has picked, by
+    // selecting the controls that stand for those points. Only controls are
+    // touched - the artwork layer's own selection is the user's, and moving
+    // it would change what the panel is looking at.
+    function selectControlsFor(comp, picks) {
+        var want = {}, i, e;
+        for (i = 0; i < picks.length; i++) {
+            var item = picks[i].item;
+            if (!item || item.prim) { continue; }
+            var man = readManifest(item.prop);
+            if (!man) { continue; }
+            for (e = 0; e < man.pts.length; e++) {
+                var ent = man.pts[e];
+                if (!has(picks[i].idx, ent.i)) { continue; }
+                var L = linkedLayer(item.layer, ent.fx);
+                if (L) { want[L.index] = true; }
+            }
+        }
+        var n = 0;
+        for (i = 1; i <= comp.numLayers; i++) {
+            var LL = comp.layer(i);
+            if (!isControl(LL)) { continue; }
+            var on = !!want[LL.index];
+            try { if (LL.selected !== on) { LL.selected = on; } } catch (e2) {}
+            if (on) { n++; }
+        }
+        return n;
+    }
+
     function removeEntry(comp, item, man, entry) {
         var handles = [];
         if (entry["if"]) { handles.push(entry["if"]); }
@@ -3092,6 +3165,7 @@
     // buttons, dropdowns - so a row reads as a row instead of as three
     // controls that happen to be next to each other.
     var UI_H = 32;
+    var ZOOM_PX = 18;
     var ICON_PX = UI_H;
     // The top row is the utility row - what the panel shows, what is picked,
     // and the things that act on whole layers. It runs smaller than the tabs,
@@ -3116,7 +3190,9 @@
         "points": [["b",1.65,[3,19,10,22,18,6,25,9]],["r",1.98,3,19,2.9],["r",1.98,14,14,2.9],["r",1.98,25,9,2.9]],
         "all": [["r",0,9,9,3.6],["r",0,19,9,3.6],["r",0,9,19,3.6],["r",0,19,19,3.6]],
         "none": [["r",1.98,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",1.98,19,19,3.6]],
-        "invert": [["r",0,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",0,19,19,3.6]]
+        "invert": [["r",0,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",0,19,19,3.6]],
+        "zoomout": [["p",2.2,[17,8,10,14,17,20]]],
+        "zoomin": [["p",2.2,[11,8,18,14,11,20]]]
     };
 
     // After Effects' own buttons: a flat dark fill, a lighter hairline and a
@@ -3239,6 +3315,10 @@
         viewManual: false,
         fitted: false,
         shown: null,
+        // The selection of control layers the panel last acted on, so a
+        // refresh can tell a new statement from After Effects apart from the
+        // one the panel itself just made.
+        ctrlSig: null,
         drag: null
     };
 
@@ -3338,7 +3418,21 @@
         state.viewManual = false;
     }
 
-    var ZOOM_MIN = 0.02, ZOOM_MAX = 64;
+    var ZOOM_MIN = 0.02, ZOOM_MAX = 64, ZOOM_STEPS = 1000;
+
+    // The strip runs left to right, wider to closer, the way a horizontal
+    // zoom reads. Evenly in powers rather than in pixels, so a notch is the
+    // same proportion of a step whether the view sits at 5% or at 40x.
+    function zoomFromBar(v) {
+        var t = Math.max(0, Math.min(ZOOM_STEPS, v)) / ZOOM_STEPS;
+        return ZOOM_MIN * Math.pow(ZOOM_MAX / ZOOM_MIN, t);
+    }
+
+    function barFromZoom(s) {
+        var t = Math.log(s / ZOOM_MIN) / Math.log(ZOOM_MAX / ZOOM_MIN);
+        if (!isFinite(t)) { t = 0; }
+        return Math.max(0, Math.min(ZOOM_STEPS, Math.round(t * ZOOM_STEPS)));
+    }
 
     // Zoom about a point on the canvas, so whatever is under the pointer stays
     // under it. Without that the artwork slides away while you lean in on it.
@@ -3475,7 +3569,42 @@
         var cv = win.add("group");
         cv.alignment = ["fill", "fill"];
         cv.minimumSize = [260, 180];
-        cv.preferredSize = [320, 260];
+        cv.preferredSize = [320, 248];
+        // A modifier nobody is told about is a modifier nobody uses, and the
+        // canvas has no room to label itself.
+        cv.helpTip = "Click or drag to pick points, shift to add.\n" +
+                     "Alt-drag to pan. Command or Control drag up and down to zoom,\n" +
+                     "or scroll the wheel over the strip underneath.\n" +
+                     "Double-click an empty spot to frame everything again.";
+
+        // ScriptUI has no wheel event - a listener for one never fires in
+        // After Effects, on this canvas or on anything else. What a wheel
+        // does reach is a native control that scrolls: measured in the app, a
+        // scrollbar reports every notch as onChanging with a new value. So
+        // the strip down the side of the preview is what the wheel turns, and
+        // dragging it does the same thing.
+        var zoomRow = win.add("group");
+        zoomRow.orientation = "row";
+        zoomRow.alignment = ["fill", "top"];
+        zoomRow.alignChildren = ["fill", "center"];
+        zoomRow.spacing = 3;
+        zoomRow.margins = 0;
+
+        var bZoomOut = act(zoomRow, "zoomout", "", "Zoom out - one step wider",
+                           0, ZOOM_PX);
+        bZoomOut.alignment = ["left", "center"];
+
+        var zoomBar = zoomRow.add("scrollbar", undefined, 500, 0, 1000);
+        zoomBar.alignment = ["fill", "center"];
+        zoomBar.minimumSize = [80, 14];
+        zoomBar.preferredSize = [240, 14];
+        zoomBar.maximumSize = [4000, 16];
+        zoomBar.helpTip = "Zoom. Scroll the wheel here, or drag it. " +
+                          "Left is wider, right is closer.";
+
+        var bZoomIn = act(zoomRow, "zoomin", "", "Zoom in - one step closer",
+                          0, ZOOM_PX);
+        bZoomIn.alignment = ["right", "center"];
 
         // One line, right under the preview, and the only one. It used to
         // take three labels to say less: a fixed hint here, a second line of
@@ -3607,6 +3736,40 @@
             try { status.text = s; } catch (e) {}
         }
 
+        // Writing the strip's value must not read back as the user turning
+        // it, or a fit would fight the zoom it just set.
+        var barEcho = false;
+
+        function syncZoomBar() {
+            barEcho = true;
+            try { zoomBar.value = barFromZoom(state.view.s); } catch (e) {}
+            barEcho = false;
+        }
+
+        function zoomFromStrip() {
+            if (barEcho) { return; }
+            var want = zoomFromBar(zoomBar.value);
+            if (!(want > 0)) { return; }
+            // The pointer is on the strip, not on the artwork, so the middle
+            // of the canvas is what stays put.
+            var w = Math.max(60, cv.size.width), h = Math.max(60, cv.size.height);
+            if (zoomAt(w / 2, h / 2, want / state.view.s)) { redraw(); }
+        }
+
+        zoomBar.onChanging = zoomFromStrip;
+        zoomBar.onChange = zoomFromStrip;
+
+        // One step is a tenth of the strip, which is a little under 3x.
+        function stepZoom(by) {
+            barEcho = true;
+            try { zoomBar.value = Math.max(0, Math.min(ZOOM_STEPS, zoomBar.value + by)); }
+            catch (e) {}
+            barEcho = false;
+            zoomFromStrip();
+        }
+        bZoomOut.onClick = function () { stepZoom(-ZOOM_STEPS / 10); };
+        bZoomIn.onClick = function () { stepZoom(ZOOM_STEPS / 10); };
+
         function redraw() {
             try { cv.notify("onDraw"); } catch (e) {
                 try { win.layout.layout(true); } catch (e2) {}
@@ -3617,17 +3780,27 @@
         cv.onDraw = function () {
             var g = this.graphics;
             var w = this.size.width, h = this.size.height;
-            var bg = g.newBrush(g.BrushType.SOLID_COLOR, [0.145, 0.145, 0.145, 1]);
+            // Outside the composition is darker than inside it. A line round
+            // the frame alone left the two reading as one flat field, so
+            // there was no telling at a glance whether a point had wandered
+            // off the comp or was simply near its edge.
+            var outside = g.newBrush(g.BrushType.SOLID_COLOR, [0.095, 0.095, 0.1, 1]);
             g.newPath();
             g.rectPath(0, 0, w, h);
-            g.fillPath(bg);
+            g.fillPath(outside);
 
             var comp = activeComp();
             if (comp) {
                 var a = toCanvas([0, 0]), b = toCanvas([comp.width, comp.height]);
-                var framePen = g.newPen(g.PenType.SOLID_COLOR, [0.32, 0.32, 0.32, 1], 1);
+                var cx = Math.min(a[0], b[0]), cy = Math.min(a[1], b[1]);
+                var cw = Math.abs(b[0] - a[0]), chh = Math.abs(b[1] - a[1]);
+                var inside = g.newBrush(g.BrushType.SOLID_COLOR, [0.165, 0.165, 0.172, 1]);
                 g.newPath();
-                g.rectPath(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+                g.rectPath(cx, cy, cw, chh);
+                g.fillPath(inside);
+                var framePen = g.newPen(g.PenType.SOLID_COLOR, [0.34, 0.34, 0.35, 1], 1);
+                g.newPath();
+                g.rectPath(cx, cy, cw, chh);
                 g.strokePath(framePen);
             }
 
@@ -3718,7 +3891,15 @@
             return best;
         }
 
-        // Alt and the middle or right button both pan, because which of them
+        // After Effects does not deliver a wheel to a custom-drawn canvas, so
+        // zoom is a drag like the pan is: hold Command (or Control) and drag
+        // up to go in, down to come out. Both are read because the modifier
+        // that is free differs by platform - and on macOS a Control-drag also
+        // arrives as the right button, so zoom is asked about first or that
+        // drag would pan instead.
+        function wantsZoom(ev) { return !!ev.ctrlKey || !!ev.metaKey; }
+
+        // Alt and the middle or right button all pan, because which of them
         // a tablet or a trackpad can send is not something the panel can know.
         function wantsPan(ev) {
             return !!ev.altKey || ev.button === 1 || ev.button === 2;
@@ -3731,19 +3912,42 @@
             if (ev.detail >= 2 && !nearestVertex(ev.clientX, ev.clientY, 10)) {
                 state.drag = null;
                 fitView(Math.max(60, cv.size.width), Math.max(60, cv.size.height));
+                syncZoomBar();
                 redraw();
                 setStatus("Framed everything in view.");
                 return;
             }
+            var zoom = wantsZoom(ev);
             state.drag = { x0: ev.clientX, y0: ev.clientY, x1: ev.clientX, y1: ev.clientY,
-                           marquee: false, shift: ev.shiftKey, pan: wantsPan(ev),
-                           tx: state.view.tx, ty: state.view.ty };
+                           marquee: false, shift: ev.shiftKey,
+                           zoom: zoom, pan: !zoom && wantsPan(ev),
+                           tx: state.view.tx, ty: state.view.ty,
+                           // Where the press landed, in comp space, and the
+                           // scale it landed at. Every move is worked out from
+                           // these rather than from the move before it, so a
+                           // dropped event cannot leave the zoom drifting.
+                           at: toComp([ev.clientX, ev.clientY]), s0: state.view.s };
+            if (zoom) { setStatus("Drag up to zoom in, down to zoom out."); }
         });
 
         cv.addEventListener("mousemove", function (ev) {
             if (!state.drag) { return; }
             state.drag.x1 = ev.clientX;
             state.drag.y1 = ev.clientY;
+            if (state.drag.zoom) {
+                // Keep the point the drag started on under the pointer, or the
+                // artwork slides away while you lean in on it.
+                var d0 = state.drag;
+                var sc = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX,
+                    d0.s0 * Math.pow(1.01, d0.y0 - d0.y1)));
+                state.view.s = sc;
+                state.view.tx = d0.x0 - d0.at[0] * sc;
+                state.view.ty = d0.y0 - d0.at[1] * sc;
+                state.viewManual = true;
+                syncZoomBar();
+                redraw();
+                return;
+            }
             if (state.drag.pan) {
                 // From where the drag started, not from the last event, so a
                 // dropped move does not leave the view short.
@@ -3760,10 +3964,9 @@
             }
         });
 
-        // Wheel support is the one thing here the panel cannot promise: which
-        // ScriptUI builds deliver it to a custom canvas varies. Alt-drag pans
-        // and a double click fits whether or not this ever arrives, and both
-        // spellings of the delta are read because builds differ on that too.
+        // Kept because it costs nothing and some hosts do send it, but it is
+        // not what zoom rests on: After Effects does not deliver a wheel here,
+        // which is what Command-drag is for.
         cv.addEventListener("mousewheel", function (ev) {
             var d = 0;
             if (typeof ev.wheelDelta === "number") { d = ev.wheelDelta; }
@@ -3778,9 +3981,9 @@
             if (!d) { return; }
             d.x1 = ev.clientX;
             d.y1 = ev.clientY;
-            // A pan moved the view, not the picks: it must not land on a
-            // vertex and select it on the way up.
-            if (d.pan) { redraw(); return; }
+            // A pan or a zoom moved the view, not the picks: neither must
+            // land on a vertex and select it on the way up.
+            if (d.pan || d.zoom) { redraw(); return; }
 
             if (d.marquee) {
                 var x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1);
@@ -3805,9 +4008,23 @@
                     state.sel = {};
                 }
             }
+            pushPicks();
             reportSel();
             redraw();
         });
+
+        // Say in the timeline what was just picked here. The signature is
+        // written back at the same time, so the watcher reads this as the
+        // panel's own doing rather than as news to act on.
+        function pushPicks() {
+            var comp = activeComp();
+            if (!comp) { return; }
+            try {
+                selectControlsFor(comp, currentPicks());
+                state.ctrlSig = controlSignature(comp);
+                lastSeen = selectionSignature();
+            } catch (e) {}
+        }
 
         // Name the dimmed shapes, so a layer that came up with nothing to pick
         // says why instead of leaving the user hunting for their artwork.
@@ -3904,7 +4121,7 @@
             var layers = null;
             if (scopeDd.selection && scopeDd.selection.index === 0) {
                 layers = selectedLayers(comp);
-                if (!layers.length) { layers = null; }
+                layers = layers.length ? widenScope(comp, layers) : null;
             }
             var all = scanPaths(comp, layers);
             var cap = 120;
@@ -3925,6 +4142,24 @@
                 state.prims.push(prims[i]);
             }
             // Keep whatever picks still point at a path that is still here.
+            // After Effects is the other half of this selection: choosing a
+            // point's control there says the same thing as clicking the point
+            // here. Only act when that choice has actually changed, or every
+            // refresh would undo whatever was just picked in the panel.
+            var csig = controlSignature(comp);
+            if (csig !== state.ctrlSig) {
+                state.ctrlSig = csig;
+                if (csig) {
+                    var fromAE = picksFromControls(comp, selectedControls(comp));
+                    if (fromAE.length) {
+                        keep = {};
+                        for (i = 0; i < fromAE.length; i++) {
+                            keep[fromAE[i].item.key] = fromAE[i].idx.slice(0);
+                        }
+                    }
+                }
+            }
+
             state.sel = {};
             for (i = 0; i < state.items.length; i++) {
                 var k = state.items[i].key;
@@ -3952,6 +4187,7 @@
                 fitView(cw, ch);
                 state.fitted = true;
             }
+            syncZoomBar();
             state.shown = shown;
             reportSel();
             redraw();
@@ -3993,6 +4229,7 @@
                     state.sel[state.items[i].key] = a;
                 }
             }
+            pushPicks();
             reportSel();
             redraw();
         };
@@ -4005,6 +4242,7 @@
                 }
                 if (a.length) { state.sel[key] = a; } else { delete state.sel[key]; }
             }
+            pushPicks();
             reportSel();
             redraw();
         };

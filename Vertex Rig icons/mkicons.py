@@ -62,6 +62,12 @@ def nonepts(i):
     for (x,y) in GRID4: i.s(x,y, 3.6, W*0.9)
 def invert(i):
     for n,(x,y) in enumerate(GRID4): i.s(x,y, 3.6, 0 if n in (0,3) else W*0.9)
+# The two ends of the zoom strip: one step out, one step in. Chevrons rather
+# than a minus and a plus, because what they do is move along the strip.
+def zoomout(i):
+    i.chev(10, 14, -7, 6)
+def zoomin(i):
+    i.chev(18, 14, 7, 6)
 def bake(i):
     i.p([(3,14),(25,14)], W*0.8)
     for x in (6.5,14,21.5): i.d(x,14, 3.6, 0)
@@ -103,7 +109,8 @@ ORDER = [("create",create),("handles",handles),("delete",delete),("bake",bake),
          ("apply",apply),("pivot",pivot),("addpivot",addpivot),("release",release),
          ("follower",follower),("average",average),("extract",extract),("merge",merge),
          ("prefs",prefs),("points",points),
-         ("all",allpts),("none",nonepts),("invert",invert)]
+         ("all",allpts),("none",nonepts),("invert",invert),
+         ("zoomout",zoomout),("zoomin",zoomin)]
 
 art = {}
 for name, fn in ORDER:
