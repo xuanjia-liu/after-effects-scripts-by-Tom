@@ -1,0 +1,189 @@
+VERTEX RIG 1.0 — AE TEST AND IMPROVEMENT REPORT
+2026-11-03, Asia/Tokyo
+
+VERDICT
+
+The basic rigging system works in AE. Point placement/deformation, curved
+handles, Pivot offset/release, followers, masks, conversion, and an ordinary
+animated bake passed numeric checks. I would fix preservation and selection
+behavior before using Merge, work-area Bake, or follower removal on important
+production artwork.
+
+This review did not modify Vertex Rig.jsx. A reusable AE integration runner,
+its raw result log, and this report are in the Vertex Rig tests directory.
+
+TEST METHOD AND EVIDENCE
+
+Environment reported by After Effects: AE 26.5x89, Macintosh OS 27.0.1/64.
+
+1. Used Computer Use to operate the existing ScriptUI palette and AE menus.
+   Confirmed empty-selection feedback, All/Invert, single-point and marquee
+   selection, Create, All layers recovery, and Compact/Preview behavior.
+2. Ran the existing Node mock suite: 114 passed, 0 failed. It also parsed 47
+   generated expressions. These tests do not evaluate AE expression results.
+3. Ran ae-integration-qa.jsx through AE's File > Scripts > Run Script File UI.
+   It loads the production source and exposes its internal action functions
+   in memory, replacing only the panel-building boot call. It uses separate
+   fixture compositions and real AE properties/expressions, with numeric
+   expected results. Latest run: 63 passing assertions, 6 failures across
+   15 scenarios. Repeated expression checks are included in that count.
+4. Reviewed Vortex's official product page and author user guide. Vortex's
+   installed binary was not tested; its features below are documented claims.
+
+The first integration run had an incorrect Pivot test helper: it changed a
+post-expression Position instead of the underlying Position. After correcting
+the helper, Pivot translation passed. It is not included as a product defect.
+
+Temporary controls made during the UI test were removed. The earlier duplicate
+QA fixture folder was removed; the latest fixtures remain in the open project.
+The project was not saved by this review.
+
+CONFIRMED PRESERVATION FAILURES
+
+P1 — MERGE FREEZES SOURCE-LAYER ANIMATION
+Reproduce: Create two shape layers. Animate the lower source's Position from
+[300,200] at 0 s to [400,200] at 0.5 s. Merge at 0 s. Compare the moved shape's
+first vertex in comp space at 0.5 s.
+Observed: [300,140] before Merge, [200,140] afterward. Merge reports success.
+Cause: actMerge computes the wrapper transform only at comp.time and then
+removes the source layer. Its geometry guard checks the current instant.
+Source: Vertex Rig.jsx:2027, :2111, :2116.
+Improve: Preserve the source transform relationship over time, or bake it over
+an explicit range. Keep an original backup. Refuse unsupported animation until
+preservation is implemented; a successful current-frame check is insufficient.
+
+P1 — MERGE LOSES SOURCE-LAYER OPACITY
+Reproduce: Give the source layer 25% layer Transform Opacity. Merge it into a
+100% target.
+Observed: The incoming wrapper's opacity is 100%, so source appearance changes.
+Cause: The layer-to-group conversion transfers geometric TRS, not the layer's
+full rendering behavior.
+Source: Vertex Rig.jsx:2027 and the wrapper transform assignments that follow.
+Improve: Transfer compatible opacity. Preflight layer effects, blending,
+styles, mattes and other rendering dependencies rather than assuming geometric
+equivalence guarantees visual equivalence. Those additional cases were not
+tested here. A basic rigged merge also reported an unspecified copy failure;
+name the exact property instead of suggesting gradients in every case.
+
+P1 — FOLLOWER REMOVAL DELETES AN UNRELATED EXPRESSION
+Reproduce: Put `value * 2` on an ordinary target layer's Scale. Attach it as a
+path follower, then remove the follower with Delete.
+Observed: The original Scale expression is cleared even though attaching this
+path follower did not need to replace Scale.
+Cause: detachFollower clears every enabled Position/Rotation/Scale expression.
+Source: Vertex Rig.jsx:1363–1370.
+Improve: Track exactly which properties the rig owns. Preserve prior
+expressions, keys and values at attachment, and restore only properties changed
+by the rig. An unrelated expression must survive detachment.
+
+P1 — WORK-AREA BAKE DISCARDS ANIMATION OUTSIDE ITS RANGE
+Reproduce: Animate an original path through 0.75 s. Set a work area from
+0.25 to 0.5 s, rig a point, then Bake using the default work-area option.
+Observed: A later unrigged vertex changes from [140,-60] to [126.6875,-60].
+The operation samples only the work area but clears every original path key.
+Source: Vertex Rig.jsx:1608–1631, especially :1625–1626.
+Improve: Make range and replacement behavior explicit before execution.
+Offer a baked duplicate with the original retained, or bake the full evaluated
+animation when removing the live rig globally. Merely retaining old base keys
+outside the range will not preserve controller-driven motion there.
+
+P2 — ADDING HANDLES CHANGES SHARP CORNERS IMMEDIATELY
+Reproduce: Create a four-corner Bezier rectangle with zero tangents. Select its
+vertices and use + Handles.
+Observed: Path tangents change before the user moves any handle.
+Cause: Zero tangents are replaced by [-20,0] and [20,0] to make handles grabbable.
+Source: Vertex Rig.jsx:998–999.
+Improve: Keep the stored tangents at zero. Use a selectable ghost marker or
+screen-space affordance, creating a nonzero tangent only when dragged. Make
+any automatic smoothing a separate, explicit operation.
+
+P2 — SOURCE MOTION DOES NOT CARRY RIGGED POINTS
+Reproduce: Rig one rectangle vertex, then move its source layer 50 px right.
+Observed: The rigged vertex stays at [380,210] in comp space; unrigged vertices
+move with the source. Point controls have no parent.
+Source: Vertex Rig.jsx:583–611 and actCreate.
+Improve: Add a clear Layer space / Comp space attachment choice. Layer-relative
+controls should travel with the source by default for normal artwork movement.
+Comp-space pinning can remain an intentional option. This is a workflow
+expectation failure, not an AE expression syntax failure.
+
+OBSERVED PANEL ISSUES
+
+P2 — CREATE CLEARS THE WORKING CONTEXT
+In Selected layers mode, All picked 14 vertices and Create reported “Rigged 14
+points.” Immediately afterward the preview was empty. New controls had become
+the AE selection, so the source path and point picks fell out of the preview.
+All layers recovered the path, with its rigged vertices shown in blue.
+Source: Vertex Rig.jsx:2541–2544 and the action refresh behavior.
+Improve: Pin the inspected source paths through mutations, preserve valid
+point picks, and separate “inspect AE selection” from “select new controllers.”
+
+P2 — COMPACT MODE RETAINS A LARGE EMPTY WINDOW
+Compact hid the preview but kept a tall floating window, with buttons near the
+bottom and extensive empty space above. Preview restored the full controls.
+Source: Vertex Rig.jsx:2648.
+Improve: Collapse hidden layout groups as well as the canvas, resize a floating
+palette to its content, and remember/restore the expanded bounds. Compact mode
+also needs a visible way to know which paths/points its actions will affect.
+
+WHAT WORKED
+
+• Exact controller placement on a simple path and a rotated, nonuniformly
+  scaled shape group; Create preserved the existing shape.
+• Moving one controller changed its vertex and left unrigged vertices alone.
+• Repeated Create did not duplicate a controller.
+• Renaming/reordering a controller and renaming the source layer kept links.
+• Existing curved tangents survived masks → layers → masks conversion.
+• Pivot creation, offset compensation, translation and Release behaved correctly.
+• Follower Offset moved the follower; Average followed the point centroid.
+• Animated bake preserved samples at 0, 0.25 and 0.5 s and removed the controls.
+• Basic Extract retained rig position; simple Merge retained both paths.
+• Parametric rectangle conversion and masking-path controls worked.
+• Create skipped a path carrying another tool's expression.
+
+These results do not establish behavior for Windows, other AE versions,
+both expression engines, cameras/3D, skew, gradients or large stress cases.
+
+VORTEX COMPARISON AND IMPROVEMENT IDEAS
+
+The broad feature families already overlap: selective point controls, two
+handle modes, Pivots, path/Average followers, Extract/Merge and baking.
+Adding more buttons is less valuable than making those operations dependable.
+
+The author's guide documents viewer selection, Auto Inspect, preview zoom/pan,
+hover identification, hidden originals after restructuring, controller parenting,
+link repair, and a warning before creating more than 30 controls. These are
+useful reference targets, not claims independently verified in its binary.
+
+Recommended order:
+
+1. Preserve work. Fix the four P1 issues above; keep recoverable originals and
+   show exact affected layers, properties, ranges and unsupported cases.
+2. Keep context. Retain inspected paths and picked points after every action.
+   Add focus-triggered refresh and an explicit “Inspect selection” command.
+3. Improve the picker. Add wheel zoom, pan, path/layer labels, hover highlight,
+   per-path selection, coincident-point cycling, and rigged/unrigged filtering.
+4. Clarify removal. Label the two outcomes “Keep animation and remove rig” and
+   “Restore original path.” Default Delete currently restores the base shape;
+   that behavior should not be hidden behind a generic destructive label.
+5. Make large rigs manageable. Offer direct Pivot creation, controller grouping,
+   per-controller Size, batch-count feedback and link diagnostics/repair.
+6. Reduce primary UI density. Keep Create, Handles, Pivot, Follow and Remove
+   prominent. Put conversion, restructuring and advanced settings in clearly
+   labeled menus. Expose modifier shortcuts in tooltips and menus.
+7. Differentiate through inspection and safety: a rig graph, broken-link
+   diagnosis, safe restructuring previews, and a before/after bake check would
+   add value beyond feature parity.
+
+Practical next milestone: the six failing preservation/behavior assertions pass;
+Create retains its preview context; Compact actually fits a small palette.
+
+PRIMARY REFERENCES
+
+Vortex official product page:
+https://aescripts.com/vortex/
+
+Vortex author's user guide:
+https://transversal.tools/vortex/guide
+
+Read on 2026-11-03. The installed Vortex extension was not run or modified.

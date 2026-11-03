@@ -1,0 +1,1 @@
+Removed first duplicate QA fixture folder. Kept latest fixtures.Removed the 14 temporary point controls created during the UI test.

@@ -1,0 +1,3 @@
+# Claude Code keeps its git worktrees here - whole checkouts of this repo,
+# a quarter of a gigabyte of them. Never commit it.
+.claude/
