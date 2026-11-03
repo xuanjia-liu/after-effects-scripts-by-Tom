@@ -25,7 +25,7 @@ src = src.replace(marker, marker + `
         allPathSignature, checkUnchanged, carriesData, childrenOf,
         scanPrimitives, actAddToPivot, nearestT,
         followPositionExpr, setupFollower, actShowPoints, ICON_ART, drawArt, paintIconButton,
-        ICON_PX, ICON_UNITS, roundRectPath };`);
+        ICON_PX, HEAD_PX, ICON_UNITS, roundRectPath };`);
 
 const names = ["app", "CompItem", "Shape", "PropertyType", "PropertyValueType",
   "KeyframeInterpolationType", "MaskMode", "Window", "Panel", "ScriptUI", "$",
@@ -1326,8 +1326,8 @@ section("icons: drawn paths, not pictures");
 section("icons: four tabs, and hovering says what a picture does");
 {
   const tabs = M.NODES.filter(n => n.type === "tab");
-  ok(tabs.length === 4, "four tabs", tabs.length);
-  ok(tabs.map(t => t.text).join(" / ") === "Points / Pivot / Follow / Layers",
+  ok(tabs.length === 3, "three tabs", tabs.length);
+  ok(tabs.map(t => t.text).join(" / ") === "Points / Pivot / Follow",
      "named for what they hold", tabs.map(t => t.text).join(" / "));
   ok(M.NODES.filter(n => n.type === "tabbedpanel").length === 1, "in one tabbed panel");
 
@@ -1348,7 +1348,7 @@ section("icons: four tabs, and hovering says what a picture does");
 
   // the selection trio is fenced off by a rule on each side
   const rules = head._kids.filter(c => c.type === "panel");
-  ok(rules.length === 2, "two rules divide the row", rules.length);
+  ok(rules.length === 3, "three rules divide the row", rules.length);
   const at = c => head._kids.indexOf(c);
   const picks = ["Pick every point", "Pick what is not picked"]
     .map(t => head._kids.filter(c => (c.helpTip || "").indexOf(t) >= 0)[0]);
@@ -1371,16 +1371,22 @@ section("icons: four tabs, and hovering says what a picture does");
      icons.length + " vs " + actCalls);
   ok(icons.every(b => typeof b.onDraw === "function"),
      "each draws itself, so it stays sharp on a retina display");
-  ok(icons.every(b => b.preferredSize[0] === V.ICON_PX && b.preferredSize[1] === V.ICON_PX),
-     "all at the one size", V.ICON_PX + "px");
-  // icon buttons, text buttons and dropdowns all stand the same height
-  const rowKinds = M.NODES.filter(n =>
-    (n.type === "iconbutton" || n.type === "button" || n.type === "dropdownlist") &&
-    n.preferredSize && n.preferredSize[1]);
-  const offHeight = rowKinds.filter(n => n.preferredSize[1] !== V.ICON_PX);
-  ok(offHeight.length === 0,
-     "and every button and dropdown on a row stands that tall too",
-     offHeight.map(n => (n.text || n.type) + ":" + n.preferredSize[1]).join(", "));
+  ok(icons.every(b => b.preferredSize[0] === b.preferredSize[1]),
+     "all square");
+  // one height per row, rather than one height for the whole panel: the top
+  // row runs smaller than the tabs so all four of its sections fit on a line
+  const headKids = head._kids.filter(c => c.type !== "panel");
+  ok(headKids.every(c => c.preferredSize[1] === V.HEAD_PX),
+     "every control on the top row stands the same height",
+     headKids.map(c => c.preferredSize[1]).join(","));
+  const tabKids = M.NODES.filter(n =>
+    (n.type === "iconbutton" || n.type === "dropdownlist") &&
+    headKids.indexOf(n) < 0 && n.preferredSize && n.preferredSize[1]);
+  const offTab = tabKids.filter(n => n.preferredSize[1] !== V.ICON_PX);
+  ok(offTab.length === 0, "and every control in a tab stands at the other",
+     offTab.map(n => (n.text || n.type) + ":" + n.preferredSize[1]).join(", "));
+  ok(V.HEAD_PX < V.ICON_PX, "with the top row the smaller of the two",
+     V.HEAD_PX + " vs " + V.ICON_PX);
   const noTip = icons.filter(b => !b.helpTip || b.helpTip.indexOf(" - ") < 0);
   ok(noTip.length === 0, "every one has a tooltip that names it and explains it",
      noTip.length + " without");

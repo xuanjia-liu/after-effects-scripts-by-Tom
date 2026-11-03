@@ -90,9 +90,11 @@ def average(i):
     for p_ in pts: i.p([(14,13.5), p_], W*0.6)
     for p_ in pts: i.s(p_[0], p_[1], 2.8, W*0.9)
     i.s(14,13.5, 3.2, 0)
+# The mirror of merge: one bar, arrows leaving it instead of meeting at it.
 def extract(i):
-    i.box(3,11,12,25); i.box(16,3,25,12)
-    i.p([(8,16),(8,8),(15,8)], W*0.9); i.chev(16,8,3.6, 3.4, W*0.9)
+    i.p([(14,5),(14,23)])
+    i.p([(10,14),(4,14)]); i.p([(7,10),(3,14),(7,18)])
+    i.p([(18,14),(24,14)]); i.chev(25,14,4)
 # A path with its vertices showing, which is what the button turns on.
 def points(i):
     i.b((3,19),(10,22),(18,6),(25,9), W*0.75)

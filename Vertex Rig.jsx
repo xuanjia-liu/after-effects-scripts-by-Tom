@@ -2983,6 +2983,10 @@
     // controls that happen to be next to each other.
     var UI_H = 32;
     var ICON_PX = UI_H;
+    // The top row is the utility row - what the panel shows, what is picked,
+    // and the things that act on whole layers. It runs smaller than the tabs,
+    // which is what lets all four of its sections sit on one line.
+    var HEAD_PX = 26;
     var ICON_UNITS = 28;
 
     var ICON_ART = {
@@ -2996,7 +3000,7 @@
         "release": [["c",2.2,11,15,4.4],["c",0,11,15,1.5],["p",2.2,[11,5.5,11,9]],["p",2.2,[1.5,15,5,15]],["p",2.2,[11,21,11,24.5]],["p",2.2,[17,15,20.5,15]],["p",2.2,[19,10,25,4]],["p",2.2,[20.5,4,25,4,25,8.5]]],
         "follower": [["p",1.76,[4,14,24,14]],["c",0,10,14,3.4],["p",2.2,[19,10.0,23,14,19,18.0]]],
         "average": [["p",1.32,[14,13.5,7,8]],["p",1.32,[14,13.5,21,8]],["p",1.32,[14,13.5,14,22]],["r",1.98,7,8,2.8],["r",1.98,21,8,2.8],["r",1.98,14,22,2.8],["r",0,14,13.5,3.2]],
-        "extract": [["x",2.2,3,11,12,25],["x",2.2,16,3,25,12],["p",1.98,[8,16,8,8,15,8]],["p",1.98,[12.4,4.6,16,8,12.4,11.4]]],
+        "extract": [["p",2.2,[14,5,14,23]],["p",2.2,[10,14,4,14]],["p",2.2,[7,10,3,14,7,18]],["p",2.2,[18,14,24,14]],["p",2.2,[21,10.0,25,14,21,18.0]]],
         "merge": [["p",2.2,[14,5,14,23]],["p",2.2,[3,14,9,14]],["p",2.2,[6,10.0,10,14,6,18.0]],["p",2.2,[25,14,19,14]],["p",2.2,[22,10,18,14,22,18]]],
         "prefs": [["p",1.54,[4,8,24,8]],["r",0,18,8,2.9],["p",1.54,[4,14,24,14]],["r",0,10,14,2.9],["p",1.54,[4,20,24,20]],["r",0,21,20,2.9]],
         "refresh": [["p",2.2,[20.5,8.5,21.0,9.2,21.5,10.0,21.9,10.8,22.2,11.7,22.4,12.5,22.5,13.4,22.5,14.3,22.4,15.2,22.2,16.1,22.0,16.9,21.6,17.7,21.2,18.5,20.7,19.2,20.1,19.9,19.5,20.5,18.8,21.0,18.0,21.5,17.2,21.9,16.3,22.2,15.5,22.4,14.6,22.5,13.7,22.5,12.8,22.4,11.9,22.2,11.1,22.0,10.3,21.6,9.5,21.2,8.8,20.7,8.1,20.1,7.5,19.5,7.0,18.8,6.5,18.0,6.1,17.2,5.8,16.3,5.6,15.5,5.5,14.6,5.5,13.7,5.6,12.8,5.8,11.9,6.0,11.1,6.4,10.3,6.8,9.5,7.3,8.8,7.9,8.1,8.5,7.5,9.2,7.0,10.0,6.5,10.8,6.1]],["p",2.2,[20.5,8.5,24.5,9.8]],["p",2.2,[20.5,8.5,21.1,12.7]]],
@@ -3289,39 +3293,50 @@
         var scopeDd = head.add("dropdownlist", undefined,
                                ["Selected layers", "All layers"]);
         scopeDd.selection = 0;
-        scopeDd.preferredSize = [120, UI_H];
+        scopeDd.preferredSize = [104, HEAD_PX];
 
         // A hairline between the groups of the row: what it shows, what is
-        // picked, and what the panel does to it. 120 + 6*32 + 2 + 8*4 = 346 of
-        // the 368 points inside the panel's margins.
+        // picked, what moves shapes between layers, and what the panel does to
+        // the rig. 104 + 8*26 + 3 + 11*4 = 359 of the 368 points inside the
+        // panel's margins.
         function headRule() {
             var sep = head.add("panel");
             sep.alignment = ["left", "center"];
-            sep.minimumSize = [1, 10];
-            sep.preferredSize = [1, UI_H - 10];
-            sep.maximumSize = [1, UI_H];
+            sep.minimumSize = [1, 8];
+            sep.preferredSize = [1, HEAD_PX - 8];
+            sep.maximumSize = [1, HEAD_PX];
             return sep;
         }
 
         var bRefresh = act(head, "refresh", "Refresh",
-                           "Read the composition again and frame it", 62);
+                           "Read the composition again and frame it", 62, HEAD_PX);
         var bPoints = act(head, "points", "Show points",
-                          "Show the path's own points in the composition", 76);
+                          "Show the path's own points in the composition", 76, HEAD_PX);
         headRule();
         // One button for both: it offers All while nothing is picked and None
         // once something is, so the picture always shows what pressing it does.
-        var bPick = act(head, "all", "All", "Pick every point in view", 40);
+        var bPick = act(head, "all", "All", "Pick every point in view", 40, HEAD_PX);
         bPick.onDraw = function (st) {
             paintIconButton(this, countSel() ? ICON_ART.none : ICON_ART.all, st);
         };
-        var bInv = act(head, "invert", "Invert", "Pick what is not picked, and let the rest go", 52);
+        var bInv = act(head, "invert", "Invert",
+                       "Pick what is not picked, and let the rest go", 52, HEAD_PX);
         headRule();
-        var bPrefs = act(head, "prefs", "Prefs", "Colours, sizes and shapes of the controls", 54);
+        // These two move shapes between layers rather than rigging anything,
+        // so they are their own group rather than a tab of their own.
+        var bExtract = act(head, "extract", "Extract",
+                           "Move the picked shapes into layers of their own", 62, HEAD_PX);
+        var bMerge = act(head, "merge", "Merge",
+                         "Fold the selected shape layers into the topmost one", 58, HEAD_PX);
+        headRule();
+        var bPrefs = act(head, "prefs", "Prefs",
+                         "Colours, sizes and shapes of the controls", 54, HEAD_PX);
         // Delete takes off whatever the rig put on, whichever tab made it, so
         // it belongs up here rather than inside one of them. Last in the row,
         // away from the selection buttons.
         var bDel = act(head, "delete", "Delete",
-                       "Remove the picked points, or the selected handles, pivot or follower", 58);
+                       "Remove the picked points, or the selected handles, pivot or follower",
+                       58, HEAD_PX);
 
         var cv = win.add("group");
         cv.alignment = ["fill", "fill"];
@@ -3352,16 +3367,17 @@
         // the icons and nothing else. A picture has to be able to say what it
         // is: hovering one names the action in the line above the tabs, and
         // the tooltip says it too for anyone who waits.
-        function act(g, icon, label, tip, textWidth) {
+        function act(g, icon, label, tip, textWidth, size) {
             var art = ICON_ART[icon];
+            var px = size || ICON_PX;
             var b;
             if (art) {
                 b = g.add("iconbutton", undefined, undefined, { style: "toolbutton" });
-                b.preferredSize = [ICON_PX, ICON_PX];
+                b.preferredSize = [px, px];
                 b.onDraw = function (st) { paintIconButton(this, art, st); };
             } else {
                 b = g.add("button", undefined, label);
-                b.preferredSize = [textWidth || 66, UI_H];
+                b.preferredSize = [textWidth || 66, px];
             }
             // Read at hover time, not captured, so a button whose job
             // changes can change what it says it does.
@@ -3448,11 +3464,6 @@
         var gFol = tabRow(tFol);
         var bFol = act(gFol, "follower", "Follower", "Attach the selected layers to the picked path");
         var bAvg = act(gFol, "average", "Average", "One follower at the centre of the picked points");
-
-        var tLay = tabPage("Layers");
-        var gLay = tabRow(tLay);
-        var bExtract = act(gLay, "extract", "Extract", "Move the picked shapes into layers of their own");
-        var bMerge = act(gLay, "merge", "Merge", "Fold the selected shape layers into the topmost one");
 
         tabs.selection = 0;
 
