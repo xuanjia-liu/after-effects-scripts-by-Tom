@@ -22,8 +22,8 @@
  *             Handles     add the missing handles to points already rigged
  *             Delete      remove the picked controls, or the whole rig
  *   Group     Pivot       one control that moves, turns and scales many points,
- *                         across layers; its Pivot Offset shifts the centre of
- *                         rotation without moving the artwork, and animates
+ *                         across layers; its Pivot Offset moves the pivot
+ *                         itself, so turning and zooming follow it, and animates
  *             Add/Release join or leave an existing Pivot
  *             Bake        freeze the rig into path keyframes and drop it
  *   Follow    Follower    ride the path, with Offset to slide along it and
@@ -1075,7 +1075,43 @@
         var comp = activeComp();
         if (!comp) { UI.say("Open a composition first."); return false; }
         if (!items.length) { UI.say("Nothing in view to show."); return false; }
-        var i, showing = 0, holders = [];
+
+        // A rectangle, ellipse or star has no points for After Effects to put
+        // handles on - it is a handful of numbers, and the corners the panel
+        // draws for it are worked out, not read. Asking to see them in the
+        // composition asks for it to become a path, the same way picking one
+        // to rig or to follow does.
+        var i, made = 0, anyPrim = false;
+        for (i = 0; i < items.length; i++) {
+            if (items[i] && items[i].prim) { anyPrim = true; break; }
+        }
+        if (anyPrim) {
+            var wrapped = [];
+            for (i = 0; i < items.length; i++) { wrapped.push({ item: items[i], idx: [] }); }
+            app.beginUndoGroup(NAME + ": Show points");
+            var turned;
+            try {
+                turned = resolvePrimitives(comp, wrapped);
+            } catch (eC) {
+                try { app.endUndoGroup(); } catch (eC2) {}
+                undoLast();
+                UI.say("Rolled back - " + eC.toString());
+                UI.refresh();
+                return false;
+            }
+            app.endUndoGroup();
+            made = turned.made;
+            items = [];
+            for (i = 0; i < turned.picks.length; i++) {
+                if (turned.picks[i].item) { items.push(turned.picks[i].item); }
+            }
+            // Refresh before the selection, never after: refresh writes its
+            // own line into the status, and the message below is the answer.
+            UI.refresh();
+            if (!items.length) { UI.say("Nothing in view to show."); return false; }
+        }
+
+        var showing = 0, holders = [];
         for (i = 0; i < items.length; i++) {
             holders.push(pointsHolder(items[i]));
             try { if (holders[i].selected) { showing++; } } catch (e) {}
@@ -1091,8 +1127,13 @@
             } catch (e2) {}
         }
         var what = done + " path" + (done === 1 ? "" : "s");
-        UI.say(want ? "Showing the points of " + what + " in the composition."
-                    : "Hid the points of " + what + ".");
+        var msg = want ? "Showing the points of " + what + " in the composition."
+                       : "Hid the points of " + what + ".";
+        if (made) {
+            msg += " Turned " + made + " shape" + (made === 1 ? "" : "s") +
+                   " into a bezier path on the way.";
+        }
+        UI.say(msg);
         return true;
     }
 
@@ -1724,21 +1765,39 @@
             e.name = PIVOT_OFFSET;
             e.property(1).setValue([0, 0]);
         }
-        // The offset is the centre of rotation and scale, so it has to land
-        // on the position: a child's comp point is position + rot*scale*(its
-        // own point - anchor), which turns about wherever position puts the
-        // anchor. Rolling rotation into position instead - as this once did -
-        // makes the two copies of the offset cancel, and every child goes on
-        // turning about the untouched centre.
+        // A child's comp point is position + rot*scale*(its own point -
+        // anchor), so the pivot turns and zooms about whatever world place the
+        // anchor lands on - which is the position. Moving the pivot therefore
+        // means moving both: the same offset on each, raw.
         //
-        // The anchor takes the offset back out in the layer's own units, so
-        // dragging the offset leaves the artwork where it is, at any scale.
-        piv.transform.anchorPoint.expression =
-            "var d = effect(" + estr(PIVOT_OFFSET) + ")(\"Point\");\n" +
-            "var k = scale / 100;\n" +
-            "value + [k[0] == 0 ? 0 : d[0] / k[0], k[1] == 0 ? 0 : d[1] / k[1]];";
-        piv.transform.position.expression =
-            "value + effect(" + estr(PIVOT_OFFSET) + ")(\"Point\");";
+        // Raw is the whole of it. Scale the compensation by the pivot's own
+        // scale and it cancels exactly - scale(d/k) is d at every k - so the
+        // children go on zooming about the centre the offset was supposed to
+        // leave. Rotate it and rotation cancels the same way. Either one buys
+        // an offset you can drag at any pose without the artwork stirring, and
+        // pays for it with an offset that does not move what it is named for.
+        //
+        // So the compensation is taken at the rest pose, which is what the
+        // Pan-Behind tool does when it moves an anchor point by hand. At 100%
+        // and 0 degrees nothing stirs, and that is when an offset is set.
+        // Drag it while the pivot is already turned or zoomed and the artwork
+        // does move - by exactly the part of the transform it now sits inside.
+        var dExpr = "value + effect(" + estr(PIVOT_OFFSET) + ")(\"Point\");";
+        piv.transform.anchorPoint.expression = dExpr;
+        piv.transform.position.expression = dExpr;
+
+        // The marker is drawn at the layer's origin, and the anchor - the one
+        // place everything turns and zooms about - has just moved away from
+        // it. Walk the artwork over to the anchor, so the pivot you can see is
+        // the pivot you get. Sitting on the anchor, it is also the one thing a
+        // turn or a zoom leaves alone, which is what a centre should look like.
+        try {
+            var mk = piv.property(MN_CONTENTS).property("Marker");
+            if (mk) {
+                mk.property("ADBE Vector Transform Group")
+                  .property("ADBE Vector Position").expression = dExpr;
+            }
+        } catch (err) {}
     }
 
     function makePivot(comp, pos) {
@@ -3174,6 +3233,10 @@
         status: "",
         sel: {},
         view: { s: 1, tx: 0, ty: 0 },
+        // Set the moment the view is panned or zoomed by hand. A fit would
+        // throw that away, so from then on only a change of what is on show -
+        // or a double click on empty canvas - is allowed to reframe.
+        viewManual: false,
         fitted: false,
         shown: null,
         drag: null
@@ -3272,6 +3335,29 @@
         state.view.s = s;
         state.view.tx = w / 2 - ((minx + maxx) / 2) * s;
         state.view.ty = h / 2 - ((miny + maxy) / 2) * s;
+        state.viewManual = false;
+    }
+
+    var ZOOM_MIN = 0.02, ZOOM_MAX = 64;
+
+    // Zoom about a point on the canvas, so whatever is under the pointer stays
+    // under it. Without that the artwork slides away while you lean in on it.
+    function zoomAt(cx, cy, factor) {
+        var was = state.view.s;
+        var now = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, was * factor));
+        if (now === was) { return false; }
+        var at = toComp([cx, cy]);
+        state.view.s = now;
+        state.view.tx = cx - at[0] * now;
+        state.view.ty = cy - at[1] * now;
+        state.viewManual = true;
+        return true;
+    }
+
+    function panBy(dx, dy) {
+        state.view.tx += dx;
+        state.view.ty += dy;
+        state.viewManual = true;
     }
 
     // True while some part of the artwork still lands on the canvas. Nothing
@@ -3632,20 +3718,58 @@
             return best;
         }
 
+        // Alt and the middle or right button both pan, because which of them
+        // a tablet or a trackpad can send is not something the panel can know.
+        function wantsPan(ev) {
+            return !!ev.altKey || ev.button === 1 || ev.button === 2;
+        }
+
         cv.addEventListener("mousedown", function (ev) {
+            // A double click on empty canvas is the way back to a fit, now
+            // that the view can be moved by hand. On a vertex it is left
+            // alone, so two clicks there still just pick and unpick.
+            if (ev.detail >= 2 && !nearestVertex(ev.clientX, ev.clientY, 10)) {
+                state.drag = null;
+                fitView(Math.max(60, cv.size.width), Math.max(60, cv.size.height));
+                redraw();
+                setStatus("Framed everything in view.");
+                return;
+            }
             state.drag = { x0: ev.clientX, y0: ev.clientY, x1: ev.clientX, y1: ev.clientY,
-                           marquee: false, shift: ev.shiftKey };
+                           marquee: false, shift: ev.shiftKey, pan: wantsPan(ev),
+                           tx: state.view.tx, ty: state.view.ty };
         });
 
         cv.addEventListener("mousemove", function (ev) {
             if (!state.drag) { return; }
             state.drag.x1 = ev.clientX;
             state.drag.y1 = ev.clientY;
+            if (state.drag.pan) {
+                // From where the drag started, not from the last event, so a
+                // dropped move does not leave the view short.
+                state.view.tx = state.drag.tx + (state.drag.x1 - state.drag.x0);
+                state.view.ty = state.drag.ty + (state.drag.y1 - state.drag.y0);
+                state.viewManual = true;
+                redraw();
+                return;
+            }
             if (Math.abs(state.drag.x1 - state.drag.x0) > 3 ||
                 Math.abs(state.drag.y1 - state.drag.y0) > 3) {
                 state.drag.marquee = true;
                 redraw();
             }
+        });
+
+        // Wheel support is the one thing here the panel cannot promise: which
+        // ScriptUI builds deliver it to a custom canvas varies. Alt-drag pans
+        // and a double click fits whether or not this ever arrives, and both
+        // spellings of the delta are read because builds differ on that too.
+        cv.addEventListener("mousewheel", function (ev) {
+            var d = 0;
+            if (typeof ev.wheelDelta === "number") { d = ev.wheelDelta; }
+            else if (typeof ev.detail === "number") { d = -ev.detail; }
+            if (!d) { return; }
+            if (zoomAt(ev.clientX, ev.clientY, d > 0 ? 1.15 : 1 / 1.15)) { redraw(); }
         });
 
         cv.addEventListener("mouseup", function (ev) {
@@ -3654,6 +3778,9 @@
             if (!d) { return; }
             d.x1 = ev.clientX;
             d.y1 = ev.clientY;
+            // A pan moved the view, not the picks: it must not land on a
+            // vertex and select it on the way up.
+            if (d.pan) { redraw(); return; }
 
             if (d.marquee) {
                 var x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1);
@@ -3820,7 +3947,8 @@
             for (i = 0; i < state.items.length; i++) { shown.push(state.items[i].key); }
             for (i = 0; i < state.prims.length; i++) { shown.push(state.prims[i].key); }
             shown = shown.join("\n");
-            if (!state.fitted || shown !== state.shown || !anythingInView(cw, ch)) {
+            if (!state.fitted || shown !== state.shown ||
+                (!state.viewManual && !anythingInView(cw, ch))) {
                 fitView(cw, ch);
                 state.fitted = true;
             }

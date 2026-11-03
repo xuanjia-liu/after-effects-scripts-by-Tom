@@ -331,9 +331,9 @@ function uiNode(type) {
     },
     // listeners are kept so a test can fire one, the way a pointer would
     addEventListener(type, fn) { (this._on[type] = this._on[type] || []).push(fn); },
-    fire(type) {
+    fire(type, ev) {
       const l = this._on[type] || [];
-      for (const fn of l) { fn.call(this, { type }); }
+      for (const fn of l) { fn.call(this, Object.assign({ type }, ev || {})); }
       return l.length;
     },
     notify(type) { this._repaints = (this._repaints || 0) + 1; return type; },

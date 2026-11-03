@@ -4,12 +4,15 @@
     f.open('r'); var src = f.read(); f.close();
     var boot = '    loadPrefs();\n    buildUI(thisObj);';
     if (src.indexOf(boot) < 0) { alert('QA boot marker missing'); return; }
-    src = src.replace(boot, '$.global.VXR_QA_API = {scanPaths:scanPaths, actCreate:actCreate, actAddHandles:actAddHandles, actSwitchHandleMode:actSwitchHandleMode, actPivot:actPivot, actRelease:actRelease, actFollower:actFollower, actAverageFollower:actAverageFollower, actDelete:actDelete, actExtract:actExtract, actMerge:actMerge, actToBezier:actToBezier, readManifest:readManifest, linkedLayer:linkedLayer, kindOf:kindOf, findEffect:findEffect, geomFor:geomFor, P:P, UI:UI};');
+    src = src.replace(boot, '$.global.VXR_QA_API = {scanPaths:scanPaths, actCreate:actCreate, actSwitchHandleMode:actSwitchHandleMode, actPivot:actPivot, actRelease:actRelease, actFollower:actFollower, actAverageFollower:actAverageFollower, actDelete:actDelete, actExtract:actExtract, actMerge:actMerge, scanPrimitives:scanPrimitives, readManifest:readManifest, linkedLayer:linkedLayer, kindOf:kindOf, findEffect:findEffect, geomFor:geomFor, P:P, UI:UI};');
     eval(src);
     var V = $.global.VXR_QA_API;
     V.UI.say = function (s) { last = s; log.push('  STATUS ' + s); };
     V.UI.refresh = function () {};
-    var folder = app.project.items.addFolder('Vertex Rig QA 2026-11-03');
+    var stamp = new Date();
+    function two(n) { return (n < 10 ? '0' : '') + n; }
+    var folder = app.project.items.addFolder('Vertex Rig QA ' + stamp.getFullYear() +
+        '-' + two(stamp.getMonth() + 1) + '-' + two(stamp.getDate()));
     function note(s) { log.push(s); }
     function check(c, s, detail) { if(c){passed++;}else{failed++;} log.push((c?'PASS ':'FAIL ')+s+(detail?' | '+detail:'')); }
     function close(a,b,tol) { return Math.abs(a-b)<(tol||0.05); }
@@ -70,7 +73,12 @@
         var c=comp('Restructure'),L=layer(c,'Two groups');addGroup(L,'Other',shape(),[250,0]);var it=item(c,L);V.actCreate(picks(it,[0]),false);var before=V.geomFor(it,0).verts[0];V.actExtract(picks(it,[0]),[L]);var layers=[];for(var i=1;i<=c.numLayers;i++){if(c.layer(i) instanceof ShapeLayer && !V.kindOf(c.layer(i)))layers.push(c.layer(i));}check(layers.length===2,'Extract makes two shape layers',last);var paths=V.scanPaths(c,layers),rigged=null;for(i=0;i<paths.length;i++){if(V.readManifest(paths[i].prop))rigged=paths[i];}check(!!rigged && pt(V.geomFor(rigged,0).verts[0],before),'Extract preserves rig position');V.actMerge(layers);var after=[];for(i=1;i<=c.numLayers;i++){if(c.layer(i) instanceof ShapeLayer && !V.kindOf(c.layer(i)))after.push(c.layer(i));}check(after.length===1,'Merge leaves one shape layer',last);check(V.scanPaths(c,after).length===2,'Merge keeps both paths');
     });
     scenario('Parametric conversion and foreign expression',function(){
-        var c=comp('Parametric'),L=c.layers.addShape(),g=L.property('ADBE Root Vectors Group').addProperty('ADBE Vector Group'),v=g.property('ADBE Vectors Group');v.addProperty('ADBE Vector Shape - Rect');v.addProperty('ADBE Vector Graphic - Fill');V.actToBezier([L]);var paths=V.scanPaths(c,[L]);check(paths.length===1,'parametric rectangle becomes editable Bezier',last);var it=paths[0];it.prop.expression='value';V.actCreate(picks(it,[0]),false);check(it.prop.expression==='value'&&c.numLayers===1,'foreign expression is left untouched');
+        var c=comp('Parametric'),L=c.layers.addShape(),g=L.property('ADBE Root Vectors Group').addProperty('ADBE Vector Group'),v=g.property('ADBE Vectors Group');v.addProperty('ADBE Vector Shape - Rect');v.addProperty('ADBE Vector Graphic - Fill');
+        var prims=V.scanPrimitives(c,[L]);check(prims.length===1,'parametric rectangle is pickable before it is a path',show(prims.length));
+        check(V.scanPaths(c,[L]).length===0,'and there is no path on it yet');
+        V.actCreate(picks(prims[0],[0]),false);var paths=V.scanPaths(c,[L]);check(paths.length===1,'rigging one of its points turns it into an editable Bezier',last);
+        check(V.scanPrimitives(c,[L]).length===0,'with nothing parametric left on the layer');
+        var c2=comp('Foreign expression'),L2=layer(c2,'Path'),it2=item(c2,L2);it2.prop.expression='value';var n2=c2.numLayers;V.actCreate(picks(it2,[0]),false);check(it2.prop.expression==='value'&&c2.numLayers===n2,'foreign expression is left untouched',show(it2.prop.expression));
     });
     scenario('Mask path',function(){
         var c=comp('Mask'),L=c.layers.addSolid([1,1,1],'Masked solid',960,540,1),m=L.mask.addProperty('ADBE Mask Atom');m.property('ADBE Mask Shape').setValue(shape([[100,100],[300,100],[300,250],[100,250]]));var it=item(c,L);V.actCreate(picks(it,[0]),false);var A=control(it);check(pt(A.transform.position.value,[100,100]),'mask controller placement');move(A,25,15);check(pt(value(it).vertices[0],[125,115]),'mask path follows controller');
@@ -93,5 +101,5 @@
     note('\nTOTAL '+passed+' passed, '+failed+' failed');
     var output=new File(File($.fileName).parent.fsName + '/ae-results.txt');output.encoding='UTF-8';if(output.open('w')){output.write(log.join('\n'));output.close();}
     if(old instanceof CompItem)old.openInViewer();
-    alert('Vertex Rig QA complete: '+passed+' passed, '+failed+' failed.\nReport: ae-results.txt next to this test script\nFixtures are in the Vertex Rig QA folder.');
+    if ($.global.VXR_QA_SILENT !== true) { alert('Vertex Rig QA complete: '+passed+' passed, '+failed+' failed.\nReport: ae-results.txt next to this test script\nFixtures are in the Vertex Rig QA folder.'); }
 })();

@@ -1,133 +1,1 @@
-AE 26.5x89 | OS Macintosh OS 27.0.1/64 | Tue Nov 03 2026 15:44:30 GMT+0900
-Source /Users/xuanjialiu/Desktop/AE pulgins/motion tools scripts/Vertex Rig.jsx | source length 118966
-
-SCENARIO Point placement, deformation and duplicate guard
-  STATUS Rigged 2 points.
-PASS controller matches comp-space vertex | [380, 210, 0]
-PASS path expression evaluates
-PASS Create preserves geometry
-PASS path expression evaluates
-PASS moving control deforms selected vertex | [-50, -35]
-PASS unrigged vertex stays fixed
-  STATUS Those points already have controls.
-PASS Create is idempotent
-PASS path expression evaluates
-PASS controller rename/reorder keeps link
-PASS path expression evaluates
-PASS shape layer rename keeps rig
-  STATUS Removed 2 point control(s).
-PASS Delete removes rig and links
-PASS Delete restores original geometry
-
-SCENARIO Transformed shape group
-  STATUS Rigged 4 points.
-PASS path expression evaluates
-PASS rotated/nonuniform group does not jump
-PASS transformed point matches controller | [445.528749939407, 155.783029193931] vs [445.528747558594, 155.78303527832, 0]
-
-SCENARIO Bezier handles and roundtrip
-  STATUS Rigged 1 point.
-PASS path expression evaluates
-PASS curved handles preserve original path
-PASS two handle masks exist
-PASS path expression evaluates
-  STATUS Switched 2 handle set to layers.
-PASS path expression evaluates
-PASS masks-to-layers preserves curve
-PASS one point plus two handle layers
-  STATUS Switched 2 handle set to masks.
-PASS path expression evaluates
-PASS layers-to-masks preserves curve
-PASS converted handle layers removed
-
-SCENARIO Corner handles preserve silhouette
-PASS path expression evaluates
-  STATUS Rigged 4 points.
-PASS path expression evaluates
-FAIL adding handles to zero tangents preserves corners
-
-SCENARIO Pivot translation, rotation, offset and release
-  STATUS Rigged 2 points.
-  STATUS Pivot driving 2 controls.
-PASS Pivot created
-PASS path expression evaluates
-PASS path expression evaluates
-PASS Pivot Offset does not move artwork
-PASS path expression evaluates
-PASS path expression evaluates
-PASS Pivot moves both points | [-60, -40]
-PASS path expression evaluates
-  STATUS Released 2 control(s).
-PASS path expression evaluates
-PASS Release preserves point positions
-
-SCENARIO Path follower and average
-  STATUS Rigged 2 points.
-  STATUS Attached 1 follower to Track / Path 1. Drag VXR Offset to slide it along.
-PASS follower at 0 percent matches start | [380, 210, 0]
-PASS offset moves follower
-PASS follower position expression evaluates
-  STATUS Average follower on 2 points. Turn on VXR Follow Rotation / VXR Follow Scale to let it turn and scale.
-PASS Average at point centroid | [480, 210, 0]
-PASS Average follows moved point
-
-SCENARIO Animated bake
-  STATUS Rigged 1 point.
-PASS path expression evaluates
-PASS path expression evaluates
-PASS path expression evaluates
-  STATUS Baked 1 path(s), 13 keyframes written, controls removed.
-PASS Bake removes expression
-PASS Bake writes animated keys | 13
-PASS path expression evaluates
-PASS path expression evaluates
-PASS path expression evaluates
-PASS Bake preserves sampled deformation
-PASS Bake removes controls
-
-SCENARIO Extract and merge
-  STATUS Rigged 1 point.
-  STATUS Extracted 1 shape into its own layer.
-PASS Extract makes two shape layers | Extracted 1 shape into its own layer.
-PASS Extract preserves rig position
-  STATUS Merged 1 layer into Two groups. 1 propert(y/ies) could not be copied - check gradients.
-PASS Merge leaves one shape layer | Merged 1 layer into Two groups. 1 propert(y/ies) could not be copied - check gradients.
-PASS Merge keeps both paths
-
-SCENARIO Parametric conversion and foreign expression
-  STATUS Converted 1 parametric shape to bezier.
-PASS parametric rectangle becomes editable Bezier | Converted 1 parametric shape to bezier.
-  STATUS Skipped - those paths already carry another tool's expression.
-PASS foreign expression is left untouched
-
-SCENARIO Mask path
-  STATUS Rigged 1 point.
-PASS mask controller placement
-PASS path expression evaluates
-PASS mask path follows controller
-
-SCENARIO Moving the source layer after rigging
-  STATUS Rigged 1 point.
-FAIL rigged point travels with source layer | [380, 210] -> [380, 210]
-  INFO point parent = none
-
-SCENARIO Merge preserves animated layer transforms
-  STATUS Merged 1 layer into Target.
-FAIL Merge preserves future source animation | [300, 140] -> [200, 140]
-
-SCENARIO Merge preserves source opacity
-  STATUS Merged 1 layer into Target.
-FAIL Merge keeps source layer opacity | 100
-
-SCENARIO Detaching borrowed follower preserves unrelated expressions
-  STATUS Attached 1 follower to Path / Path 1. Drag VXR Offset to slide it along.
-  STATUS Removed 1 pivot/follower.
-FAIL Delete follower keeps unrelated Scale expression
-
-SCENARIO Work-area bake preserves animation outside selected range
-  STATUS Rigged 1 point.
-PASS path expression evaluates
-  STATUS Baked 1 path(s), 7 keyframes written, controls removed.
-FAIL Work-area bake retains later path animation | [140, -60] -> [126.6875, -60]
-
-TOTAL 63 passed, 6 failed
+AE 26.5x89 | OS Macintosh OS 27.0.1/64 | Wed Nov 04 2026 00:27:27 GMT+0900Source /Users/xuanjialiu/Desktop/AE pulgins/motion tools scripts/Vertex Rig.jsx | source length 184015SCENARIO Point placement, deformation and duplicate guard  STATUS Rigged 2 points.PASS controller matches comp-space vertex | [380, 210, 0]PASS path expression evaluatesPASS Create preserves geometryPASS path expression evaluatesPASS moving control deforms selected vertex | [-50, -35]PASS unrigged vertex stays fixed  STATUS Those points already have controls.PASS Create is idempotentPASS path expression evaluatesPASS controller rename/reorder keeps linkPASS path expression evaluatesPASS shape layer rename keeps rig  STATUS Removed 2 point control(s).PASS Delete removes rig and linksPASS Delete restores original geometrySCENARIO Transformed shape group  STATUS Rigged 4 points.PASS path expression evaluatesPASS rotated/nonuniform group does not jumpPASS transformed point matches controller | [445.528749939407, 155.783029193931] vs [445.528747558594, 155.78303527832, 0]SCENARIO Bezier handles and roundtrip  STATUS Rigged 1 point with handles.PASS path expression evaluatesPASS curved handles preserve original pathPASS two handle masks existPASS path expression evaluates  STATUS Switched 2 handle set to layers.PASS path expression evaluatesPASS masks-to-layers preserves curvePASS one point plus two handle layers  STATUS Switched 2 handle set to masks.PASS path expression evaluatesPASS layers-to-masks preserves curvePASS converted handle layers removedSCENARIO Corner handles preserve silhouettePASS path expression evaluates  STATUS Rigged 4 points with handles.PASS path expression evaluatesPASS adding handles to zero tangents preserves cornersSCENARIO Pivot translation, rotation, offset and release  STATUS Rigged 2 points.  STATUS Pivot carrying 2 controls that already existed.PASS Pivot createdPASS path expression evaluatesPASS path expression evaluatesPASS Pivot Offset does not move artworkPASS path expression evaluatesPASS path expression evaluatesPASS Pivot moves both points | [-60, -40]PASS path expression evaluates  STATUS Released 2 control(s).PASS path expression evaluatesPASS Release preserves point positionsSCENARIO Path follower and average  STATUS Rigged 2 points.  STATUS Attached 1 follower to Track / Path 1. Drag VXR Offset to slide it along.PASS follower at 0 percent matches start | [380, 210, 0]PASS offset moves followerPASS follower position expression evaluates  STATUS Average follower on 2 points. Turn on VXR Follow Rotation / VXR Follow Scale to let it turn and scale.PASS Average at point centroid | [480, 210, 0]PASS Average follows moved pointSCENARIO Animated bake  STATUS Rigged 1 point.PASS path expression evaluatesPASS path expression evaluatesPASS path expression evaluates  STATUS Baked 1 path(s), 13 keyframes written, controls removed.PASS Bake removes expressionPASS Bake writes animated keys | 13PASS path expression evaluatesPASS path expression evaluatesPASS path expression evaluatesPASS Bake preserves sampled deformationPASS Bake removes controlsSCENARIO Extract and merge  STATUS Rigged 1 point.  STATUS Extracted 1 shape into its own layer.PASS Extract makes two shape layers | Extracted 1 shape into its own layer.PASS Extract preserves rig position  STATUS Merged 1 layer into Two groups.PASS Merge leaves one shape layer | Merged 1 layer into Two groups.PASS Merge keeps both pathsSCENARIO Parametric conversion and foreign expressionPASS parametric rectangle is pickable before it is a path | (new Number(1))PASS and there is no path on it yet  STATUS Rigged 1 point. Turned 1 shape into a bezier path on the way.PASS rigging one of its points turns it into an editable Bezier | Rigged 1 point. Turned 1 shape into a bezier path on the way.PASS with nothing parametric left on the layer  STATUS Skipped - those paths already carry another tool's expression.PASS foreign expression is left untouched | (new String("value"))SCENARIO Mask path  STATUS Rigged 1 point.PASS mask controller placementPASS path expression evaluatesPASS mask path follows controllerSCENARIO Moving the source layer after rigging  STATUS Rigged 1 point.FAIL rigged point travels with source layer | [380, 210] -> [380, 210]  INFO point parent = noneSCENARIO Merge preserves animated layer transforms  STATUS Merged 1 layer into Target.FAIL Merge preserves future source animation | [300, 140] -> [200, 140]SCENARIO Merge preserves source opacity  STATUS Merged 1 layer into Target.FAIL Merge keeps source layer opacity | 100SCENARIO Detaching borrowed follower preserves unrelated expressions  STATUS Attached 1 follower to Path / Path 1. Drag VXR Offset to slide it along.  STATUS Removed 1 follower.FAIL Delete follower keeps unrelated Scale expressionSCENARIO Work-area bake preserves animation outside selected range  STATUS Rigged 1 point.PASS path expression evaluates  STATUS Baked 1 path(s), 7 keyframes written, controls removed.FAIL Work-area bake retains later path animation | [140, -60] -> [126.6875, -60]TOTAL 67 passed, 5 failed

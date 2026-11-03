@@ -1105,6 +1105,166 @@ section("Handles is set in one place, not two");
      "the panel still offers both modes");
 }
 
+// ======================================= the preview pans and zooms by hand
+// Until now every view came from a fit, so a crowded path could only be looked
+// at from wherever the fit put it. Alt-drag pans, the wheel zooms about the
+// pointer, and a double click on empty canvas is the way back.
+section("preview: panning and zooming by hand");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(5, 90), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+
+  const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
+  ok(!!cv, "the canvas listens for a wheel");
+  ok(!!(cv && cv._on.mousedown && cv._on.mousemove && cv._on.mouseup),
+     "and for the three mouse events a drag needs");
+
+  const start = Object.assign({}, V.state.view);
+  ok(V.state.viewManual === false, "a fitted view is not a hand-set one");
+
+  // --- pan ---------------------------------------------------------------
+  cv.fire("mousedown", { clientX: 100, clientY: 100, altKey: true, detail: 1 });
+  cv.fire("mousemove", { clientX: 140, clientY: 130, altKey: true });
+  cv.fire("mouseup",   { clientX: 140, clientY: 130, altKey: true });
+  ok(Math.abs(V.state.view.tx - start.tx - 40) < 1e-9 &&
+     Math.abs(V.state.view.ty - start.ty - 30) < 1e-9,
+     "alt-drag moves the view by exactly the drag",
+     [V.state.view.tx - start.tx, V.state.view.ty - start.ty].join(","));
+  ok(V.state.view.s === start.s, "and does not change the zoom");
+  ok(V.state.viewManual === true, "the view is now hand-set");
+
+  // a pan is not a pick: it must not land on a vertex and select it
+  const pickedAfterPan = Object.keys(V.state.sel).length;
+  ok(pickedAfterPan === 0, "panning selects nothing", pickedAfterPan);
+
+  // the middle and right buttons pan too, for the devices that send them
+  const beforeBtn = Object.assign({}, V.state.view);
+  cv.fire("mousedown", { clientX: 10, clientY: 10, button: 2, detail: 1 });
+  cv.fire("mousemove", { clientX: 25, clientY: 10, button: 2 });
+  cv.fire("mouseup",   { clientX: 25, clientY: 10, button: 2 });
+  ok(Math.abs(V.state.view.tx - beforeBtn.tx - 15) < 1e-9,
+     "the right button pans as well", V.state.view.tx - beforeBtn.tx);
+
+  // --- zoom --------------------------------------------------------------
+  // What sits under the pointer has to stay under it, or the artwork slides
+  // away from you as you lean in on it.
+  const AT = [180, 120];
+  const toComp = p => [(p[0] - V.state.view.tx) / V.state.view.s,
+                       (p[1] - V.state.view.ty) / V.state.view.s];
+  const underBefore = toComp(AT);
+  const sBefore = V.state.view.s;
+  cv.fire("mousewheel", { clientX: AT[0], clientY: AT[1], wheelDelta: 120 });
+  ok(V.state.view.s > sBefore, "the wheel zooms in", V.state.view.s / sBefore);
+  const underAfter = toComp(AT);
+  ok(Math.abs(underAfter[0] - underBefore[0]) < 1e-9 &&
+     Math.abs(underAfter[1] - underBefore[1]) < 1e-9,
+     "and what was under the pointer is still under it",
+     underBefore.join(",") + " -> " + underAfter.join(","));
+
+  cv.fire("mousewheel", { clientX: AT[0], clientY: AT[1], wheelDelta: -120 });
+  ok(Math.abs(V.state.view.s - sBefore) < 1e-9,
+     "a notch back the other way lands exactly where it started",
+     V.state.view.s + " vs " + sBefore);
+
+  // the other spelling of the delta, for the builds that send that instead
+  const sAlt = V.state.view.s;
+  cv.fire("mousewheel", { clientX: AT[0], clientY: AT[1], detail: -3 });
+  ok(V.state.view.s > sAlt, "a build that sends detail instead still zooms");
+
+  // --- it cannot be zoomed into nothing -----------------------------------
+  for (let i = 0; i < 200; i++) {
+    cv.fire("mousewheel", { clientX: AT[0], clientY: AT[1], wheelDelta: 120 });
+  }
+  ok(V.state.view.s <= 64 + 1e-9, "zoom stops somewhere sane going in", V.state.view.s);
+  for (let i = 0; i < 400; i++) {
+    cv.fire("mousewheel", { clientX: AT[0], clientY: AT[1], wheelDelta: -120 });
+  }
+  ok(V.state.view.s >= 0.02 - 1e-9, "and going out", V.state.view.s);
+  ok(isFinite(V.state.view.tx) && isFinite(V.state.view.ty),
+     "and the view stays a real place either way");
+
+  // --- the way back --------------------------------------------------------
+  cv.fire("mousedown", { clientX: 4, clientY: 4, detail: 2 });
+  ok(V.state.viewManual === false, "a double click on empty canvas fits again");
+  const fitted = Object.assign({}, V.state.view);
+  ok(Math.abs(fitted.s - start.s) < 1e-9 &&
+     Math.abs(fitted.tx - start.tx) < 1e-9 &&
+     Math.abs(fitted.ty - start.ty) < 1e-9,
+     "landing back on the framing it had", JSON.stringify(fitted));
+}
+
+section("preview: a hand-set view is not thrown away by a refresh");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(5, 90), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
+
+  // push the artwork clean off the canvas by hand
+  cv.fire("mousedown", { clientX: 0, clientY: 0, altKey: true, detail: 1 });
+  cv.fire("mousemove", { clientX: 4000, clientY: 3000, altKey: true });
+  cv.fire("mouseup",   { clientX: 4000, clientY: 3000, altKey: true });
+  const parked = JSON.stringify(V.state.view);
+  ok(V.state.viewManual === true, "the view is hand-set and off the artwork");
+
+  V.UI.refresh();
+  ok(JSON.stringify(V.state.view) === parked,
+     "a refresh over the same paths leaves it exactly where it was put");
+
+  // but showing something else is a different picture, and reframes
+  const other = addShapeLayer(c, "Other", "Group 1", star(3, 40), [500, 300]);
+  L.selected = false;
+  other.selected = true;
+  V.UI.refresh();
+  ok(JSON.stringify(V.state.view) !== parked, "showing other paths refits");
+  ok(V.state.viewManual === false, "and the view is its own again");
+}
+
+section("show points: a primitive becomes a path first");
+{
+  const c = newComp();
+  const L = addPrimLayer(c, "Box", "Rectangle 1", "ADBE Vector Shape - Rect",
+    p => { p.property("ADBE Vector Rect Size").setValue([200, 100]); }, [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+
+  const prim = V.state.items.filter(i => i.prim)[0];
+  ok(!!prim, "the rectangle is pickable");
+  ok(V.scanPaths(c, [L]).length === 0, "and there is no path on it to show");
+
+  let said = "";
+  const prev = V.UI.say;
+  V.UI.say = m => { said = String(m); };
+  V.actShowPoints([prim]);
+  V.UI.say = prev;
+
+  const paths = V.scanPaths(c, [L]);
+  ok(paths.length === 1, "showing its points turns it into a path", paths.length);
+  ok(V.scanPrimitives(c, [L]).length === 0, "nothing parametric left");
+  ok(/Turned 1 shape into a bezier path/.test(said), "and it says so", said);
+  ok(/Showing the points/.test(said), "as well as what it did", said);
+
+  // One step on the undo stack, not one per shape. Settled by reading the
+  // source, because the stack belongs to the user and pressing Undo to check
+  // would walk into their own edits and cut their redo history short.
+  const body = raw.slice(raw.indexOf("function actShowPoints"));
+  const end = body.indexOf("\n    }\n");
+  const inside = body.slice(0, end);
+  ok((inside.match(/beginUndoGroup/g) || []).length === 1,
+     "it opens one undo group");
+  ok(/catch[\s\S]{0,80}endUndoGroup[\s\S]{0,40}undoLast/.test(inside),
+     "and rolls its own group back if the conversion throws");
+
+  // and the group round the new path is what carries the selection
+  const holder = paths[0].prop.propertyGroup(1);
+  ok(holder.selected === true, "the group round the path is selected");
+  ok(paths[0].prop.selected !== true,
+     "and the path itself is not, so its points are not all grabbed");
+}
+
 // ============================ Refresh is gone; the repair lives in Preferences
 // Everything Refresh re-read is already automatic - the selection watcher,
 // panel activation, every action and a scope change all call refresh. The one
@@ -1984,13 +2144,62 @@ section("a path and a primitive on one layer: both are reported");
 }
 
 // ======================================= the pivot offset is the real centre
-// A child's comp point is position + rot*scale*(its own point - anchor), so it
-// turns about wherever position puts the anchor.  Rolling rotation into the
-// position - as this once did - put the offset on both sides of that sum, they
-// cancelled, and every child went on turning about the untouched centre.
-// Only After Effects can evaluate the expression, so this guards its shape;
-// "Vertex Rig tests/live" covers the geometry in the app itself.
-section("pivot: the offset lands on the position, not through the rotation");
+// A child's comp point is position + rot*scale*(its own point - anchor), so a
+// pivot turns and zooms about whatever world place the anchor lands on, which
+// is the position. Moving the pivot means moving both by the same raw offset.
+//
+// Scaling that compensation by the pivot's own scale cancels it exactly, and
+// the children go on zooming about the centre the offset was meant to leave -
+// measured in After Effects at 120px adrift. Rotating it cancels the same way.
+//
+// These run the two expressions and put their answers through that transform,
+// so what is tested is where a child lands, not how the text reads.
+function perAxis(expr, value, offset, scale, rotation) {
+  return [0, 1].map(i => runExpr(expr, { "VXR Pivot Offset": offset[i] },
+    { value: value[i], scale: scale[i], rotation }));
+}
+
+function pivotChild(piv, v, { offset, scale = [100, 100], rotation = 0 }) {
+  const pos = perAxis(piv.transform.position.expression,
+                      piv.transform.position.value, offset, scale, rotation);
+  const anc = perAxis(piv.transform.anchorPoint.expression,
+                      piv.transform.anchorPoint.value, offset, scale, rotation);
+  const k = [scale[0] / 100, scale[1] / 100];
+  const d = [(v[0] - anc[0]) * k[0], (v[1] - anc[1]) * k[1]];
+  const r = rotation * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+  return [pos[0] + d[0] * cs - d[1] * sn, pos[1] + d[0] * sn + d[1] * cs];
+}
+
+// The one point a transform leaves alone is its centre. Find it by sweeping a
+// child across the plane and keeping the one that does not move.
+function centreOf(piv, offset, pose) {
+  const probe = [[0, 0], [100, 0], [0, 100], [250, -170]];
+  for (const v of probe) {
+    const rest = pivotChild(piv, v, { offset });
+    const moved = pivotChild(piv, v, Object.assign({ offset }, pose));
+    if (Math.abs(rest[0] - moved[0]) < 1e-6 && Math.abs(rest[1] - moved[1]) < 1e-6) {
+      return rest;
+    }
+  }
+  // not on the probe grid: solve it. w = C + M(w0 - C)  =>  (I-M)C = w - M w0
+  const a = pivotChild(piv, [0, 0], { offset });
+  const b = pivotChild(piv, [100, 0], { offset });
+  const A = pivotChild(piv, [0, 0], Object.assign({ offset }, pose));
+  const B = pivotChild(piv, [100, 0], Object.assign({ offset }, pose));
+  // M maps (b-a) to (B-A); with uniform scale and rotation that is enough
+  const u = [b[0] - a[0], b[1] - a[1]], U = [B[0] - A[0], B[1] - A[1]];
+  const den = u[0] * u[0] + u[1] * u[1];
+  const m00 = (U[0] * u[0] + U[1] * u[1]) / den;
+  const m10 = (U[1] * u[0] - U[0] * u[1]) / den;
+  // (I - M) C = A - M a, with M = [[m00,-m10],[m10,m00]]
+  const rx = A[0] - (m00 * a[0] - m10 * a[1]);
+  const ry = A[1] - (m10 * a[0] + m00 * a[1]);
+  // (I-M) = [[p, q], [-q, p]], whose inverse is [[p, -q], [q, p]] / (p^2+q^2)
+  const p = 1 - m00, q = m10, det = p * p + q * q;
+  return [(p * rx - q * ry) / det, (q * rx + p * ry) / det];
+}
+
+section("pivot: the offset moves the pivot, so turning and zooming follow it");
 {
   const c = newComp();
   const L = addShapeLayer(c, "Star", "Group 1", star(5, 70), [0, 0], 0, [100, 100]);
@@ -2002,8 +2211,55 @@ section("pivot: the offset lands on the position, not through the rotation");
   const anc = piv.transform.anchorPoint.expression;
   ok(/effect\(/.test(pos) && !/rotation/.test(pos),
      "the position carries the offset and nothing about rotation", pos);
-  ok(/scale/.test(anc) && /\//.test(anc),
-     "the anchor takes it back out in the layer's own units", anc);
+  ok(!/scale/.test(anc),
+     "and the anchor carries it raw, not divided by the pivot's own scale", anc);
+
+  const home = piv.transform.position.value;
+  const D = [120, -45];
+  const marker = perAxis(pos, home, D, [100, 100], 0);
+  ok(Math.abs(marker[0] - home[0] - D[0]) < 1e-6 &&
+     Math.abs(marker[1] - home[1] - D[1]) < 1e-6,
+     "the marker moves by the offset", marker.join(","));
+
+  // at rest, moving the offset must not stir the artwork
+  const still = [[0, 0], [100, 0], [-60, 220]].every(v => {
+    const a = pivotChild(piv, v, { offset: [0, 0] });
+    const b = pivotChild(piv, v, { offset: D });
+    return Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
+  });
+  ok(still, "and at rest the children do not move with it");
+
+  const turned = centreOf(piv, D, { rotation: 90 });
+  ok(Math.abs(turned[0] - marker[0]) < 1e-6 && Math.abs(turned[1] - marker[1]) < 1e-6,
+     "rotation turns about the marker", turned.join(",") + " vs " + marker.join(","));
+
+  const zoomed = centreOf(piv, D, { scale: [200, 200] });
+  ok(Math.abs(zoomed[0] - marker[0]) < 1e-6 && Math.abs(zoomed[1] - marker[1]) < 1e-6,
+     "and scale zooms about it too - the bug this replaces",
+     zoomed.join(",") + " vs " + marker.join(","));
+
+  const bothWays = centreOf(piv, D, { rotation: 35, scale: [160, 160] });
+  ok(Math.abs(bothWays[0] - marker[0]) < 1e-5 && Math.abs(bothWays[1] - marker[1]) < 1e-5,
+     "turning and zooming at once still centre on the marker", bothWays.join(","));
+
+  // The drawn marker is a point in the layer like any other, so it goes
+  // through the same transform. Its group sits at the layer's origin until
+  // the offset walks it over to the anchor.
+  const mk = piv.property("ADBE Root Vectors Group").property("Marker")
+                .property("ADBE Vector Transform Group").property("ADBE Vector Position");
+  ok(!!mk && !!mk.expression, "the marker artwork is driven by the offset too");
+  const drawnAt = pose => pivotChild(piv,
+    perAxis(mk.expression, mk.value, D, pose.scale || [100, 100], pose.rotation || 0),
+    Object.assign({ offset: D }, pose));
+
+  const rest = drawnAt({});
+  ok(Math.abs(rest[0] - marker[0]) < 1e-6 && Math.abs(rest[1] - marker[1]) < 1e-6,
+     "so the pivot you see is where the pivot turns", rest.join(",") + " vs " + marker.join(","));
+  for (const pose of [{ rotation: 90 }, { scale: [200, 200] }, { rotation: 35, scale: [160, 160] }]) {
+    const w = drawnAt(pose);
+    ok(Math.abs(w[0] - marker[0]) < 1e-5 && Math.abs(w[1] - marker[1]) < 1e-5,
+       "and a turn or a zoom leaves it sitting there - " + JSON.stringify(pose), w.join(","));
+  }
 
   // an old rig is repaired the next time it is touched
   piv.transform.position.expression = "value + [1,2] // old rotation form";
