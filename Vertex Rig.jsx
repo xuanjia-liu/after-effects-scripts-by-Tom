@@ -2877,7 +2877,6 @@
         "tobezier": [["x",1.98,3,10,11,18],["p",1.76,[13,14,16,14]],["p",1.76,[13.8,10.8,17,14,13.8,17.2]],["p",1.76,[20,7,25,7,25,14,20,14,20,21,25,21]],["r",0,20,7,2.4],["r",0,25,21,2.4]],
         "prefs": [["p",1.54,[4,8,24,8]],["r",0,18,8,2.9],["p",1.54,[4,14,24,14]],["r",0,10,14,2.9],["p",1.54,[4,20,24,20]],["r",0,21,20,2.9]],
         "refresh": [["p",2.2,[20.5,8.5,21.0,9.2,21.5,10.0,21.9,10.8,22.2,11.7,22.4,12.5,22.5,13.4,22.5,14.3,22.4,15.2,22.2,16.1,22.0,16.9,21.6,17.7,21.2,18.5,20.7,19.2,20.1,19.9,19.5,20.5,18.8,21.0,18.0,21.5,17.2,21.9,16.3,22.2,15.5,22.4,14.6,22.5,13.7,22.5,12.8,22.4,11.9,22.2,11.1,22.0,10.3,21.6,9.5,21.2,8.8,20.7,8.1,20.1,7.5,19.5,7.0,18.8,6.5,18.0,6.1,17.2,5.8,16.3,5.6,15.5,5.5,14.6,5.5,13.7,5.6,12.8,5.8,11.9,6.0,11.1,6.4,10.3,6.8,9.5,7.3,8.8,7.9,8.1,8.5,7.5,9.2,7.0,10.0,6.5,10.8,6.1]],["p",2.2,[20.5,8.5,24.5,9.8]],["p",2.2,[20.5,8.5,21.1,12.7]]],
-        "fit": [["p",2.2,[9.5,4,4,4,4,9.5]],["p",2.2,[18.5,4,24,4,24,9.5]],["p",2.2,[9.5,24,4,24,4,18.5]],["p",2.2,[18.5,24,24,24,24,18.5]]],
         "all": [["r",0,9,9,3.6],["r",0,19,9,3.6],["r",0,9,19,3.6],["r",0,19,19,3.6]],
         "none": [["r",1.98,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",1.98,19,19,3.6]],
         "invert": [["r",0,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",0,19,19,3.6]]
@@ -3190,12 +3189,13 @@
         head.spacing = 4;
         // Shortened from "Selected layers": the row has seven icons and two
         // rules to fit beside it now, and 96 points is what it can spare.
-        var scopeDd = head.add("dropdownlist", undefined, ["Selected", "All layers"]);
+        var scopeDd = head.add("dropdownlist", undefined,
+                               ["Selected layers", "All layers"]);
         scopeDd.selection = 0;
-        scopeDd.preferredSize = [96, UI_H];
+        scopeDd.preferredSize = [120, UI_H];
 
         // A hairline between the groups of the row: what it shows, what is
-        // picked, and what the panel does to it. 96 + 7*32 + 2 + 9*4 = 358 of
+        // picked, and what the panel does to it. 120 + 5*32 + 2 + 7*4 = 310 of
         // the 368 points inside the panel's margins.
         function headRule() {
             var sep = head.add("panel");
@@ -3206,11 +3206,15 @@
             return sep;
         }
 
-        var bRefresh = act(head, "refresh", "Refresh", "Read the composition again", 62);
-        var bFit = act(head, "fit", "Fit", "Frame everything in the preview", 40);
+        var bRefresh = act(head, "refresh", "Refresh",
+                           "Read the composition again and frame it", 62);
         headRule();
-        var bAll = act(head, "all", "All", "Pick every point in view", 40);
-        var bNone = act(head, "none", "None", "Let every picked point go", 46);
+        // One button for both: it offers All while nothing is picked and None
+        // once something is, so the picture always shows what pressing it does.
+        var bPick = act(head, "all", "All", "Pick every point in view", 40);
+        bPick.onDraw = function (st) {
+            paintIconButton(this, countSel() ? ICON_ART.none : ICON_ART.all, st);
+        };
         var bInv = act(head, "invert", "Invert", "Pick what is not picked, and let the rest go", 52);
         headRule();
         var bPrefs = act(head, "prefs", "Prefs", "Colours, sizes and shapes of the controls", 54);
@@ -3260,14 +3264,16 @@
                 b = g.add("button", undefined, label);
                 b.preferredSize = [textWidth || 66, UI_H];
             }
-            var says = label + " - " + tip;
-            b.helpTip = says;
+            // Read at hover time, not captured, so a button whose job
+            // changes can change what it says it does.
+            b.says = label + " - " + tip;
+            b.helpTip = b.says;
             b.hot = false;
             b.down = false;
             b.addEventListener("mouseover", function () {
                 this.hot = true;
                 repaint(this);
-                setStatus(says);
+                setStatus(this.says);
             });
             b.addEventListener("mouseout", function () {
                 this.hot = false;
@@ -3574,8 +3580,14 @@
         // there to pick and how, or why there is nothing to pick. Only one
         // line is on screen, so it never says two of those at once.
         function reportSel() {
-            if (!activeComp()) { setStatus("Open a composition to start."); return; }
             var n = countSel();
+            if (bPick) {
+                bPick.says = n ? "None - Let every picked point go"
+                               : "All - Pick every point in view";
+                bPick.helpTip = bPick.says;
+                repaint(bPick);
+            }
+            if (!activeComp()) { setStatus("Open a composition to start."); return; }
             var note = primNote();
             if (n) {
                 setStatus(countOf(n, "point") + " picked on " +
@@ -3684,21 +3696,19 @@
             state.fitted = false;
             if (!actRepairTangents()) { refresh(); }
         };
-        bFit.onClick = function () {
-            fitView(Math.max(60, cv.size.width), Math.max(60, cv.size.height));
-            redraw();
-        };
-        bAll.onClick = function () {
+        bPick.onClick = function () {
+            var had = countSel();
             state.sel = {};
-            for (var i = 0; i < state.items.length; i++) {
-                var a = [];
-                for (var k = 0; k < state.geom[i].verts.length; k++) { a.push(k); }
-                state.sel[state.items[i].key] = a;
+            if (!had) {
+                for (var i = 0; i < state.items.length; i++) {
+                    var a = [];
+                    for (var k = 0; k < state.geom[i].verts.length; k++) { a.push(k); }
+                    state.sel[state.items[i].key] = a;
+                }
             }
             reportSel();
             redraw();
         };
-        bNone.onClick = function () { state.sel = {}; reportSel(); redraw(); };
         bInv.onClick = function () {
             for (var i = 0; i < state.items.length; i++) {
                 var key = state.items[i].key;

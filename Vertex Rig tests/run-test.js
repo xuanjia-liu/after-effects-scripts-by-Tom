@@ -903,6 +903,59 @@ section("handles: a selected control counts as a pick");
      c3._layers.filter(l => V.kindOf(l) === "handle").length);
 }
 
+// ================================== All and None are one button, not two
+section("the pick toggle offers the opposite of what you have");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Box", "Group 1", star(5, 60), [0, 0], 0, [100, 100]);
+  L.selected = true;
+  V.UI.refresh();
+  const win = M.NODES.filter(n => n.type === "window")[0];
+  const toggle = win._kids[0]._kids.filter(
+    c2 => /Pick every point|Let every picked point go/.test(c2.helpTip || ""))[0];
+  ok(!!toggle, "there is one button for both");
+
+  ok(/^All - /.test(toggle.says), "with nothing picked it offers All", toggle.says);
+  toggle.onClick();
+  ok(V.countSel ? true : true, "pressed");
+  const picked = Object.keys(V.state.sel).length;
+  ok(picked === 1 && V.state.sel[V.state.items[0].key].length === 5,
+     "which picks every point in view",
+     picked ? V.state.sel[V.state.items[0].key].length : 0);
+  ok(/^None - /.test(toggle.says), "and now offers None", toggle.says);
+  ok(toggle.helpTip === toggle.says, "the tooltip says the same");
+
+  toggle.onClick();
+  ok(Object.keys(V.state.sel).length === 0, "pressing it again lets them go");
+  ok(/^All - /.test(toggle.says), "and it offers All again", toggle.says);
+
+  // the picture follows, not just the words
+  const seen = [];
+  const rec = {
+    BrushType: { SOLID_COLOR: 0 }, PenType: { SOLID_COLOR: 0 },
+    newBrush: () => ({}), newPen: () => ({}),
+    newPath() {}, moveTo() {}, lineTo() {}, closePath() {},
+    rectPath() {}, ellipsePath() {},
+    // All is four filled squares, None is four outlined ones: same count,
+    // so it is the fills that tell them apart
+    fillPath() { seen.push("fill"); }, strokePath() { seen.push("stroke"); },
+    drawString() {}, foregroundColor: null
+  };
+  const real = toggle.graphics;
+  toggle.graphics = rec;
+  toggle.onDraw(undefined);
+  const emptyFills = seen.filter(x => x === "fill").length;
+  seen.length = 0;
+  toggle.onClick();                    // pick everything again
+  toggle.onDraw(undefined);
+  const fullFills = seen.filter(x => x === "fill").length;
+  toggle.graphics = real;
+  ok(emptyFills > 0 && fullFills > 0, "it draws something either way",
+     emptyFills + "/" + fullFills);
+  ok(emptyFills !== fullFills, "and a different picture for each",
+     "All filled " + emptyFills + ", None filled " + fullFills);
+}
+
 // ========================== a handle mask has to stay draggable, both ends
 // The near end was briefly pinned to the point with an expression. After
 // Effects will not let you drag a mask path that carries one, so that froze
@@ -1101,7 +1154,7 @@ section("delete: points, handles, pivots and followers alike");
 section("icons: drawn paths, not pictures");
 {
   const names = Object.keys(V.ICON_ART);
-  ok(names.length === 19, "nineteen icons are defined", names.length);
+  ok(names.length === 18, "eighteen icons are defined", names.length);
   ok(raw.indexOf("newImage") < 0 && raw.indexOf("b64") < 0,
      "no image is loaded and no base64 is decoded any more");
 
@@ -1194,7 +1247,12 @@ section("icons: drawn paths, not pictures");
   const re = /\bact\(\s*\w+\s*,\s*"([a-z]+)"/g;
   let m;
   while ((m = re.exec(raw)) !== null) { used.push(m[1]); }
-  ok(used.length === 19, "nineteen buttons carry an icon", used.length);
+  ok(used.length === 17, "seventeen buttons carry an icon", used.length);
+  // one more is reached by name, for the button that shows two pictures
+  const byName = /ICON_ART\.([a-z]+)/g;
+  while ((m = byName.exec(raw)) !== null) {
+    if (used.indexOf(m[1]) < 0) { used.push(m[1]); }
+  }
   ok(used.filter(n => !V.ICON_ART[n]).length === 0, "each names one that is defined",
      used.filter(n => !V.ICON_ART[n]).join(", "));
   ok(names.filter(n => used.indexOf(n) < 0).length === 0, "and nothing defined goes unused",
@@ -1218,7 +1276,7 @@ section("icons: four tabs, and hovering says what a picture does");
   ok(win._kids.length === 4, "header, preview, status, tabs", win._kids.length);
   ok(head._kids[0].type === "dropdownlist", "scope first", head._kids[0].type);
   const headIcons = head._kids.filter(c => c.type === "iconbutton");
-  ok(headIcons.length === 7, "then seven icons, no text buttons", headIcons.length);
+  ok(headIcons.length === 5, "then five icons, no text buttons", headIcons.length);
   ok(head._kids.filter(c => c.type === "button").length === 0, "none of them text");
   const prefs = head._kids.filter(c => /Colours, sizes/.test(c.helpTip || ""));
   ok(prefs.length === 1, "with the settings among them", prefs.length);
@@ -1230,20 +1288,22 @@ section("icons: four tabs, and hovering says what a picture does");
   const rules = head._kids.filter(c => c.type === "panel");
   ok(rules.length === 2, "two rules divide the row", rules.length);
   const at = c => head._kids.indexOf(c);
-  const picks = ["Pick every point", "Let every picked point go", "Pick what is not picked"]
+  const picks = ["Pick every point", "Pick what is not picked"]
     .map(t => head._kids.filter(c => (c.helpTip || "").indexOf(t) >= 0)[0]);
-  ok(picks.every(Boolean), "All, None and Invert are there");
-  ok(at(rules[0]) < at(picks[0]) && at(picks[2]) < at(rules[1]),
+  ok(picks.every(Boolean), "the All/None toggle and Invert are there");
+  ok(at(rules[0]) < at(picks[0]) && at(picks[1]) < at(rules[1]),
      "with both rules outside them", picks.map(at).join(","));
-  ok(at(picks[0]) === at(rules[0]) + 1 && at(picks[2]) === at(rules[1]) - 1,
+  ok(at(picks[0]) === at(rules[0]) + 1 && at(picks[1]) === at(rules[1]) - 1,
      "and nothing else inside");
+  ok(!/act\([^)]*"fit"/.test(raw),
+     "Fit is gone - Refresh already reframes, and repairs older rigs");
 
   const headW = head._kids.reduce((n, c) => n + c.preferredSize[0], 0) +
                 4 * (head._kids.length - 1);
   ok(headW <= 368, "and the row fits the panel", headW + " of 368");
 
   const icons = M.NODES.filter(n => n.type === "iconbutton");
-  ok(icons.length === 19, "nineteen icon buttons were built", icons.length);
+  ok(icons.length === 17, "seventeen icon buttons were built", icons.length);
   ok(icons.every(b => typeof b.onDraw === "function"),
      "each draws itself, so it stays sharp on a retina display");
   ok(icons.every(b => b.preferredSize[0] === V.ICON_PX && b.preferredSize[1] === V.ICON_PX),

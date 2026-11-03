@@ -69,9 +69,6 @@ def nonepts(i):
     for (x,y) in GRID4: i.s(x,y, 3.6, W*0.9)
 def invert(i):
     for n,(x,y) in enumerate(GRID4): i.s(x,y, 3.6, 0 if n in (0,3) else W*0.9)
-def fit(i):
-    for (cx,cy,sx,sy) in ((4,4,1,1),(24,4,-1,1),(4,24,1,-1),(24,24,-1,-1)):
-        i.p([(cx+sx*5.5, cy), (cx,cy), (cx, cy+sy*5.5)])
 def bake(i):
     i.p([(3,14),(25,14)], W*0.8)
     for x in (6.5,14,21.5): i.d(x,14, 3.6, 0)
@@ -109,7 +106,7 @@ def prefs(i):
 ORDER = [("create",create),("handles",handles),("delete",delete),("bake",bake),
          ("apply",apply),("pivot",pivot),("addpivot",addpivot),("release",release),
          ("follower",follower),("average",average),("extract",extract),("merge",merge),
-         ("tobezier",tobezier),("prefs",prefs),("refresh",refresh),("fit",fit),
+         ("tobezier",tobezier),("prefs",prefs),("refresh",refresh),
          ("all",allpts),("none",nonepts),("invert",invert)]
 
 art = {}
