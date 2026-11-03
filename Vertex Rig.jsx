@@ -134,11 +134,29 @@
         return isFinite(x) ? String(x) : "0";
     }
 
-    // " - [x, y]" for a handle standing off a corner, which must read as no
-    // tangent at all until it is moved; "" for a handle that shows a real one.
-    function restLit(r) {
-        if (!r || (!r[0] && !r[1])) { return ""; }
-        return " - [" + numLit(r[0]) + ", " + numLit(r[1]) + "]";
+    // Where a tangent is measured from.
+    //
+    // A handle standing off a corner has to read as no tangent at all, so the
+    // stand-off is taken back out. Taking out a constant in the shape group's
+    // units is wrong the moment the rig turns: the vertex and the handle both
+    // swing round with the Pivot while the constant sits still, and the corner
+    // grows a tangent out of nothing that widens with the angle. So the point
+    // the tangent is measured from is kept in the control's own frame ("bi" /
+    // "bo") and read back through it, which turns and scales with everything
+    // else. Rigs written before this carry the old group-space pair ("ri" /
+    // "ro"); those are still read the old way so they do not jump, and a
+    // handle added to one now gets the new kind beside it.
+    function restBase(e, side, at) {
+        var turning = e[side === "in" ? "bi" : "bo"];
+        if (turning) {
+            return "_rp(" + estr(e.fx) + ", " + numLit(turning[0]) + ", " +
+                   numLit(turning[1]) + ")";
+        }
+        var fixed = e[side === "in" ? "ri" : "ro"];
+        if (fixed && (fixed[0] || fixed[1])) {
+            return at + " + [" + numLit(fixed[0]) + ", " + numLit(fixed[1]) + "]";
+        }
+        return at;
     }
 
     // ------------------------------------------------------------ 2D affine
@@ -449,6 +467,13 @@
         L.push("  if (l == null) { return null; }");
         L.push("  return _toG(fromCompToSurface(l.toComp([0, 0])));");
         L.push("}");
+        // A point fixed in a control's own frame, in the path's units: where a
+        // handle rests, turning and scaling with the control it belongs to.
+        L.push("function _rp(n, rx, ry) {");
+        L.push("  var l = _lay(n);");
+        L.push("  if (l == null) { return null; }");
+        L.push("  return _toG(fromCompToSurface(l.toComp([rx, ry])));");
+        L.push("}");
         L.push("function _mp(n, m) {");
         L.push("  var l = _lay(n);");
         L.push("  if (l == null) { return null; }");
@@ -456,23 +481,32 @@
         L.push("  try { q = l.mask(m).maskPath.points()[1]; } catch (e) { return null; }");
         L.push("  return _toG(fromCompToSurface(l.toComp(q)));");
         L.push("}");
-        L.push("var _v;");
+        L.push("var _v, _w;");
 
         for (i = 0; i < man.pts.length; i++) {
             var e = man.pts[i];
             var at = "_P[" + e.i + "]";
             L.push("if (_P.length > " + e.i + ") {");
-            L.push("  _v = _cp(" + estr(e.fx) + "); if (_v != null) { " + at + " = _v; }");
-            var ri = restLit(e.ri), ro = restLit(e.ro);
-            if (e.im) {
-                L.push("  _v = _mp(" + estr(e.fx) + ", " + estr(MASK_IN) + "); if (_v != null) { _I[" + e.i + "] = _v - " + at + ri + "; }");
-            } else if (e["if"]) {
-                L.push("  _v = _cp(" + estr(e["if"]) + "); if (_v != null) { _I[" + e.i + "] = _v - " + at + ri + "; }");
+            // Either a control of its own, or a point held in a Pivot's frame
+            // and read back through it - the same reading either way.
+            L.push("  _v = " + (e.pp
+                ? ("_rp(" + estr(e.fx) + ", " + numLit(e.pp[0]) + ", " + numLit(e.pp[1]) + ")")
+                : ("_cp(" + estr(e.fx) + ")")) +
+                "; if (_v != null) { " + at + " = _v; }");
+            var inAt = restBase(e, "in", at), outAt = restBase(e, "out", at);
+            if (e.im || e["if"]) {
+                L.push("  _w = " + inAt + "; if (_w == null) { _w = " + at + "; }");
+                L.push("  _v = " + (e.im
+                    ? ("_mp(" + estr(e.fx) + ", " + estr(MASK_IN) + ")")
+                    : ("_cp(" + estr(e["if"]) + ")")) +
+                    "; if (_v != null) { _I[" + e.i + "] = _v - _w; }");
             }
-            if (e.om) {
-                L.push("  _v = _mp(" + estr(e.fx) + ", " + estr(MASK_OUT) + "); if (_v != null) { _O[" + e.i + "] = _v - " + at + ro + "; }");
-            } else if (e.of) {
-                L.push("  _v = _cp(" + estr(e.of) + "); if (_v != null) { _O[" + e.i + "] = _v - " + at + ro + "; }");
+            if (e.om || e.of) {
+                L.push("  _w = " + outAt + "; if (_w == null) { _w = " + at + "; }");
+                L.push("  _v = " + (e.om
+                    ? ("_mp(" + estr(e.fx) + ", " + estr(MASK_OUT) + ")")
+                    : ("_cp(" + estr(e.of) + ")")) +
+                    "; if (_v != null) { _O[" + e.i + "] = _v - _w; }");
             }
             L.push("}");
         }
@@ -545,6 +579,7 @@
         outline: true,
         guide: true,
         handleMode: "masks",      // masks | layers
+        pivotMode: "pivot",       // pivot (one layer) | points (a control each)
         colPoint: [0.25, 0.70, 1.00],
         colHandle: [1.00, 0.76, 0.24],
         colPivot: [0.47, 0.93, 0.45],
@@ -596,6 +631,59 @@
     var KAPPA = 0.5522847498;
 
     // Each control gets its own silhouette so the rig reads at a glance.
+    function circleShape(r) {
+        var sh = new Shape();
+        sh.closed = true;
+        var k = r * KAPPA;
+        sh.vertices = [[0, -r], [r, 0], [0, r], [-r, 0]];
+        sh.inTangents = [[-k, 0], [0, -k], [k, 0], [0, k]];
+        sh.outTangents = [[k, 0], [0, k], [-k, 0], [0, -k]];
+        return sh;
+    }
+
+    // The Pivot's marker, drawn to the same proportions as the Pivot icon on
+    // the panel: a ring with a dot at its centre and four ticks out to the
+    // edge. It used to be an eight pointed star, which said nothing about what
+    // the layer does and matched nothing in the panel.
+    //
+    // Three paths cannot share one paint here - a fill meant for the dot would
+    // fill the ring solid as well - so the ring and ticks get their own group
+    // with a stroke, and the dot gets another with a fill.
+    function buildPivotMarker(vecs, r, col) {
+        var paint = [col[0], col[1], col[2], 1];
+
+        var gRing = vecs.addProperty(MN_GROUP);
+        gRing.name = "Ring";
+        var rv = gRing.property(MN_VECTORS);
+        var ring = rv.addProperty(MN_SHAPEGRP);
+        ring.name = "Ring Path";
+        ring.property(MN_SHAPE).setValue(circleShape(r * 0.435));
+        var axis = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+        for (var t = 0; t < 4; t++) {
+            var tick = rv.addProperty(MN_SHAPEGRP);
+            tick.name = "Tick " + (t + 1);
+            var sh = new Shape();
+            sh.closed = false;
+            sh.vertices = [[axis[t][0] * r * 0.609, axis[t][1] * r * 0.609],
+                           [axis[t][0] * r, axis[t][1] * r]];
+            sh.inTangents = [[0, 0], [0, 0]];
+            sh.outTangents = [[0, 0], [0, 0]];
+            tick.property(MN_SHAPE).setValue(sh);
+        }
+        var st = rv.addProperty(MN_STROKE);
+        st.property("ADBE Vector Stroke Color").setValue(paint);
+        st.property("ADBE Vector Stroke Width").setValue(Math.max(1, r * 0.191));
+
+        var gCore = vecs.addProperty(MN_GROUP);
+        gCore.name = "Core";
+        var cv = gCore.property(MN_VECTORS);
+        var core = cv.addProperty(MN_SHAPEGRP);
+        core.name = "Core Path";
+        core.property(MN_SHAPE).setValue(circleShape(Math.max(1, r * 0.139)));
+        var fl = cv.addProperty(MN_FILL);
+        fl.property("ADBE Vector Fill Color").setValue(paint);
+    }
+
     function markerShape(kind, r) {
         var sh = new Shape();
         sh.closed = true;
@@ -650,17 +738,21 @@
         grp.name = "Marker";
         var vecs = grp.property(MN_VECTORS);
 
-        var shp = vecs.addProperty(MN_SHAPEGRP);
-        shp.name = "Marker Path";
-        shp.property(MN_SHAPE).setValue(markerShape(kind, r));
+        if (kind === K_PIVOT) {
+            buildPivotMarker(vecs, r, col);
+        } else {
+            var shp = vecs.addProperty(MN_SHAPEGRP);
+            shp.name = "Marker Path";
+            shp.property(MN_SHAPE).setValue(markerShape(kind, r));
 
-        if (P.outline) {
-            var st = vecs.addProperty(MN_STROKE);
-            st.property("ADBE Vector Stroke Color").setValue([0, 0, 0, 1]);
-            st.property("ADBE Vector Stroke Width").setValue(Math.max(1, Math.round(size / 8)));
+            if (P.outline) {
+                var st = vecs.addProperty(MN_STROKE);
+                st.property("ADBE Vector Stroke Color").setValue([0, 0, 0, 1]);
+                st.property("ADBE Vector Stroke Width").setValue(Math.max(1, Math.round(size / 8)));
+            }
+            var fl = vecs.addProperty(MN_FILL);
+            fl.property("ADBE Vector Fill Color").setValue([col[0], col[1], col[2], 1]);
         }
-        var fl = vecs.addProperty(MN_FILL);
-        fl.property("ADBE Vector Fill Color").setValue([col[0], col[1], col[2], 1]);
 
         L.transform.anchorPoint.setValue([0, 0]);
         L.transform.position.setValue([pos[0], pos[1]]);
@@ -994,7 +1086,11 @@
             var sh = basePath(item, comp.time);
             var upp = (withHandles && sh.vertices.length)
                 ? unitsPerPixel(probe, item, sh.vertices[0], comp.time) : 1;
-            var touched = false;
+            // Put any old constant stand-offs right first. This runs even
+            // when there is nothing else to do, because a rig whose points are
+            // already handled would otherwise never be rewritten, and would go
+            // on pulling apart under a Pivot for ever.
+            var touched = (upgradeRests(comp, probe, item, man) > 0);
             for (var k = 0; k < idxs.length; k++) {
                 var i = idxs[k];
                 if (i >= sh.vertices.length) { continue; }
@@ -1130,18 +1226,74 @@
         return [d[0] / m * len, d[1] / m * len];
     }
 
+    // Where a handle actually sits now, in composition space.
+    function handleAt(comp, probe, item, e, side) {
+        var ctrl = linkedLayer(item.layer, e.fx);
+        if (!ctrl) { return null; }
+        if (side === "in" ? e.im : e.om) {
+            var masks = null;
+            try { masks = ctrl.property(MN_MASKS); } catch (e1) { return null; }
+            var want = (side === "in") ? MASK_IN : MASK_OUT;
+            for (var m = 1; masks && m <= masks.numProperties; m++) {
+                if (masks.property(m).name !== want) { continue; }
+                var lp = masks.property(m).property(MN_MASKSHAPE)
+                              .valueAtTime(comp.time, false).vertices[1];
+                return probe.outOfLayer(ctrl, lp, comp.time);
+            }
+            return null;
+        }
+        var nm = (side === "in") ? e["if"] : e.of;
+        var hl = nm ? linkedLayer(item.layer, nm) : null;
+        return hl ? probe.outOfLayer(hl, [0, 0], comp.time) : null;
+    }
+
+    // A stand-off written before it turned with the rig is a constant in the
+    // path's own units, so a Pivot that turns or scales drags the point and
+    // its handle apart. Move it into the control's frame the next time the rig
+    // is written. A handle still sitting on its stand-off converts exactly,
+    // whatever pose the Pivot happens to be in, because where it is IS the
+    // stand-off; one that has been moved is converted through the chain, which
+    // is exact with the Pivot at rest.
+    function upgradeRests(comp, probe, item, man) {
+        var sides = [["ri", "bi", "in"], ["ro", "bo", "out"]];
+        var live = null, base = null, fixed = 0;
+        for (var n = 0; n < man.pts.length; n++) {
+            var e = man.pts[n];
+            if (!linkedLayer(item.layer, e.fx)) { continue; }
+            for (var s = 0; s < sides.length; s++) {
+                var oldK = sides[s][0], newK = sides[s][1], side = sides[s][2];
+                if (!e[oldK] || e[newK]) { continue; }
+                if (!live) { live = item.prop.valueAtTime(comp.time, false); }
+                var tan = (side === "in") ? live.inTangents[e.i] : live.outTangents[e.i];
+                var moved = tan && (Math.abs(tan[0]) > 0.5 || Math.abs(tan[1]) > 0.5);
+                var cp = moved ? null : handleAt(comp, probe, item, e, side);
+                if (!cp) {
+                    if (!base) { base = basePath(item, comp.time); }
+                    var v = base.vertices[e.i];
+                    if (!v) { continue; }
+                    cp = probe.at(item, [v[0] + e[oldK][0], v[1] + e[oldK][1]], comp.time);
+                }
+                var off = probe.intoLayer(linkedLayer(item.layer, e.fx), cp, comp.time);
+                e[newK] = [off[0], off[1]];
+                delete e[oldK];
+                fixed++;
+            }
+        }
+        return fixed;
+    }
+
     // Give one already-rigged point its two bezier handle controls.
     function addHandlesTo(comp, probe, item, sh, entry, ctrl, upp) {
         var i = entry.i;
         var vtx = sh.vertices[i];
         var pairs = [
-            { key: "in", tan: sh.inTangents[i], mask: MASK_IN, mf: "if", mm: "im", rk: "ri", lbl: "In" },
-            { key: "out", tan: sh.outTangents[i], mask: MASK_OUT, mf: "of", mm: "om", rk: "ro", lbl: "Out" }
+            { key: "in", tan: sh.inTangents[i], mask: MASK_IN, mf: "if", mm: "im", rk: "bi", lbl: "In" },
+            { key: "out", tan: sh.outTangents[i], mask: MASK_OUT, mf: "of", mm: "om", rk: "bo", lbl: "Out" }
         ];
         for (var p = 0; p < pairs.length; p++) {
             var pr = pairs[p];
             if (entry[pr.mm] || entry[pr.mf]) { continue; }
-            var t = pr.tan || [0, 0];
+            var t = pr.tan || [0, 0], resting = false;
             if (Math.abs(t[0]) < 0.001 && Math.abs(t[1]) < 0.001) {
                 // A corner has no tangent to show. Parking the handle on the
                 // vertex leaves nothing to grab, and inventing a tangent
@@ -1149,11 +1301,13 @@
                 // record the stand-off, which the expression takes back out.
                 // The corner stays a corner until the handle is really moved.
                 t = restOffset(sh, i, pr.key === "in", (Number(upp) || 1) * HANDLE_REST_PX);
-                entry[pr.rk] = [t[0], t[1]];
+                resting = true;
             }
             var compPt = probe.at(item, [vtx[0] + t[0], vtx[1] + t[1]], comp.time);
+            var off = probe.intoLayer(ctrl, compPt, comp.time);
+            // Kept in the control's frame, not the path's, so it turns with it.
+            if (resting) { entry[pr.rk] = [off[0], off[1]]; }
             if (P.handleMode === "masks") {
-                var off = probe.intoLayer(ctrl, compPt, comp.time);
                 addMaskHandle(ctrl, pr.mask, off);
                 entry[pr.mm] = 1;
             } else {
@@ -1310,8 +1464,100 @@
         return piv;
     }
 
+    // Every picked vertex kept in the Pivot's own frame and read back through
+    // it, so one layer carries the lot: moving, turning or scaling the Pivot
+    // takes them all, and nothing is made per point.
+    function pivotOnly(comp, picks, extraLayers) {
+        var probe = new Probe(comp);
+        try {
+            var sx = 0, sy = 0, count = 0, n, i, sh, v;
+            for (n = 0; n < picks.length; n++) {
+                if (!picks[n].item || isForeignRig(picks[n].item.prop)) { continue; }
+                sh = basePath(picks[n].item, comp.time);
+                for (i = 0; i < picks[n].idx.length; i++) {
+                    v = sh.vertices[picks[n].idx[i]];
+                    if (!v) { continue; }
+                    var w = probe.at(picks[n].item, v, comp.time);
+                    sx += w[0]; sy += w[1]; count++;
+                }
+            }
+            if (!count) { return "Pick some points first."; }
+
+            var piv = makePivot(comp, [sx / count, sy / count]);
+            var done = 0, paths = 0, heldCtrls = [];
+            for (n = 0; n < picks.length; n++) {
+                var it = picks[n].item;
+                if (!it || isForeignRig(it.prop)) { continue; }
+                var man = readManifest(it.prop) || { v: 1, pts: [] };
+                var base = basePath(it, comp.time);
+                var fx = addLink(it.layer, piv);
+                var touched = false;
+                for (i = 0; i < picks[n].idx.length; i++) {
+                    var idx = picks[n].idx[i];
+                    if (idx >= base.vertices.length) { continue; }
+                    // A point that already has a control of its own keeps it,
+                    // and the control is hung off the Pivot instead - so
+                    // pressing Pivot always groups what was picked, however
+                    // those points came to be rigged.
+                    var was = manEntry(man, idx);
+                    if (was) {
+                        if (!was.pp) {
+                            var hc = linkedLayer(it.layer, was.fx);
+                            if (hc) { heldCtrls.push(hc); }
+                        }
+                        continue;
+                    }
+                    var cp = probe.at(it, base.vertices[idx], comp.time);
+                    var loc = probe.intoLayer(piv, cp, comp.time);
+                    man.pts.push({ i: idx, fx: fx, pp: [loc[0], loc[1]] });
+                    done++;
+                    touched = true;
+                }
+                if (touched) {
+                    man.pts.sort(function (a, b) { return a.i - b.i; });
+                    it.prop.expression = buildPathExpression(man, it.chain);
+                    paths++;
+                } else {
+                    removeEffect(it.layer, fx);
+                }
+            }
+
+            // Controls picked by hand hang off it as well, so the two ways of
+            // working share a Pivot.
+            for (i = 0; i < extraLayers.length; i++) {
+                var k = kindOf(extraLayers[i]);
+                if (k === K_POINT || k === K_PIVOT) { heldCtrls.push(extraLayers[i]); }
+            }
+            heldCtrls = dedupeLayers(heldCtrls);
+            var hung = 0;
+            for (i = 0; i < heldCtrls.length; i++) {
+                if (sameLayer(heldCtrls[i], piv)) { continue; }
+                try { heldCtrls[i].parent = piv; hung++; } catch (e) {}
+            }
+
+            if (!done && !hung) {
+                try { piv.remove(); } catch (e2) {}
+                return "Pick some points first.";
+            }
+            piv.selected = true;
+            var bits = [];
+            if (done) {
+                bits.push("driving " + done + " point" + (done === 1 ? "" : "s") +
+                          " on " + paths + " path" + (paths === 1 ? "" : "s"));
+            }
+            if (hung) {
+                bits.push("carrying " + hung + " control" + (hung === 1 ? "" : "s") +
+                          " that already existed");
+            }
+            return "Pivot " + bits.join(", ") + ".";
+        } finally {
+            probe.done();
+        }
+    }
+
     function actPivot(picks, extraLayers) {
         return run("Create Pivot", function (comp) {
+            if (P.pivotMode !== "points") { return pivotOnly(comp, picks, extraLayers); }
             // Picking points and pressing Pivot used to do nothing unless they
             // had been rigged first. Rig whatever still needs it, then group.
             var rigged = null;
@@ -1766,6 +2012,17 @@
                 try { hl.remove(); } catch (e) {}
             }
         }
+        if (entry.pp) {
+            // The link names a Pivot that the other points share, so the entry
+            // goes and the layer stays. Delete the Pivot itself to be rid of it.
+            dropEntry(man, entry.i);
+            var stillUsed = false;
+            for (var u = 0; u < man.pts.length; u++) {
+                if (man.pts[u].fx === entry.fx) { stillUsed = true; break; }
+            }
+            if (!stillUsed) { removeEffect(item.layer, entry.fx); }
+            return;
+        }
         var ctrl = linkedLayer(item.layer, entry.fx);
         removeEffect(item.layer, entry.fx);
         if (ctrl) {
@@ -1773,6 +2030,59 @@
             try { ctrl.remove(); } catch (e2) {}
         }
         dropEntry(man, entry.i);
+    }
+
+    // Drop one handle and leave its point where it is. Selecting a handle and
+    // pressing Delete used to map back to the point that owns it and take the
+    // whole thing.
+    function removeHandleLayer(comp, layer) {
+        var idx = rigIndex(comp), sides = ["if", "of"];
+        for (var r = 0; r < idx.length; r++) {
+            var item = idx[r].item, man = idx[r].man;
+            for (var e = 0; e < man.pts.length; e++) {
+                var ent = man.pts[e];
+                for (var sd = 0; sd < sides.length; sd++) {
+                    var nm = ent[sides[sd]];
+                    if (!nm || !sameLayer(linkedLayer(item.layer, nm), layer)) { continue; }
+                    removeEffect(item.layer, nm);
+                    try { layer.remove(); } catch (e1) {}
+                    delete ent[sides[sd]];
+                    writeBack(item, man);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Take every point a Pivot was holding directly out of the rigs that
+    // name it. Returns how many stopped following it.
+    function stripPivotEntries(comp, piv) {
+        var idx = rigIndex(comp), gone = 0;
+        for (var r = 0; r < idx.length; r++) {
+            var item = idx[r].item, man = idx[r].man, e, nm;
+            // One link serves every point a Pivot holds, so settle which links
+            // name it before touching any: removing the first effect would
+            // blind the lookup for all the points that shared it.
+            var mine = {};
+            for (e = 0; e < man.pts.length; e++) {
+                nm = man.pts[e].fx;
+                if (!man.pts[e].pp || mine[nm] !== undefined) { continue; }
+                mine[nm] = sameLayer(linkedLayer(item.layer, nm), piv);
+            }
+            var keep = [], any = false;
+            for (e = 0; e < man.pts.length; e++) {
+                if (man.pts[e].pp && mine[man.pts[e].fx]) { gone++; any = true; }
+                else { keep.push(man.pts[e]); }
+            }
+            if (!any) { continue; }
+            man.pts = keep;
+            for (nm in mine) {
+                if (mine.hasOwnProperty(nm) && mine[nm]) { removeEffect(item.layer, nm); }
+            }
+            writeBack(item, man);
+        }
+        return gone;
     }
 
     function writeBack(item, man) {
@@ -1826,24 +2136,48 @@
         return times.length;
     }
 
+    // The one way to take something off: points, their handles, a pivot, a
+    // follower or an average rider - whatever is picked or selected.
     function actDelete(picks, selLayers, bake) {
-        return run(bake ? "Delete with bake" : "Delete rig", function (comp) {
+        return run(bake ? "Delete with bake" : "Delete", function (comp) {
             var work = picks.slice(0);
-            var rest = [], extra = 0, i;
+            var rest = [], pivots = 0, riders = 0, hands = 0, i;
             for (i = 0; i < selLayers.length; i++) {
-                if (kindOf(selLayers[i]) === K_PIVOT) {
+                var kind = kindOf(selLayers[i]);
+                if (kind === K_PIVOT) {
                     releaseChildren(comp, selLayers[i]);
-                    try { selLayers[i].remove(); extra++; } catch (e) {}
+                    // Points it was holding directly would be left reading a
+                    // layer that is gone, so they come out of the rig with it.
+                    stripPivotEntries(comp, selLayers[i]);
+                    try { selLayers[i].remove(); pivots++; } catch (e) {}
+                } else if (kind === K_HANDLE) {
+                    if (removeHandleLayer(comp, selLayers[i])) { hands++; }
                 } else if (isFollower(selLayers[i])) {
                     detachFollower(comp, selLayers[i]);
-                    extra++;
+                    riders++;
                 } else {
                     rest.push(selLayers[i]);
                 }
             }
             selLayers = rest;
+            var extra = pivots + riders + hands;
+
+            function tally() {
+                var b = [];
+                if (pivots) { b.push(pivots + " pivot" + (pivots === 1 ? "" : "s")); }
+                if (riders) { b.push(riders + " follower" + (riders === 1 ? "" : "s")); }
+                if (hands) { b.push(hands + " handle" + (hands === 1 ? "" : "s")); }
+                return b.join(", ");
+            }
+
+            // Nothing picked and nothing selected used to mean every rig in the
+            // composition, which is not a thing to do on one click from the
+            // top row.
+            if (!extra && !work.length && !selLayers.length) {
+                return "Pick some points, or select the controls, pivot or follower to remove.";
+            }
             if (extra && !work.length && !selLayers.length) {
-                return "Removed " + extra + " pivot/follower" + (extra === 1 ? "" : "s") + ".";
+                return "Removed " + tally() + ".";
             }
             var ctrlPicks = picksFromControls(comp, selLayers);
             for (i = 0; i < ctrlPicks.length; i++) { work.push(ctrlPicks[i]); }
@@ -1854,7 +2188,7 @@
                 var idx = rigIndex(comp);
                 var scope = [];
                 for (i = 0; i < idx.length; i++) {
-                    var keep = !selLayers.length && !work.length;
+                    var keep = false;
                     for (var l = 0; l < selLayers.length; l++) {
                         if (sameLayer(idx[i].item.layer, selLayers[l])) { keep = true; }
                     }
@@ -2332,6 +2666,152 @@
     //  Panel
     // =====================================================================
 
+    // ---------------------------------------------------------------- icons
+    // Drawn, never loaded. ScriptUI will not scale a bitmap for a retina
+    // display, so a 28px PNG arrives upscaled and soft; these are paths in a
+    // 28-unit box that the panel strokes itself at whatever size the screen
+    // asks for, which costs no temp files and stays sharp at any density.
+    //
+    // An op is ["p", width, [x,y,...]] for a polyline, ["b", width, [8 numbers]]
+    // for a cubic, ["x", width, x0,y0,x1,y1] for a rectangle, and "c" / "r" /
+    // "d" with centre and radius for a circle, square or diamond. Width 0 means
+    // filled. "Vertex Rig icons/mkicons.py" draws these and prints this block.
+    // One height for everything the panel puts on a row - icon buttons, text
+    // buttons, dropdowns - so a row reads as a row instead of as three
+    // controls that happen to be next to each other.
+    var UI_H = 32;
+    var ICON_PX = UI_H;
+    var ICON_UNITS = 28;
+
+    var ICON_ART = {
+        "create": [["b",2.4,[4,20,10,9,18,21,24,10]],["c",0,14,15.2,5.2]],
+        "handles": [["p",2.0,[5,19,23,9]],["c",0,5,19,3.4],["c",0,23,9,3.4],["r",0,14,14,4.6]],
+        "delete": [["x",2.2,6,6,22,22],["p",2.2,[10,10,18,18]],["p",2.2,[18,10,10,18]]],
+        "bake": [["p",1.76,[3,14,25,14]],["d",0,6.5,14,3.6],["d",0,14,14,3.6],["d",0,21.5,14,3.6]],
+        "apply": [["p",2.2,[4,9,20,9]],["p",2.2,[16,5.0,20,9,16,13.0]],["p",2.2,[24,19,8,19]],["p",2.2,[12,15,8,19,12,23]]],
+        "pivot": [["c",2.2,14,14,5.0],["c",0,14,14,1.6],["p",2.2,[14,2.5,14,7]],["p",2.2,[14,21,14,25.5]],["p",2.2,[2.5,14,7,14]],["p",2.2,[21,14,25.5,14]]],
+        "addpivot": [["c",2.2,12,12,4.4],["c",0,12,12,1.5],["p",2.2,[12,2.5,12,6]],["p",2.2,[2.5,12,6,12]],["p",2.2,[18,12,21.5,12]],["p",2.2,[12,18,12,21.5]],["p",2.2,[22,18,22,26]],["p",2.2,[18,22,26,22]]],
+        "release": [["c",2.2,11,15,4.4],["c",0,11,15,1.5],["p",2.2,[11,5.5,11,9]],["p",2.2,[1.5,15,5,15]],["p",2.2,[11,21,11,24.5]],["p",2.2,[17,15,20.5,15]],["p",2.2,[19,10,25,4]],["p",2.2,[20.5,4,25,4,25,8.5]]],
+        "follower": [["p",1.76,[4,14,24,14]],["c",0,10,14,3.4],["p",2.2,[19,10.0,23,14,19,18.0]]],
+        "average": [["p",1.32,[14,13.5,7,8]],["p",1.32,[14,13.5,21,8]],["p",1.32,[14,13.5,14,22]],["r",1.98,7,8,2.8],["r",1.98,21,8,2.8],["r",1.98,14,22,2.8],["r",0,14,13.5,3.2]],
+        "extract": [["x",2.2,3,11,12,25],["x",2.2,16,3,25,12],["p",1.98,[8,16,8,8,15,8]],["p",1.98,[12.4,4.6,16,8,12.4,11.4]]],
+        "merge": [["p",2.2,[14,5,14,23]],["p",2.2,[3,14,9,14]],["p",2.2,[6,10.0,10,14,6,18.0]],["p",2.2,[25,14,19,14]],["p",2.2,[22,10,18,14,22,18]]],
+        "tobezier": [["x",1.98,3,10,11,18],["p",1.76,[13,14,16,14]],["p",1.76,[13.8,10.8,17,14,13.8,17.2]],["p",1.76,[20,7,25,7,25,14,20,14,20,21,25,21]],["r",0,20,7,2.4],["r",0,25,21,2.4]],
+        "prefs": [["p",1.54,[4,8,24,8]],["r",0,18,8,2.9],["p",1.54,[4,14,24,14]],["r",0,10,14,2.9],["p",1.54,[4,20,24,20]],["r",0,21,20,2.9]],
+        "refresh": [["p",2.2,[20.5,8.5,21.0,9.2,21.5,10.0,21.9,10.8,22.2,11.7,22.4,12.5,22.5,13.4,22.5,14.3,22.4,15.2,22.2,16.1,22.0,16.9,21.6,17.7,21.2,18.5,20.7,19.2,20.1,19.9,19.5,20.5,18.8,21.0,18.0,21.5,17.2,21.9,16.3,22.2,15.5,22.4,14.6,22.5,13.7,22.5,12.8,22.4,11.9,22.2,11.1,22.0,10.3,21.6,9.5,21.2,8.8,20.7,8.1,20.1,7.5,19.5,7.0,18.8,6.5,18.0,6.1,17.2,5.8,16.3,5.6,15.5,5.5,14.6,5.5,13.7,5.6,12.8,5.8,11.9,6.0,11.1,6.4,10.3,6.8,9.5,7.3,8.8,7.9,8.1,8.5,7.5,9.2,7.0,10.0,6.5,10.8,6.1]],["p",2.2,[20.5,8.5,24.5,9.8]],["p",2.2,[20.5,8.5,21.1,12.7]]],
+        "fit": [["p",2.2,[9.5,4,4,4,4,9.5]],["p",2.2,[18.5,4,24,4,24,9.5]],["p",2.2,[9.5,24,4,24,4,18.5]],["p",2.2,[18.5,24,24,24,24,18.5]]],
+        "all": [["r",0,9,9,3.6],["r",0,19,9,3.6],["r",0,9,19,3.6],["r",0,19,19,3.6]],
+        "none": [["r",1.98,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",1.98,19,19,3.6]],
+        "invert": [["r",0,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",0,19,19,3.6]]
+    };
+
+    // After Effects' own buttons: a flat dark fill, a lighter hairline and a
+    // small radius. These are drawn to match, so an icon button sits beside a
+    // text button without looking like it came from somewhere else.
+    var BTN_FILL = [0.192, 0.192, 0.192];
+    var BTN_FILL_HOT = [0.255, 0.255, 0.255];
+    var BTN_FILL_DOWN = [0.125, 0.125, 0.125];
+    // Close to the fill on purpose: enough of an edge to read as a button,
+    // not enough to draw a box around every icon.
+    var BTN_LINE = [0.26, 0.26, 0.26];
+    var BTN_LINE_HOT = [0.38, 0.38, 0.38];
+    var BTN_RADIUS = 4;
+    var ICON_COL = [0.82, 0.82, 0.82];
+
+    // ScriptUI draws lines and rectangles but has no rounded rectangle, so the
+    // corners are stepped round in short segments.
+    function roundRectPath(g, x, y, w, h, r) {
+        var corner = [[x + w - r, y + r, -90], [x + w - r, y + h - r, 0],
+                      [x + r, y + h - r, 90], [x + r, y + r, 180]];
+        var pts = [], c, i, a;
+        for (c = 0; c < 4; c++) {
+            for (i = 0; i <= 4; i++) {
+                a = (corner[c][2] + i * 22.5) * Math.PI / 180;
+                pts.push([corner[c][0] + Math.cos(a) * r, corner[c][1] + Math.sin(a) * r]);
+            }
+        }
+        g.newPath();
+        g.moveTo(pts[0][0], pts[0][1]);
+        for (i = 1; i < pts.length; i++) { g.lineTo(pts[i][0], pts[i][1]); }
+        g.closePath();
+    }
+
+    function drawArt(g, ops, ox, oy, size, col, alpha) {
+        var k = size / ICON_UNITS;
+        var rgba = [col[0], col[1], col[2], alpha];
+        var brush = g.newBrush(g.BrushType.SOLID_COLOR, rgba);
+        for (var i = 0; i < ops.length; i++) {
+            var op = ops[i], w = op[1], n, t, u, x, y;
+            var pen = g.newPen(g.PenType.SOLID_COLOR, rgba, Math.max(1, w * k));
+            if (op[0] === "p") {
+                var v = op[2];
+                g.newPath();
+                g.moveTo(ox + v[0] * k, oy + v[1] * k);
+                for (n = 2; n < v.length; n += 2) {
+                    g.lineTo(ox + v[n] * k, oy + v[n + 1] * k);
+                }
+                g.strokePath(pen);
+            } else if (op[0] === "b") {
+                var b = op[2];
+                g.newPath();
+                for (n = 0; n <= 16; n++) {
+                    t = n / 16; u = 1 - t;
+                    x = u*u*u*b[0] + 3*u*u*t*b[2] + 3*u*t*t*b[4] + t*t*t*b[6];
+                    y = u*u*u*b[1] + 3*u*u*t*b[3] + 3*u*t*t*b[5] + t*t*t*b[7];
+                    if (n === 0) { g.moveTo(ox + x * k, oy + y * k); }
+                    else { g.lineTo(ox + x * k, oy + y * k); }
+                }
+                g.strokePath(pen);
+            } else if (op[0] === "x") {
+                g.newPath();
+                g.rectPath(ox + op[2] * k, oy + op[3] * k,
+                           (op[4] - op[2]) * k, (op[5] - op[3]) * k);
+                g.strokePath(pen);
+            } else {
+                var cx = ox + op[2] * k, cy = oy + op[3] * k, r = op[4] * k;
+                g.newPath();
+                if (op[0] === "c") {
+                    g.ellipsePath(cx - r, cy - r, r * 2, r * 2);
+                } else if (op[0] === "r") {
+                    g.rectPath(cx - r, cy - r, r * 2, r * 2);
+                } else {
+                    g.moveTo(cx, cy - r);
+                    g.lineTo(cx + r, cy);
+                    g.lineTo(cx, cy + r);
+                    g.lineTo(cx - r, cy);
+                    g.closePath();
+                }
+                if (w === 0) { g.fillPath(brush); } else { g.strokePath(pen); }
+            }
+        }
+    }
+
+    // Ask a control to paint itself again. ScriptUI repaints a custom-drawn
+    // button when the pointer arrives and not reliably when it leaves, so the
+    // hover shade stayed on the last button touched until something else
+    // forced the window to redraw.
+    function repaint(ctrl) {
+        try { ctrl.notify("onDraw"); } catch (e) {}
+    }
+
+    // The draw state is only as current as the last repaint After Effects
+    // decided to do, which is exactly what went wrong, so hover and press are
+    // tracked on the control and the paint reads those.
+    function paintIconButton(ctrl, ops, st) {
+        var g = ctrl.graphics;
+        var w = ctrl.size.width, h = ctrl.size.height;
+        var hot = (ctrl.hot === true), down = (ctrl.down === true);
+        var fill = down ? BTN_FILL_DOWN : (hot ? BTN_FILL_HOT : BTN_FILL);
+        var edge = hot ? BTN_LINE_HOT : BTN_LINE;
+        roundRectPath(g, 0.5, 0.5, w - 1, h - 1, BTN_RADIUS);
+        g.fillPath(g.newBrush(g.BrushType.SOLID_COLOR, [fill[0], fill[1], fill[2], 1]));
+        roundRectPath(g, 0.5, 0.5, w - 1, h - 1, BTN_RADIUS);
+        g.strokePath(g.newPen(g.PenType.SOLID_COLOR, [edge[0], edge[1], edge[2], 1], 1));
+        var size = Math.min(w, h) - 6;
+        drawArt(g, ops, (w - size) / 2, (h - size) / 2, size, ICON_COL,
+                ctrl.enabled ? 1 : 0.4);
+    }
+
     var state = {
         items: [],
         geom: [],
@@ -2530,19 +3010,37 @@
         var head = win.add("group");
         head.alignChildren = ["left", "center"];
         head.spacing = 4;
-        var scopeDd = head.add("dropdownlist", undefined, ["Selected layers", "All layers"]);
+        // Shortened from "Selected layers": the row has seven icons and two
+        // rules to fit beside it now, and 96 points is what it can spare.
+        var scopeDd = head.add("dropdownlist", undefined, ["Selected", "All layers"]);
         scopeDd.selection = 0;
-        scopeDd.preferredSize.width = 120;
-        var bRefresh = head.add("button", undefined, "Refresh");
-        bRefresh.preferredSize = [62, 22];
-        var bFit = head.add("button", undefined, "Fit");
-        bFit.preferredSize = [40, 22];
-        var bAll = head.add("button", undefined, "All");
-        bAll.preferredSize = [40, 22];
-        var bNone = head.add("button", undefined, "None");
-        bNone.preferredSize = [46, 22];
-        var bInv = head.add("button", undefined, "Invert");
-        bInv.preferredSize = [52, 22];
+        scopeDd.preferredSize = [96, UI_H];
+
+        // A hairline between the groups of the row: what it shows, what is
+        // picked, and what the panel does to it. 96 + 7*32 + 2 + 9*4 = 358 of
+        // the 368 points inside the panel's margins.
+        function headRule() {
+            var sep = head.add("panel");
+            sep.alignment = ["left", "center"];
+            sep.minimumSize = [1, 10];
+            sep.preferredSize = [1, UI_H - 10];
+            sep.maximumSize = [1, UI_H];
+            return sep;
+        }
+
+        var bRefresh = act(head, "refresh", "Refresh", "Read the composition again", 62);
+        var bFit = act(head, "fit", "Fit", "Frame everything in the preview", 40);
+        headRule();
+        var bAll = act(head, "all", "All", "Pick every point in view", 40);
+        var bNone = act(head, "none", "None", "Let every picked point go", 46);
+        var bInv = act(head, "invert", "Invert", "Pick what is not picked, and let the rest go", 52);
+        headRule();
+        var bPrefs = act(head, "prefs", "Prefs", "Colours, sizes and shapes of the controls", 54);
+        // Delete takes off whatever the rig put on, whichever tab made it, so
+        // it belongs up here rather than inside one of them. Last in the row,
+        // away from the selection buttons.
+        var bDel = act(head, "delete", "Delete",
+                       "Remove the picked points, or the selected handles, pivot or follower", 58);
 
         var cv = win.add("group");
         cv.alignment = ["fill", "fill"];
@@ -2557,6 +3055,7 @@
         var status = win.add("statictext", undefined,
             "                                                                      ");
         status.alignment = ["fill", "top"];
+        status.preferredSize.height = 18;
         status.text = "Ready.";
         status.graphics.foregroundColor = status.graphics.newPen(
             status.graphics.PenType.SOLID_COLOR, [0.72, 0.72, 0.72, 1], 1);
@@ -2567,67 +3066,115 @@
         full.alignChildren = ["fill", "top"];
         full.spacing = 3;
 
-        function row(label) {
-            var g = full.add("group");
-            g.alignChildren = ["left", "center"];
-            g.spacing = 3;
-            var t = g.add("statictext", undefined, label);
-            t.preferredSize.width = 48;
-            return g;
-        }
-        function btn(g, label, w, tip) {
-            var b = g.add("button", undefined, label);
-            b.preferredSize = [w, 22];
-            if (tip) { b.helpTip = tip; }
+        // An icon button where the picture loaded and the old text button
+        // where it did not, so a temp folder the script cannot write to costs
+        // the icons and nothing else. A picture has to be able to say what it
+        // is: hovering one names the action in the line above the tabs, and
+        // the tooltip says it too for anyone who waits.
+        function act(g, icon, label, tip, textWidth) {
+            var art = ICON_ART[icon];
+            var b;
+            if (art) {
+                b = g.add("iconbutton", undefined, undefined, { style: "toolbutton" });
+                b.preferredSize = [ICON_PX, ICON_PX];
+                b.onDraw = function (st) { paintIconButton(this, art, st); };
+            } else {
+                b = g.add("button", undefined, label);
+                b.preferredSize = [textWidth || 66, UI_H];
+            }
+            var says = label + " - " + tip;
+            b.helpTip = says;
+            b.hot = false;
+            b.down = false;
+            b.addEventListener("mouseover", function () {
+                this.hot = true;
+                repaint(this);
+                setStatus(says);
+            });
+            b.addEventListener("mouseout", function () {
+                this.hot = false;
+                // A press that ends somewhere else must not leave this one
+                // looking held down.
+                this.down = false;
+                repaint(this);
+                reportSel();
+            });
+            b.addEventListener("mousedown", function () {
+                this.down = true;
+                repaint(this);
+            });
+            b.addEventListener("mouseup", function () {
+                this.down = false;
+                repaint(this);
+            });
             return b;
         }
 
-        var rPts = row("Points");
-        var bCreate = btn(rPts, "Create", 62, "Put a control on every picked point");
-        var bHand = btn(rPts, "Handles", 72,
+        function tabPage(name) {
+            var t = tabs.add("tab", undefined, name);
+            t.orientation = "column";
+            t.alignChildren = ["left", "top"];
+            t.spacing = 6;
+            t.margins = 8;
+            return t;
+        }
+        function tabRow(page) {
+            var g = page.add("group");
+            g.alignChildren = ["left", "center"];
+            g.spacing = 6;
+            return g;
+        }
+
+        var tabs = full.add("tabbedpanel");
+        tabs.alignChildren = ["fill", "top"];
+        // Left to itself it swells to whatever height is going, which opened a
+        // hole between the actions and the two buttons under them.
+        tabs.alignment = ["fill", "top"];
+
+        var tPts = tabPage("Points");
+        var pr1 = tabRow(tPts);
+        var bCreate = act(pr1, "create", "Create", "Put a control on every picked point");
+        var bHand = act(pr1, "handles", "Handles",
                         "Give the picked points bezier handles, rigging any that are not yet");
-        var bDel = btn(rPts, "Delete", 58, "Remove the picked controls, or the whole rig");
-
-        var rGrp = row("Group");
-        var bPivot = btn(rGrp, "Pivot", 62, "One control for every picked point");
-        var bAddPiv = btn(rGrp, "Add to Pivot", 86, "Select the Pivot too, then add more points to it");
-        var bRel = btn(rGrp, "Release", 62, "Detach controls from their Pivot");
-        var bBake = btn(rGrp, "Bake", 58, "Keep the animation as path keyframes, drop the rig");
-
-        var rFol = row("Follow");
-        var bFol = btn(rFol, "Follower", 68, "Attach the selected layers to the picked path");
-        var bAvg = btn(rFol, "Average", 68, "One follower at the centre of the picked points");
-        var modeDd = rFol.add("dropdownlist", undefined, ["Handles: masks", "Handles: layers"]);
-        modeDd.preferredSize.width = 120;
+        // Bake is Delete that keeps the animation, so it belongs beside it.
+        var bBake = act(pr1, "bake", "Bake", "Keep the animation as path keyframes, drop the rig");
+        // All on one row: four icons, the handle style and the button that
+        // applies it come to about 324 of the panel's 380 points.
+        var modeDd = pr1.add("dropdownlist", undefined, ["Handles: masks", "Handles: layers"]);
+        modeDd.preferredSize = [134, UI_H];
         modeDd.selection = (P.handleMode === "layers") ? 1 : 0;
-        var bSwap = btn(rFol, "Apply", 50, "Convert the picked points' handles to that style");
+        var bSwap = act(pr1, "apply", "Apply",
+                        "Convert the picked points' handles to that style", 54);
 
-        var rLay = row("Layers");
-        var bExtract = btn(rLay, "Extract", 62, "Move the picked shapes into layers of their own");
-        var bMerge = btn(rLay, "Merge", 58, "Fold the selected shape layers into the topmost one");
-        var bBez = btn(rLay, "To Bezier", 72, "Turn rectangles, ellipses and stars into editable paths");
-        var bPrefs = btn(rLay, "Prefs", 50, "Colours, sizes and shapes of the controls");
-        var bSmall = btn(rLay, "Compact", 66, "Fold the panel down to two rows of buttons");
+        var tPiv = tabPage("Pivot");
+        var gPiv = tabRow(tPiv);
+        var bPivot = act(gPiv, "pivot", "Pivot",
+                         "Drive the picked points from one layer");
+        var bAddPiv = act(gPiv, "addpivot", "Add to Pivot",
+                          "Select the Pivot too, then add more points to it", 84);
+        var bRel = act(gPiv, "release", "Release", "Detach controls from their Pivot");
+        var pivDd = gPiv.add("dropdownlist", undefined,
+                             ["Pivot only", "Pivot + point controls"]);
+        pivDd.preferredSize = [164, UI_H];
+        pivDd.selection = (P.pivotMode === "points") ? 1 : 0;
+        pivDd.helpTip = "Pivot only moves the points from one layer. " +
+                        "Pivot + point controls gives each point its own, " +
+                        "parented to the Pivot, so they can still be moved apart.";
 
-        // ---------------------------------------------------- compact rows
-        var small = win.add("group");
-        small.orientation = "column";
-        small.alignChildren = ["fill", "top"];
-        small.spacing = 3;
-        small.visible = false;
-        var sr1 = small.add("group");
-        sr1.spacing = 3;
-        var sr2 = small.add("group");
-        sr2.spacing = 3;
-        var sCreate = btn(sr1, "Create", 62);
-        var sHand = btn(sr1, "Handles", 62);
-        var sPivot = btn(sr1, "Pivot", 54);
-        var sFol = btn(sr1, "Follow", 58);
-        var sAvg = btn(sr2, "Average", 62);
-        var sExtract = btn(sr2, "Extract", 62);
-        var sMerge = btn(sr2, "Merge", 54);
-        var sDel = btn(sr2, "Delete", 58);
-        var sBig = btn(sr2, "Preview", 62, "Bring the point picker back");
+        var tFol = tabPage("Follow");
+        var gFol = tabRow(tFol);
+        var bFol = act(gFol, "follower", "Follower", "Attach the selected layers to the picked path");
+        var bAvg = act(gFol, "average", "Average", "One follower at the centre of the picked points");
+
+        var tLay = tabPage("Layers");
+        var gLay = tabRow(tLay);
+        var bExtract = act(gLay, "extract", "Extract", "Move the picked shapes into layers of their own");
+        var bMerge = act(gLay, "merge", "Merge", "Fold the selected shape layers into the topmost one");
+        var bBez = act(gLay, "tobezier", "To Bezier",
+                       "Turn rectangles, ellipses and stars into editable paths", 72);
+
+        tabs.selection = 0;
+
 
         function setStatus(s) {
             state.status = String(s);
@@ -2935,6 +3482,11 @@
             state.shown = shown;
             reportSel();
             redraw();
+            // Whatever the panel has just read is now what it is showing, so
+            // the watcher below has nothing left to react to. Without this an
+            // action that selects what it made - Pivot does - would be
+            // followed by a poll that refreshed again and wiped its message.
+            lastSeen = selectionSignature();
         }
 
         UI.say = setStatus;
@@ -3003,36 +3555,11 @@
             P.handleMode = (modeDd.selection.index === 1) ? "layers" : "masks";
             savePrefs();
         };
+        pivDd.onChange = function () {
+            P.pivotMode = (pivDd.selection.index === 1) ? "points" : "pivot";
+            savePrefs();
+        };
         bSwap.onClick = function () { actSwitchHandleMode(picks(), P.handleMode); };
-
-        sCreate.onClick = bCreate.onClick;
-        sHand.onClick = bHand.onClick;
-        sPivot.onClick = bPivot.onClick;
-        sFol.onClick = bFol.onClick;
-        sAvg.onClick = bAvg.onClick;
-        sExtract.onClick = bExtract.onClick;
-        sMerge.onClick = bMerge.onClick;
-        sDel.onClick = bDel.onClick;
-
-        function setCompact(on) {
-            head.visible = !on;
-            cv.visible = !on;
-            full.visible = !on;
-            small.visible = on;
-            try {
-                if (on) {
-                    cv.maximumSize = [4000, 0];
-                    cv.minimumSize = [0, 0];
-                } else {
-                    cv.minimumSize = [260, 180];
-                    cv.maximumSize = [4000, 4000];
-                }
-                win.layout.layout(true);
-                win.layout.resize();
-            } catch (e) {}
-        }
-        bSmall.onClick = function () { setCompact(true); };
-        sBig.onClick = function () { setCompact(false); refresh(); };
 
         // ----------------------------------------------------- preferences
         bPrefs.onClick = function () {
@@ -3051,9 +3578,47 @@
             } catch (e) {}
         };
 
-        // Come back to the panel and it re-reads the comp by itself, so the
-        // preview is never stale. refresh() keeps picks that still point at a
-        // path that is still there, so this does not throw away a selection.
+        // After Effects has no "selection changed" to listen for, so the panel
+        // asks. Reading which layers are selected is cheap; a refresh walks
+        // every layer in the composition, so it only happens when the answer
+        // is different from last time.
+        var WATCH_MS = 400;
+        var lastSeen = "";
+
+        function selectionSignature() {
+            var comp = activeComp();
+            if (!comp) { return "none"; }
+            var out = [String(comp.id), String(comp.numLayers)];
+            var sel = comp.selectedLayers;
+            for (var i = 0; i < sel.length; i++) { out.push(String(sel[i].index)); }
+            return out.join(",");
+        }
+
+        function watchSelection() {
+            try {
+                var sig = selectionSignature();
+                if (sig === lastSeen) { return; }
+                lastSeen = sig;
+                refresh();
+            } catch (e) {}
+        }
+
+        // scheduleTask evaluates a string, so the watcher is hung off the
+        // global for it to find. Reopening the panel replaces the old one,
+        // and the task it left behind is cancelled rather than left ticking.
+        try {
+            if ($.global.__vxrTask) { app.cancelTask($.global.__vxrTask); }
+        } catch (eTask) {}
+        try {
+            $.global.__vxrWatch = watchSelection;
+            $.global.__vxrTask = app.scheduleTask(
+                "if ($.global.__vxrWatch) { $.global.__vxrWatch(); }", WATCH_MS, true);
+        } catch (eTask2) {}
+
+        // Coming back to the panel re-reads the comp as well, which catches
+        // what the watcher cannot: a path edited in place, with the selection
+        // never changing. refresh() keeps picks that still point at a path
+        // that is still there, so this does not throw a selection away.
         // Activation can fire in bursts, and a refresh walks every layer, so
         // ignore anything that follows hard on the heels of the last one.
         var lastAuto = 0;

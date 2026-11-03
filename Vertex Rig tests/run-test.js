@@ -9,6 +9,7 @@
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
+const os = require("os");
 const M = require("./ae-mock.js");
 
 const SRC = path.join(__dirname, "..", "Vertex Rig.jsx");
@@ -23,10 +24,12 @@ src = src.replace(marker, marker + `
         itemMatrix, P, UI, state, kindOf, linkedLayer, findEffect, compOfExpression,
         allPathSignature, checkUnchanged, carriesData, childrenOf,
         scanPrimitives, ghostFor, actAddToPivot, actToBezier, nearestT,
-        followPositionExpr, setupFollower };`);
+        followPositionExpr, setupFollower, ICON_ART, drawArt, paintIconButton,
+        ICON_PX, ICON_UNITS, roundRectPath };`);
 
 const names = ["app", "CompItem", "Shape", "PropertyType", "PropertyValueType",
-  "KeyframeInterpolationType", "MaskMode", "Window", "Panel", "ScriptUI", "$"];
+  "KeyframeInterpolationType", "MaskMode", "Window", "Panel", "ScriptUI", "$",
+  "File", "Folder"];
 new Function(...names, src)(...names.map(n => M[n]));
 const V = globalThis.__VXR;
 
@@ -86,6 +89,28 @@ raw.split("\n").forEach((line, i) => {
 });
 ok(nonAscii.length === 0, "pure ASCII (AE reads .jsx as Latin-1)",
    nonAscii.length ? "lines " + nonAscii.slice(0, 5).join(", ") : "");
+
+// A reserved word as a bare object key is legal from ES5 on, so node parses it
+// and After Effects answers "SyntaxError: Illegal use of reserved word" and
+// refuses the whole script. "delete" as an icon name did exactly that.
+{
+  const RESERVED = ("break case catch continue default delete do else finally for " +
+    "function if in instanceof new return switch this throw try typeof var void " +
+    "while with abstract boolean byte char class const debugger double enum export " +
+    "extends final float goto implements import int interface long native package " +
+    "private protected public short static super synchronized throws transient " +
+    "volatile null true false").split(" ");
+  const bad = [];
+  raw.split("\n").forEach((line, i) => {
+    const m = line.match(/^\s*([A-Za-z_$][\w$]*)\s*:/);
+    if (!m) { return; }
+    // a switch's own default:, and a label, are statements rather than keys
+    if (/^\s*(default|case)\s*:/.test(line)) { return; }
+    if (RESERVED.indexOf(m[1]) >= 0) { bad.push((i + 1) + ":" + m[1]); }
+  });
+  ok(bad.length === 0, "no reserved word used as a bare object key",
+     bad.slice(0, 5).join(", "));
+}
 
 // ExtendScript is ES3. These all parse in node and then fail inside AE.
 // Scan code only: strings, comments and regex literals are blanked out first,
@@ -668,15 +693,529 @@ section("handles: a corner keeps its corner, whatever the group scale");
 
   // the stand-off is recorded and taken back out, so the corner stays a corner
   const e0 = big.man.pts[0];
-  ok(e0.ri && e0.ro, "the stand-off is recorded on the point",
-     JSON.stringify([e0.ri, e0.ro]));
-  const len = e0.ri ? Math.sqrt(e0.ri[0] ** 2 + e0.ri[1] ** 2) * 8.7843 : 0;
-  ok(Math.abs(len - 24) < 0.5, "and it is a 24px stand-off in group units", len.toFixed(2));
+  ok(e0.bi && e0.bo, "the stand-off is recorded on the point",
+     JSON.stringify([e0.bi, e0.bo]));
+  // it is kept in the control's own frame, so it is already in screen pixels
+  const len = e0.bi ? Math.sqrt(e0.bi[0] ** 2 + e0.bi[1] ** 2) : 0;
+  ok(Math.abs(len - 24) < 0.5, "24px, measured in the control's own frame",
+     len.toFixed(2));
   const items = V.scanPaths(M.app.project.activeItem, null);
   let expr = "";
   for (const it of items) { if (V.readManifest(it.prop)) { expr = it.prop.expression; } }
-  ok(/_I\[\d+\] = _v - _P\[\d+\] - \[/.test(expr) && /_O\[\d+\] = _v - _P\[\d+\] - \[/.test(expr),
-     "the expression subtracts it, so the tangent reads as zero");
+  ok(/_w = _rp\(/.test(expr) && /_I\[\d+\] = _v - _w/.test(expr) &&
+     /_O\[\d+\] = _v - _w/.test(expr),
+     "the tangent is measured from it, read back through the control");
+  // the whole point of the change: nothing in the subtraction is a constant
+  ok(!/_I\[\d+\] = _v - _P\[\d+\] - \[/.test(expr),
+     "and not from a constant that would stay put while the rig turns");
+}
+
+// ============================ the panel notices a selection change by itself
+// After Effects raises no event for it, so the panel polls. The check has to
+// be cheap, because a real refresh walks every layer in the composition.
+section("the panel watches the selection");
+{
+  const task = M.app._tasks[M.app._tasks.length - 1];
+  ok(!!task, "a task was scheduled");
+  ok(task.repeat === true, "repeating", String(task.repeat));
+  ok(task.ms >= 200 && task.ms <= 1000, "a few times a second, not constantly",
+     task.ms + "ms");
+  ok(/__vxrWatch/.test(task.src), "and it calls the panel's watcher", task.src);
+  const watch = M.$.global.__vxrWatch;
+  ok(typeof watch === "function", "which is there to be called");
+
+  const c = newComp();
+  const a = addShapeLayer(c, "A", "Group 1", star(5, 60), [0, 0], 0, [100, 100]);
+  const b = addShapeLayer(c, "B", "Group 1", star(4, 40), [0, 0], 0, [100, 100]);
+  a.selected = true;
+  watch();                                   // settles on the current state
+
+  V.UI.say("SENTINEL");
+  watch();
+  ok(V.state.status === "SENTINEL",
+     "an unchanged selection costs nothing", V.state.status);
+
+  a.selected = false;
+  b.selected = true;
+  watch();
+  ok(V.state.status !== "SENTINEL", "a changed one refreshes", V.state.status);
+  ok(V.state.items.length === 1 && V.state.items[0].layer.name === "B",
+     "onto what is selected now", V.state.items.map(i => i.layer.name).join(","));
+
+  // a layer appearing or going counts too
+  V.UI.say("SENTINEL");
+  addShapeLayer(c, "C", "Group 1", star(3, 30), [0, 0], 0, [100, 100]);
+  watch();
+  ok(V.state.status !== "SENTINEL", "so does the comp gaining a layer",
+     V.state.status);
+
+  // and a refresh of its own leaves the watcher nothing to react to
+  V.UI.refresh();
+  V.UI.say("SENTINEL");
+  watch();
+  ok(V.state.status === "SENTINEL",
+     "a refresh settles the watcher, so it cannot wipe an action's message",
+     V.state.status);
+}
+
+// ====================== a Pivot can carry the points without a control each
+// The default is one layer for the whole group: each picked vertex is kept in
+// the Pivot's own frame and read back through it, so there is nothing per
+// point in the timeline.
+section("pivot: one layer, no control per point");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Star", "Group 1", star(6, 70), [0, 0], 0, [100, 100]);
+  let items = V.scanPaths(c, [L]);
+  ok(V.P.pivotMode === "pivot", "one layer is the default", V.P.pivotMode);
+
+  let said = "";
+  const prev = V.UI.say;
+  V.UI.say = m => { said = String(m); };
+  V.actPivot([{ item: items[0], idx: [0, 1, 2, 3] }], []);
+  V.UI.say = prev;
+
+  const pivots = c._layers.filter(l => V.kindOf(l) === "pivot");
+  ok(pivots.length === 1, "one pivot", pivots.length);
+  ok(c._layers.filter(l => V.kindOf(l) === "point").length === 0,
+     "and not one point control",
+     c._layers.filter(l => V.kindOf(l) === "point").length);
+  ok(c._layers.length === 2, "two layers in the comp, the artwork and the pivot",
+     c._layers.length);
+  ok(/driving 4 points/.test(said), "it says what it carries", said);
+
+  items = V.scanPaths(c, [L]);
+  const man = V.readManifest(items[0].prop);
+  ok(man && man.pts.length === 4, "four points are rigged", man ? man.pts.length : "none");
+  ok(man.pts.every(e => e.pp && e.pp.length === 2),
+     "each one held as a point in the pivot's frame",
+     JSON.stringify(man.pts[0]));
+  ok(man.pts.every(e => e.fx === man.pts[0].fx),
+     "all through the one link, not one each");
+  const expr = items[0].prop.expression;
+  ok(/_P\[\d+\] = _v/.test(expr) && /_rp\(/.test(expr),
+     "and read back through the pivot", expr.split("\n").slice(-6)[0]);
+
+  // the other mode still gives a control to each
+  const c2 = newComp();
+  const L2 = addShapeLayer(c2, "Star", "Group 1", star(6, 70), [0, 0], 0, [100, 100]);
+  const i2 = V.scanPaths(c2, [L2]);
+  V.P.pivotMode = "points";
+  V.actPivot([{ item: i2[0], idx: [0, 1, 2] }], []);
+  V.P.pivotMode = "pivot";
+  ok(c2._layers.filter(l => V.kindOf(l) === "point").length === 3,
+     "three point controls the other way",
+     c2._layers.filter(l => V.kindOf(l) === "point").length);
+  ok(c2._layers.filter(l => l.parent && V.kindOf(l.parent) === "pivot").length === 3,
+     "all hung off the pivot");
+
+  // pressing Pivot over points that already have controls groups those instead
+  const c3 = newComp();
+  const L3 = addShapeLayer(c3, "Star", "Group 1", star(6, 70), [0, 0], 0, [100, 100]);
+  let i3 = V.scanPaths(c3, [L3]);
+  V.actCreate([{ item: i3[0], idx: [0, 1] }], false);
+  i3 = V.scanPaths(c3, [L3]);
+  let said3 = "";
+  const prev3 = V.UI.say;
+  V.UI.say = m => { said3 = String(m); };
+  V.actPivot([{ item: i3[0], idx: [0, 1, 2] }], []);
+  V.UI.say = prev3;
+  const piv3 = c3._layers.filter(l => V.kindOf(l) === "pivot")[0];
+  ok(!!piv3, "a pivot was still made");
+  ok(c3._layers.filter(l => l.parent === piv3).length === 2,
+     "the two existing controls hang off it",
+     c3._layers.filter(l => l.parent === piv3).length);
+  ok(/carrying 2 controls/.test(said3) && /driving 1 point/.test(said3),
+     "and it says it did both", said3);
+
+  // deleting the pivot takes the points it held out of the rig
+  M.app.project.activeItem = c;          // c2 and c3 above moved it
+  let i4 = V.scanPaths(c, [L]);
+  ok(V.readManifest(i4[0].prop).pts.length === 4, "four held before");
+  V.actDelete([], [pivots[0]], false);
+  i4 = V.scanPaths(c, [L]);
+  const after = V.readManifest(i4[0].prop);
+  ok(!after || after.pts.length === 0,
+     "and none after, rather than reading a layer that is gone",
+     after ? after.pts.length : "no manifest");
+}
+
+// ================================= the pivot marker matches the pivot icon
+section("the pivot in the comp looks like the pivot on the panel");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Star", "Group 1", star(5, 70), [0, 0], 0, [100, 100]);
+  const items = V.scanPaths(c, [L]);
+  V.actPivot([{ item: items[0], idx: [0, 1, 2] }], []);
+  const piv = c._layers.filter(l => V.kindOf(l) === "pivot")[0];
+  ok(!!piv, "a pivot was made");
+
+  const marker = piv.property("ADBE Root Vectors Group").property("Marker")
+                    .property("ADBE Vectors Group");
+  const kids = [];
+  for (let i = 1; i <= marker.numProperties; i++) { kids.push(marker.property(i)); }
+  ok(kids.length === 2, "its marker is two groups, not one path", kids.length);
+  ok(kids[0].name === "Ring" && kids[1].name === "Core",
+     "a ring and a core", kids.map(k => k.name).join(","));
+
+  const ring = kids[0].property("ADBE Vectors Group");
+  const rNames = [];
+  for (let i = 1; i <= ring.numProperties; i++) { rNames.push(ring.property(i).name); }
+  ok(rNames.filter(n => /^Tick/.test(n)).length === 4, "four ticks",
+     rNames.join(","));
+  ok(rNames.indexOf("Ring Path") >= 0, "round a ring");
+  const stroke = [];
+  for (let i = 1; i <= ring.numProperties; i++) {
+    if (ring.property(i).matchName === "ADBE Vector Graphic - Stroke") { stroke.push(i); }
+  }
+  ok(stroke.length === 1, "stroked, not filled - a fill would close the ring up",
+     stroke.length);
+
+  // the proportions are the icon's: ring 0.435, ticks 0.609 to 1, core 0.139
+  const r = Math.max(4, V.P.size) / 2;
+  const ringPath = ring.property("Ring Path").property("ADBE Vector Shape").value;
+  ok(Math.abs(Math.abs(ringPath.vertices[0][1]) - r * 0.435) < 0.1,
+     "the ring is the icon's ring", Math.abs(ringPath.vertices[0][1]).toFixed(2));
+  const tick = ring.property("Tick 1").property("ADBE Vector Shape").value;
+  ok(Math.abs(Math.abs(tick.vertices[1][1]) - r) < 0.1 &&
+     Math.abs(Math.abs(tick.vertices[0][1]) - r * 0.609) < 0.1,
+     "and the ticks run from 0.609 out to the edge",
+     tick.vertices.map(v => v[1].toFixed(1)).join(" -> "));
+
+  // the other kinds are untouched
+  V.actCreate([{ item: items[0], idx: [4] }], false);
+  const pt = c._layers.filter(l => V.kindOf(l) === "point")[0];
+  const pm = pt.property("ADBE Root Vectors Group").property("Marker")
+               .property("ADBE Vectors Group");
+  ok(pm.property(1).name === "Marker Path",
+     "a point control is still one path", pm.property(1).name);
+}
+
+// ===================================== one Delete for everything the rig makes
+section("delete: points, handles, pivots and followers alike");
+{
+  const say = () => { let m = ""; const prev = V.UI.say;
+    V.UI.say = x => { m = String(x); }; return { get: () => m, done: () => { V.UI.say = prev; } }; };
+
+  // nothing picked and nothing selected must not mean "every rig in the comp"
+  {
+    const c = newComp();
+    const L = addShapeLayer(c, "Star", "Group 1", star(5, 70), [0, 0], 0, [100, 100]);
+    let items = V.scanPaths(c, [L]);
+    V.actCreate([{ item: items[0], idx: [0, 1, 2] }], false);
+    const s1 = say();
+    V.actDelete([], [], false);
+    s1.done();
+    ok(/Pick some points/.test(s1.get()), "it asks for a target", s1.get());
+    items = V.scanPaths(c, [L]);
+    ok(V.readManifest(items[0].prop).pts.length === 3,
+       "and leaves the rig alone", V.readManifest(items[0].prop).pts.length);
+  }
+
+  // a selected handle costs its point nothing
+  {
+    const c = newComp();
+    const L = addShapeLayer(c, "Hand", "Group 1", star(5, 70), [0, 0], 0, [100, 100]);
+    V.P.handleMode = "layers";
+    let items = V.scanPaths(c, [L]);
+    V.actCreate([{ item: items[0], idx: [0] }], true);
+    items = V.scanPaths(c, [L]);
+    let man = V.readManifest(items[0].prop);
+    const inName = man.pts[0]["if"];
+    const handle = V.linkedLayer(L, inName);
+    ok(!!handle && V.kindOf(handle) === "handle", "the in handle is a layer");
+    const point = V.linkedLayer(L, man.pts[0].fx);
+
+    const s2 = say();
+    V.actDelete([], [handle], false);
+    s2.done();
+    items = V.scanPaths(c, [L]);
+    man = V.readManifest(items[0].prop);
+    ok(!!man && man.pts.length === 1, "the point is still rigged",
+       man ? man.pts.length : "no manifest");
+    ok(!man.pts[0]["if"], "without its in handle", man.pts[0]["if"]);
+    ok(!!man.pts[0].of, "and keeping its out handle");
+    ok(c._layers.indexOf(point) >= 0, "the point control is untouched");
+    ok(c._layers.indexOf(handle) < 0, "the handle layer is gone");
+    ok(/handle/.test(s2.get()), "and it says what went", s2.get());
+  }
+
+  // a pivot goes, its children stay where they were
+  {
+    V.P.pivotMode = "points";          // this one is about the children
+    const c = newComp();
+    const L = addShapeLayer(c, "Star", "Group 1", star(5, 70), [0, 0], 0, [100, 100]);
+    const items = V.scanPaths(c, [L]);
+    V.actPivot([{ item: items[0], idx: [0, 1, 2] }], []);
+    const piv = c._layers.filter(l => V.kindOf(l) === "pivot")[0];
+    const kids = c._layers.filter(l => l.parent === piv);
+    ok(kids.length === 3, "three controls hang off it", kids.length);
+
+    const s3 = say();
+    V.actDelete([], [piv], false);
+    s3.done();
+    ok(c._layers.indexOf(piv) < 0, "the pivot is gone");
+    ok(kids.every(k => c._layers.indexOf(k) >= 0), "its controls are not");
+    ok(kids.every(k => !k.parent), "and were let go, not left pointing at nothing");
+    ok(/pivot/.test(s3.get()), "and it says so", s3.get());
+    V.P.pivotMode = "pivot";
+  }
+
+  // a follower on a layer of the user's own is detached, not deleted
+  {
+    const c = newComp();
+    const L = addShapeLayer(c, "Path", "Group 1", star(5, 70), [0, 0], 0, [100, 100]);
+    const rider = addShapeLayer(c, "Rider", "Group 1", star(4, 8), [0, 0], 0, [100, 100]);
+    const items = V.scanPaths(c, [L]);
+    V.actFollower([{ item: items[0], idx: [0] }], [rider]);
+    ok(rider.transform.position.expressionEnabled, "the rider is driven");
+
+    const s4 = say();
+    V.actDelete([], [rider], false);
+    s4.done();
+    ok(c._layers.indexOf(rider) >= 0, "the user's own layer stays");
+    ok(!rider.transform.position.expressionEnabled, "but is no longer driven");
+    ok(!V.findEffect(rider, "VXR Path"), "and keeps none of the rig's effects");
+    ok(/follower/.test(s4.get()), "and it says so", s4.get());
+  }
+}
+
+// =========================================== icons on the buttons, in tabs
+// The icons are vector paths the panel strokes itself. A bitmap would be
+// upscaled on a retina display and look soft, and ScriptUI will not scale one
+// for you - so nothing here is a picture file.
+section("icons: drawn paths, not pictures");
+{
+  const names = Object.keys(V.ICON_ART);
+  ok(names.length === 19, "nineteen icons are defined", names.length);
+  ok(raw.indexOf("newImage") < 0 && raw.indexOf("b64") < 0,
+     "no image is loaded and no base64 is decoded any more");
+
+  // every op has a shape the drawing code knows, and stays inside the box
+  const KINDS = { p: 1, b: 1, c: 1, r: 1, d: 1, x: 1 };
+  const bad = [];
+  for (const name of names) {
+    const ops = V.ICON_ART[name];
+    if (!ops.length) { bad.push(name + ":empty"); continue; }
+    for (const op of ops) {
+      if (!KINDS[op[0]]) { bad.push(name + ":kind " + op[0]); continue; }
+      if (typeof op[1] !== "number" || op[1] < 0) { bad.push(name + ":width"); continue; }
+      let nums;
+      if (op[0] === "p" || op[0] === "b") {
+        nums = op[2];
+        if (!Array.isArray(nums) || nums.length < 4 || nums.length % 2) {
+          bad.push(name + ":points"); continue;
+        }
+        if (op[0] === "b" && nums.length !== 8) { bad.push(name + ":cubic"); continue; }
+      } else if (op[0] === "x") {
+        nums = op.slice(2);
+        if (nums.length !== 4) { bad.push(name + ":rect"); continue; }
+      } else {
+        nums = op.slice(2);
+        if (nums.length !== 3) { bad.push(name + ":centre"); continue; }
+      }
+      for (const v of nums) {
+        if (typeof v !== "number" || v < -1 || v > V.ICON_UNITS + 1) {
+          bad.push(name + ":out of box " + v);
+          break;
+        }
+      }
+    }
+  }
+  ok(bad.length === 0, "every path is well formed and inside the 28 unit box",
+     bad.slice(0, 4).join(", "));
+
+  // and the drawing code actually runs over all of them
+  function recorder() {
+    const log = [];
+    return {
+      log,
+      BrushType: { SOLID_COLOR: 0 }, PenType: { SOLID_COLOR: 0 },
+      newBrush: () => ({}), newPen: (t, c, w) => ({ w }),
+      newPath() { log.push("newPath"); },
+      moveTo() { log.push("moveTo"); }, lineTo() { log.push("lineTo"); },
+      closePath() { log.push("closePath"); },
+      rectPath() { log.push("rectPath"); }, ellipsePath() { log.push("ellipsePath"); },
+      fillPath() { log.push("fill"); }, strokePath() { log.push("stroke"); },
+      drawString() {}, foregroundColor: null
+    };
+  }
+  let drawFails = [], thin = [];
+  for (const name of names) {
+    const g = recorder();
+    try { V.drawArt(g, V.ICON_ART[name], 0, 0, 28, [0.8, 0.8, 0.8], 1); }
+    catch (e) { drawFails.push(name + ": " + e.message); continue; }
+    const marks = g.log.filter(x => x === "fill" || x === "stroke").length;
+    if (marks < 2) { thin.push(name + ":" + marks); }
+  }
+  ok(drawFails.length === 0, "drawing every icon runs clean", drawFails.slice(0, 3).join("; "));
+  ok(thin.length === 0, "and each one puts down several marks", thin.join(", "));
+
+  // the whole button, chrome and all, including the pressed and hover states
+  const states = [undefined, { mouseOver: true }, { leftButtonPressed: true }];
+  let btnFails = [];
+  for (const st of states) {
+    const g = recorder();
+    const ctrl = { graphics: g, size: { width: 40, height: 40 }, enabled: true };
+    try { V.paintIconButton(ctrl, V.ICON_ART.create, st); }
+    catch (e) { btnFails.push(String(st && Object.keys(st)) + ": " + e.message); continue; }
+    if (g.log.indexOf("fill") < 0 || g.log.indexOf("stroke") < 0) {
+      btnFails.push("no chrome drawn");
+    }
+  }
+  ok(btnFails.length === 0, "the button paints itself in every state",
+     btnFails.join("; "));
+
+  // the rounded rectangle has to close, or the fill leaks
+  const g2 = recorder();
+  V.roundRectPath(g2, 0.5, 0.5, 39, 39, 4);
+  ok(g2.log[0] === "newPath" && g2.log[g2.log.length - 1] === "closePath",
+     "the rounded rectangle is a closed path", g2.log.slice(0, 2).join(","));
+  ok(g2.log.filter(x => x === "lineTo").length >= 16,
+     "stepped round in enough segments to read as a curve",
+     g2.log.filter(x => x === "lineTo").length);
+
+  // every act() names an icon that exists, and none is unused
+  const used = [];
+  const re = /\bact\(\s*\w+\s*,\s*"([a-z]+)"/g;
+  let m;
+  while ((m = re.exec(raw)) !== null) { used.push(m[1]); }
+  ok(used.length === 19, "nineteen buttons carry an icon", used.length);
+  ok(used.filter(n => !V.ICON_ART[n]).length === 0, "each names one that is defined",
+     used.filter(n => !V.ICON_ART[n]).join(", "));
+  ok(names.filter(n => used.indexOf(n) < 0).length === 0, "and nothing defined goes unused",
+     names.filter(n => used.indexOf(n) < 0).join(", "));
+
+  ok(/b = g\.add\("button", undefined, label\)/.test(raw),
+     "a button with no icon defined still falls back to its text");
+}
+
+section("icons: four tabs, and hovering says what a picture does");
+{
+  const tabs = M.NODES.filter(n => n.type === "tab");
+  ok(tabs.length === 4, "four tabs", tabs.length);
+  ok(tabs.map(t => t.text).join(" / ") === "Points / Pivot / Follow / Layers",
+     "named for what they hold", tabs.map(t => t.text).join(" / "));
+  ok(M.NODES.filter(n => n.type === "tabbedpanel").length === 1, "in one tabbed panel");
+
+  // the first row: scope, then six icons, settings among them
+  const win = M.NODES.filter(n => n.type === "window")[0];
+  const head = win._kids[0];
+  ok(win._kids.length === 4, "header, preview, status, tabs", win._kids.length);
+  ok(head._kids[0].type === "dropdownlist", "scope first", head._kids[0].type);
+  const headIcons = head._kids.filter(c => c.type === "iconbutton");
+  ok(headIcons.length === 7, "then seven icons, no text buttons", headIcons.length);
+  ok(head._kids.filter(c => c.type === "button").length === 0, "none of them text");
+  const prefs = head._kids.filter(c => /Colours, sizes/.test(c.helpTip || ""));
+  ok(prefs.length === 1, "with the settings among them", prefs.length);
+  const del = head._kids.filter(c => /Remove the picked points/.test(c.helpTip || ""));
+  ok(del.length === 1 && head._kids[head._kids.length - 1] === del[0],
+     "and Delete last, away from the selection buttons");
+
+  // the selection trio is fenced off by a rule on each side
+  const rules = head._kids.filter(c => c.type === "panel");
+  ok(rules.length === 2, "two rules divide the row", rules.length);
+  const at = c => head._kids.indexOf(c);
+  const picks = ["Pick every point", "Let every picked point go", "Pick what is not picked"]
+    .map(t => head._kids.filter(c => (c.helpTip || "").indexOf(t) >= 0)[0]);
+  ok(picks.every(Boolean), "All, None and Invert are there");
+  ok(at(rules[0]) < at(picks[0]) && at(picks[2]) < at(rules[1]),
+     "with both rules outside them", picks.map(at).join(","));
+  ok(at(picks[0]) === at(rules[0]) + 1 && at(picks[2]) === at(rules[1]) - 1,
+     "and nothing else inside");
+
+  const headW = head._kids.reduce((n, c) => n + c.preferredSize[0], 0) +
+                4 * (head._kids.length - 1);
+  ok(headW <= 368, "and the row fits the panel", headW + " of 368");
+
+  const icons = M.NODES.filter(n => n.type === "iconbutton");
+  ok(icons.length === 19, "nineteen icon buttons were built", icons.length);
+  ok(icons.every(b => typeof b.onDraw === "function"),
+     "each draws itself, so it stays sharp on a retina display");
+  ok(icons.every(b => b.preferredSize[0] === V.ICON_PX && b.preferredSize[1] === V.ICON_PX),
+     "all at the one size", V.ICON_PX + "px");
+  // icon buttons, text buttons and dropdowns all stand the same height
+  const rowKinds = M.NODES.filter(n =>
+    (n.type === "iconbutton" || n.type === "button" || n.type === "dropdownlist") &&
+    n.preferredSize && n.preferredSize[1]);
+  const offHeight = rowKinds.filter(n => n.preferredSize[1] !== V.ICON_PX);
+  ok(offHeight.length === 0,
+     "and every button and dropdown on a row stands that tall too",
+     offHeight.map(n => (n.text || n.type) + ":" + n.preferredSize[1]).join(", "));
+  const noTip = icons.filter(b => !b.helpTip || b.helpTip.indexOf(" - ") < 0);
+  ok(noTip.length === 0, "every one has a tooltip that names it and explains it",
+     noTip.length + " without");
+
+  // hovering must put the name in the status line, since the button has no text
+  const before = V.state.status;
+  const fired = icons[0].fire("mouseover");
+  ok(fired === 1, "a hover is wired up", fired);
+  ok(V.state.status.indexOf(" - ") > 0 && V.state.status !== before,
+     "and names the action in the line above", V.state.status);
+  icons[0].fire("mouseout");
+  ok(V.state.status !== undefined && V.state.status.indexOf(" - ") < 0,
+     "leaving it puts the panel's own message back", V.state.status);
+}
+
+// =================================== the hover shade has to come back off
+// ScriptUI repaints a custom-drawn button when the pointer arrives and not
+// reliably when it leaves, so the lit shade stayed on the last button touched.
+section("icons: hover and press wash out again");
+{
+  const b = M.NODES.filter(n => n.type === "iconbutton")[0];
+  const realGraphics = b.graphics;
+
+  // what colour does the body get painted, in whatever state the button is in?
+  function bodyFill() {
+    const seen = [];
+    b.graphics = {
+      BrushType: { SOLID_COLOR: 0 }, PenType: { SOLID_COLOR: 0 },
+      newBrush: (t, c) => { seen.push(c.slice(0, 3).join(",")); return {}; },
+      newPen: () => ({}),
+      newPath() {}, moveTo() {}, lineTo() {}, closePath() {},
+      rectPath() {}, ellipsePath() {}, fillPath() {}, strokePath() {},
+      drawString() {}, foregroundColor: null
+    };
+    V.paintIconButton(b, V.ICON_ART.create, undefined);
+    b.graphics = realGraphics;
+    return seen[0];           // the body is filled before the icon is drawn
+  }
+
+  b.hot = false; b.down = false;
+  const resting = bodyFill();
+
+  const paintsBefore = b._repaints || 0;
+  b.fire("mouseover");
+  ok(b.hot === true, "the pointer arriving marks it hot");
+  ok((b._repaints || 0) > paintsBefore, "and asks for a repaint",
+     (b._repaints || 0) - paintsBefore);
+  const lit = bodyFill();
+  ok(lit !== resting, "which paints a lighter body", resting + " -> " + lit);
+
+  const paintsAfterOver = b._repaints || 0;
+  b.fire("mouseout");
+  ok(b.hot === false, "the pointer leaving clears it");
+  ok((b._repaints || 0) > paintsAfterOver, "and asks for another repaint");
+  ok(bodyFill() === resting, "so the shade washes back off", bodyFill());
+
+  b.fire("mousedown");
+  ok(b.down === true, "pressing marks it down");
+  const pressed = bodyFill();
+  ok(pressed !== resting && pressed !== lit, "which paints darker still",
+     pressed);
+  b.fire("mouseup");
+  ok(b.down === false, "releasing clears it");
+  ok(bodyFill() === resting, "and it comes back to rest");
+
+  // a press that wanders off the button must not leave it stuck held down
+  b.fire("mousedown");
+  b.fire("mouseout");
+  ok(b.down === false && b.hot === false,
+     "dragging off a pressed button leaves it at rest");
+  ok(bodyFill() === resting, "and painted that way");
+
+  ok(!/st\.mouseOver|st\.leftButtonPressed/.test(raw),
+     "the paint does not trust the draw state for either");
 }
 
 // =================================== one line of instructions, not three
@@ -685,6 +1224,10 @@ section("handles: a corner keeps its corner, whatever the group scale");
 // the panel now does by itself - all three visible at once, two usually wrong.
 section("the panel speaks in one line");
 {
+  ok(raw.indexOf("setCompact") < 0 && raw.indexOf("Compact") < 0,
+     "compact mode is gone, and so is the folding it needed");
+  ok(!/win\.add\("group"\)[\s\S]{0,200}small/.test(raw),
+     "no second set of buttons to keep in step with the first");
   const clean = stripLiterals(raw);
   ok(raw.indexOf("press Refresh") < 0,
      "the stale Refresh instruction is gone");
@@ -1024,6 +1567,8 @@ ok(comp._layers.length === beforeAgain, "pressing Handles again changes nothing"
    comp._layers.length + " vs " + beforeAgain);
 
 section("pivot: picking points that are not rigged yet still works");
+// with a control per point, which is now the second of the two ways
+V.P.pivotMode = "points";
 comp = newComp();
 const pL = addShapeLayer(comp, "Pv", "Group 1", star(5, 60), [0, 0], 0, [100, 100]);
 const pItems = V.scanPaths(comp, [pL]);
@@ -1071,6 +1616,8 @@ ok(comp._layers.filter(l => V.kindOf(l) === "pivot").length === 0,
 ok(emptyMsg.indexOf("Pick some points") >= 0, "and it says what to do", emptyMsg);
 
 // ================================================= generated expression JS
+V.P.pivotMode = "pivot";
+
 section("every generated expression is valid JavaScript");
 let bad = 0, checked = 0;
 for (const e of M.EXPRS) {

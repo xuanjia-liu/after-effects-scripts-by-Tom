@@ -279,6 +279,13 @@ class CompItem {
 
 const settings = {};
 const app = {
+  // After Effects' own polling timer, recorded rather than run
+  _tasks: [],
+  scheduleTask(src, ms, repeat) {
+    app._tasks.push({ src, ms, repeat, id: app._tasks.length + 1 });
+    return app._tasks.length;
+  },
+  cancelTask(id) { app._cancelled = (app._cancelled || []).concat([id]); },
   project: { activeItem: null },
   settings: {
     haveSetting: (s, k) => (s + "/" + k) in settings,
@@ -296,9 +303,12 @@ const gfx = () => ({
   ellipsePath() {}, moveTo() {}, lineTo() {}, closePath() {}, fillPath() {},
   strokePath() {}, drawString() {}, foregroundColor: null
 });
+const NODES = [];               // every widget the panel builds, for the tests
+
 function uiNode(type) {
   const n = {
-    type, _kids: [], _sel: null, items: [], text: "", value: 0, visible: true,
+    type, _kids: [], _sel: null, _on: {}, items: [], text: "", value: 0, visible: true,
+    enabled: true,
     size: { width: 320, height: 260 }, preferredSize: [0, 0], minimumSize: [0, 0],
     maximumSize: [0, 0], alignChildren: [], alignment: [], margins: 0, spacing: 0,
     orientation: "", characters: 0, helpTip: "", graphics: gfx(),
@@ -318,15 +328,61 @@ function uiNode(type) {
       n._kids.push(c);
       return c;
     },
-    addEventListener() {}, notify() {}, hide() {}, show() {}, center() {}, close() {}
+    // listeners are kept so a test can fire one, the way a pointer would
+    addEventListener(type, fn) { (this._on[type] = this._on[type] || []).push(fn); },
+    fire(type) {
+      const l = this._on[type] || [];
+      for (const fn of l) { fn.call(this, { type }); }
+      return l.length;
+    },
+    notify(type) { this._repaints = (this._repaints || 0) + 1; return type; },
+    hide() {}, show() {}, center() {}, close() {}
   };
+  NODES.push(n);
   return n;
 }
 function Window(kind, title) { const w = uiNode("window"); w.kind = kind; w.title = title; return w; }
 Window.prototype = {};
 function Panel() {}
-const ScriptUI = { newFont: () => ({}) };
+const ScriptUI = {
+  newFont: () => ({}),
+  // After Effects builds a ScriptUI image from a file on disk; the panel's
+  // icons are decoded into one first, so this hands back whatever it is given.
+  newImage: (a) => ({ path: a })
+};
 const $ = { colorPicker: () => -1, global: {} };
 
+// ---- File / Folder --------------------------------------------------------
+// Backed by the real filesystem in a scratch directory, so a BINARY write of
+// a decoded PNG can be read back and compared byte for byte.
+const fs = require("fs");
+const os = require("os");
+const nodePath = require("path");
+const TEMP = fs.mkdtempSync(nodePath.join(os.tmpdir(), "vxr-mock-"));
+const Folder = { temp: { fsName: TEMP } };
+
+function File(p) {
+  this.fsName = String(p);
+  this.encoding = "";
+  this._buf = null;
+}
+Object.defineProperty(File.prototype, "exists", {
+  get() { return fs.existsSync(this.fsName); }
+});
+Object.defineProperty(File.prototype, "length", {
+  get() { try { return fs.statSync(this.fsName).size; } catch (e) { return 0; } }
+});
+File.prototype.open = function () { this._buf = []; return true; };
+File.prototype.write = function (s) { this._buf.push(String(s)); return true; };
+File.prototype.close = function () {
+  // "BINARY" in ExtendScript means one character is one byte, which is what
+  // latin1 does here.
+  fs.writeFileSync(this.fsName, Buffer.from(this._buf.join(""), "latin1"));
+  this._buf = null;
+  return true;
+};
+File.prototype.read = function () { return fs.readFileSync(this.fsName, "latin1"); };
+
 module.exports = { app, CompItem, Shape, PropertyType, PropertyValueType,
-  KeyframeInterpolationType, MaskMode, Window, Panel, ScriptUI, $, EXPRS, Layer, Group, Prop };
+  KeyframeInterpolationType, MaskMode, Window, Panel, ScriptUI, $, EXPRS, Layer, Group,
+  Prop, File, Folder, TEMP, NODES };
