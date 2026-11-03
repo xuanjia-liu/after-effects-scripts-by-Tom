@@ -679,6 +679,53 @@ section("handles: a corner keeps its corner, whatever the group scale");
      "the expression subtracts it, so the tangent reads as zero");
 }
 
+// =================================== one line of instructions, not three
+// The panel used to carry a fixed hint under the preview, a status line at
+// the foot, and a note drawn across the canvas that still asked for a Refresh
+// the panel now does by itself - all three visible at once, two usually wrong.
+section("the panel speaks in one line");
+{
+  const clean = stripLiterals(raw);
+  ok(raw.indexOf("press Refresh") < 0,
+     "the stale Refresh instruction is gone");
+  ok(raw.indexOf("Click a point to pick it. Shift-click adds.") < 0,
+     "and so is the fixed hint under the preview");
+  ok(!/g\.drawString\(\s*"/.test(raw),
+     "nothing writes instructions across the canvas any more");
+  ok((clean.match(/win\.add\(\s*STR\s*,\s*undefined\s*,\s*STR\s*\)/g) || []).length <= 1,
+     "one message widget on the window, not two");
+
+  // and it says the thing that applies
+  const c = newComp();
+  V.UI.refresh();
+  ok(/Select a shape or masked layer/.test(V.state.status),
+     "an empty comp asks for a layer", V.state.status);
+
+  const L = addShapeLayer(c, "Star", "Group 1", star(5, 70), [0, 0], 0, [100, 100]);
+  L.selected = true;
+  V.UI.refresh();
+  ok(/1 path in view/.test(V.state.status) && /Click a point/.test(V.state.status),
+     "with something to pick, it says how", V.state.status);
+  ok(V.state.status.length < 80, "and it fits on one line",
+     V.state.status.length + " chars");
+
+  // picking replaces the how-to with what is picked
+  const items = V.scanPaths(c, [L]);
+  V.state.sel = {};
+  V.state.sel[items[0].key] = [0, 1];
+  V.UI.refresh();
+  ok(/2 points picked on 1 path/.test(V.state.status),
+     "and once points are picked, what is picked", V.state.status);
+  ok(!/Click a point/.test(V.state.status),
+     "without repeating the instructions", V.state.status);
+
+  M.app.project.activeItem = null;
+  V.UI.refresh();
+  ok(/Open a composition/.test(V.state.status),
+     "no comp, no mystery", V.state.status);
+  M.app.project.activeItem = c;
+}
+
 // ============================== a follower has to travel the artwork's path
 // A point read off a path is in the shape group's units, and the expression
 // handed it straight to toComp, which wants layer units. Inside a group scaled
@@ -884,7 +931,7 @@ section("a path and a primitive on one layer: both are reported");
      V.state.items.length);
   ok(V.state.prims.length === 2, "and both primitives are shown",
      V.state.prims.length);
-  ok(/1 path\(s\) in view/.test(V.state.status) &&
+  ok(/1 path in view/.test(V.state.status) &&
      /1 rectangle and 1 star/.test(V.state.status),
      "the status covers both", V.state.status);
 

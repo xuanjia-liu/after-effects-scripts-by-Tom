@@ -2549,10 +2549,17 @@
         cv.minimumSize = [260, 180];
         cv.preferredSize = [320, 260];
 
-        var hint = win.add("statictext", undefined,
-            "Click a point to pick it. Shift-click adds. Drag for a marquee.");
-        hint.graphics.foregroundColor = hint.graphics.newPen(
-            hint.graphics.PenType.SOLID_COLOR, [0.6, 0.6, 0.6, 1], 1);
+        // One line, right under the preview, and the only one. It used to
+        // take three labels to say less: a fixed hint here, a second line of
+        // status at the foot of the panel, and a note drawn across the canvas
+        // that still asked for a Refresh the panel now does by itself - all
+        // three on screen at once, two of them wrong as often as not.
+        var status = win.add("statictext", undefined,
+            "                                                                      ");
+        status.alignment = ["fill", "top"];
+        status.text = "Ready.";
+        status.graphics.foregroundColor = status.graphics.newPen(
+            status.graphics.PenType.SOLID_COLOR, [0.72, 0.72, 0.72, 1], 1);
 
         // ------------------------------------------------------- full rows
         var full = win.add("group");
@@ -2621,11 +2628,6 @@
         var sMerge = btn(sr2, "Merge", 54);
         var sDel = btn(sr2, "Delete", 58);
         var sBig = btn(sr2, "Preview", 62, "Bring the point picker back");
-
-        var status = win.add("statictext", undefined,
-            "                                                                      ");
-        status.alignment = ["fill", "bottom"];
-        status.text = "Ready.";
 
         function setStatus(s) {
             state.status = String(s);
@@ -2740,11 +2742,6 @@
                 g.strokePath(mp);
             }
 
-            if (!state.geom.length) {
-                var tp = g.newPen(g.PenType.SOLID_COLOR, [0.55, 0.55, 0.55, 1], 1);
-                g.drawString("Select a shape or masked layer, then press Refresh.", tp, 14, h / 2 - 8,
-                             ScriptUI.newFont("dialog", "REGULAR", 11));
-            }
         };
 
         // --------------------------------------------------- point picking
@@ -2828,7 +2825,8 @@
                 var c = tally[order[i]];
                 bits.push(c + " " + order[i] + (c === 1 ? "" : "s"));
             }
-            return bits.join(" and ") + " shown dimmed - press To Bezier to rig " +
+            // Kept short: it shares its line with whatever else is in view.
+            return bits.join(" and ") + " dimmed; press To Bezier to rig " +
                    (n === 1 ? "it" : "them") + ".";
         }
 
@@ -2843,22 +2841,34 @@
             return out;
         }
 
+        function countOf(n, word) {
+            return n + " " + word + (n === 1 ? "" : "s");
+        }
+
+        // Says the one thing that applies now: what is picked, or what is
+        // there to pick and how, or why there is nothing to pick. Only one
+        // line is on screen, so it never says two of those at once.
         function reportSel() {
+            if (!activeComp()) { setStatus("Open a composition to start."); return; }
             var n = countSel();
             var note = primNote();
-            var msg;
             if (n) {
-                msg = n + " point" + (n === 1 ? "" : "s") + " picked on " +
-                      currentPicks().length + " path(s).";
-            } else if (state.items.length) {
-                msg = state.items.length + " path(s) in view. Nothing picked.";
-            } else if (note) {
-                msg = "Nothing to pick here yet.";
-            } else {
-                msg = "0 path(s) in view. Nothing picked.";
+                setStatus(countOf(n, "point") + " picked on " +
+                          countOf(currentPicks().length, "path") + "." +
+                          (note ? " " + note : ""));
+                return;
             }
-            if (note) { msg += " " + note; }
-            setStatus(msg);
+            if (state.items.length) {
+                // Room for one thing after the count, and what is dimmed is
+                // the news; how to pick can wait while the points sit there
+                // waiting to be clicked.
+                setStatus(countOf(state.items.length, "path") + " in view. " +
+                          (note ? note
+                                : "Click a point, shift-click to add, drag to marquee."));
+                return;
+            }
+            setStatus(note ? ("Nothing to pick yet. " + note)
+                           : "Select a shape or masked layer in the timeline.");
         }
 
         // -------------------------------------------------------- refresh
@@ -3007,7 +3017,6 @@
         function setCompact(on) {
             head.visible = !on;
             cv.visible = !on;
-            hint.visible = !on;
             full.visible = !on;
             small.visible = on;
             try {
