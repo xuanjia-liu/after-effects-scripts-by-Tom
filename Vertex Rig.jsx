@@ -2121,6 +2121,13 @@
     function actFollower(picks, selLayers) {
         return run("Create follower", function (comp) {
             if (!picks.length) { return "Pick a point on the path you want to follow."; }
+            // A rider runs along a real path, and a rectangle, ellipse or star
+            // has none - it is a handful of numbers with no points of its own
+            // to read. Picking one to follow asks for it to become a path, the
+            // same way picking one to rig does.
+            var turned = resolvePrimitives(comp, picks);
+            picks = turned.picks;
+            if (!picks.length) { return "Pick a point on the path you want to follow."; }
             var item = picks[0].item;
             var targets = [];
             for (var i = 0; i < selLayers.length; i++) {
@@ -2140,8 +2147,14 @@
                 targets.push(own);
             }
             for (i = 0; i < targets.length; i++) { setupFollower(comp, item, targets[i]); }
-            return "Attached " + targets.length + " follower" + (targets.length === 1 ? "" : "s") +
-                   " to " + item.label + ". Drag " + FX_OFFSET + " to slide it along.";
+            var msg = "Attached " + targets.length + " follower" +
+                      (targets.length === 1 ? "" : "s") + " to " + item.label +
+                      ". Drag " + FX_OFFSET + " to slide it along.";
+            if (turned.made) {
+                msg += " Turned " + turned.made + " shape" +
+                       (turned.made === 1 ? "" : "s") + " into a bezier path on the way.";
+            }
+            return msg;
         });
     }
 

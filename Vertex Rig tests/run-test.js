@@ -907,6 +907,46 @@ section("handles: a selected control counts as a pick");
      c3._layers.filter(l => V.kindOf(l) === "handle").length);
 }
 
+// ====================== a rider can follow a shape that is not a path yet
+// A rectangle has no path for a rider to run along, and the follower item
+// carries no ref either, so the expression came out pointing at nothing.
+// Picking one to follow is the same request as picking one to rig.
+section("follow: a primitive becomes a path first");
+{
+  const c = newComp();
+  const L = addPrimLayer(c, "Box", "Rectangle 1", "ADBE Vector Shape - Rect",
+    p => { p.property("ADBE Vector Rect Size").setValue([200, 100]); }, [0, 0]);
+  const rider = addShapeLayer(c, "Rider", "Group 1", star(4, 8), [0, 0], 0, [100, 100]);
+  L.selected = true;
+  V.UI.refresh();
+
+  const prim = V.state.items.filter(i => i.prim)[0];
+  ok(!!prim, "the rectangle is pickable");
+  ok(prim.ref === undefined,
+     "and carries no path reference, which is what broke the rider");
+
+  let said = "";
+  const prev = V.UI.say;
+  V.UI.say = m => { said = String(m); };
+  V.actFollower([{ item: prim, idx: [0] }], [rider]);
+  V.UI.say = prev;
+
+  const paths = V.scanPaths(c, [L]);
+  ok(paths.length === 1, "it became a path", paths.length);
+  ok(V.scanPrimitives(c, [L]).length === 0, "nothing parametric left");
+  ok(/Turned 1 shape into a bezier path/.test(said), "and it says so", said);
+
+  // the rider is driven by that path, not by nothing
+  const expr = String(rider.transform.position.expression || "");
+  ok(rider.transform.position.expressionEnabled, "the rider is driven");
+  ok(expr.indexOf("undefined") < 0, "with no undefined reference in it",
+     expr.split("\n").filter(l => /_p = /.test(l))[0]);
+  ok(/pointOnPath/.test(expr), "it rides the path");
+  ok(expr.indexOf(paths[0].ref) > 0, "naming the path that came out",
+     paths[0].ref);
+  ok(!!V.findEffect(rider, "VXR Path"), "and carries the link to its layer");
+}
+
 // ============================ Refresh is gone; the repair lives in Preferences
 // Everything Refresh re-read is already automatic - the selection watcher,
 // panel activation, every action and a scope change all call refresh. The one
