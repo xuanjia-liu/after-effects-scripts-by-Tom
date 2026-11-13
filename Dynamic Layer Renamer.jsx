@@ -1,8 +1,8 @@
-﻿#target "aftereffects";
+#target aftereffects
 
 (function() {
   var scriptName = "Dynamic Universal Renamer";
-  var scriptVersion = "3.2";
+  var scriptVersion = "3.3";
   var scriptAuthor = "Jiaxuan Liu - Enhanced Version";
   
   // No settings system needed
@@ -158,16 +158,22 @@
   matchOptionsGroup.orientation = "row";
   matchOptionsGroup.alignChildren = ["left", "center"];
   matchOptionsGroup.spacing = 4;
-  matchOptionsGroup.preferredSize.width = 120;
+  matchOptionsGroup.preferredSize.width = 170;
   matchOptionsGroup.preferredSize.height = 24;
   matchOptionsGroup.alignment = ["right", "center"];
-  
-  var matchCaseCheck = matchOptionsGroup.add("checkbox", undefined, "Match Case");
-  matchCaseCheck.value = true; // default behavior was case-sensitiv
-  var wholeWordCheck = matchOptionsGroup.add("checkbox", undefined, "Whole Word");
+
+  var matchCaseCheck = matchOptionsGroup.add("checkbox", undefined, "Case");
+  matchCaseCheck.value = true; // default behavior was case-sensitive
+  matchCaseCheck.helpTip = "Match Case";
+  var wholeWordCheck = matchOptionsGroup.add("checkbox", undefined, "Word");
   wholeWordCheck.value = false;
+  wholeWordCheck.helpTip = "Whole Word only";
+  var regexCheck = matchOptionsGroup.add("checkbox", undefined, "Regex");
+  regexCheck.value = false;
+  regexCheck.helpTip = "Off: Match is plain text. On: Match is a regular expression.";
   matchCaseCheck.onClick = function() { updatePreview(); };
   wholeWordCheck.onClick = function() { updatePreview(); };
+  regexCheck.onClick = function() { updatePreview(); };
   
   // Template options
   var templateOptions = {
@@ -291,11 +297,11 @@
   currentNameBtn.preferredSize.width = 88;
   currentNameBtn.preferredSize.height = 22;
   
-  var numberAscBtn = numberGroup.add("button", undefined, "Num↑");
+  var numberAscBtn = numberGroup.add("button", undefined, "Num\u2191");
   numberAscBtn.preferredSize.width = 50;
   numberAscBtn.preferredSize.height = 22;
   
-  var numberDescBtn = numberGroup.add("button", undefined, "Num↓");
+  var numberDescBtn = numberGroup.add("button", undefined, "Num\u2193");
   numberDescBtn.preferredSize.width = 50;
   numberDescBtn.preferredSize.height = 22;
   
@@ -458,14 +464,14 @@
                 effectsSelected = true;
                 break;
               }
-            } catch (e) {}
+            } catch (e) { dbg("silent", e); }
             
             try {
               if (effect.modified) {
                 effectsSelected = true;
                 break;
               }
-            } catch (e) {}
+            } catch (e) { dbg("silent", e); }
           }
           
           if (effectsSelected) return true;
@@ -497,14 +503,6 @@
     } else if (activePanel === "effects" && currentTarget !== "Effects") {
       for (var i = 0; i < targetDropdown.items.length; i++) {
         if (targetDropdown.items[i].text === "Effects") {
-          targetIndex = i;
-          shouldUpdate = true;
-          break;
-        }
-      }
-    } else if (activePanel === "expressions" && currentTarget !== "Expressions") {
-      for (var i = 0; i < targetDropdown.items.length; i++) {
-        if (targetDropdown.items[i].text === "Expressions") {
           targetIndex = i;
           shouldUpdate = true;
           break;
@@ -546,6 +544,8 @@
   }
   
   // Tracking variables
+  var panelOpen = true;
+  var pollTaskId = null;
   var lastCheckTime = 0;
   var checkInterval = 250; // ms
   var lastSelectionState = "";
@@ -604,6 +604,19 @@
         
         if (currentState !== lastSelectionState) {
           lastSelectionState = currentState;
+          
+          // The layer count in the title bar. checkSelection() used to do this
+          // but nothing ever called it, so the title never changed.
+          try {
+            if (app.project && app.project.activeItem instanceof CompItem) {
+              win.text = scriptName + " v" + scriptVersion +
+                         " (" + app.project.activeItem.selectedLayers.length + " layers)";
+            } else {
+              win.text = scriptName + " v" + scriptVersion;
+            }
+          } catch (e) {
+            dbg("window title", e);
+          }
           
           if (autoDetectCheck.value) {
             updateTargetBasedOnContext();
@@ -689,10 +702,15 @@
         }
       }
     } catch (e) {
-      // Silently ignore errors during change detection
+      dbg("checkForSelectionChanges", e);
     }
     
-    app.scheduleTask(checkForSelectionChanges, 200, false);
+    // Keep polling only while the palette is open. Without this the chain runs
+    // for the rest of the After Effects session, once per time the script is
+    // launched, updating a window that no longer exists.
+    if (panelOpen) {
+      pollTaskId = app.scheduleTask(checkForSelectionChanges, 200, false);
+    }
   }
   
   function checkForSelectedExpressions() {
@@ -812,20 +830,76 @@
     }
   }
 
+  // --- Shared helpers -------------------------------------------------------
+
+  var DEBUG = false;
+  function dbg(where, e) {
+    if (!DEBUG) return;
+    try { $.writeln("[" + scriptName + "] " + where + ": " + e); } catch (ignored) {}
+  }
+
+  // Start number from the UI. parseInt without a radix reads "010" as octal (8).
+  // 0 is a legitimate start number, so only a non-number falls back to 1.
+  function startNum() {
+    var n = parseInt(startNumber.text, 10);
+    return isNaN(n) ? 1 : n;
+  }
+
+  function escapeRegex(s) {
+    return String(s).replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+  }
+
+  // "$" in a replacement string is a backreference as far as String.replace is
+  // concerned, so "Cost $5" would come out as "Cost ". Double it to keep it.
+  function escRepl(s) {
+    return String(s).replace(/\$/g, "$$$$");
+  }
+
+  // Replace every literal occurrence of token with value, in a single pass.
+  // A while/indexOf loop hangs After Effects when value itself contains token.
+  function replaceToken(text, token, value) {
+    if (String(text).indexOf(token) === -1) return String(text);
+    return String(text).replace(new RegExp(escapeRegex(token), "g"), escRepl(value));
+  }
+
+  // Replacement text handed to String.replace. With Regex off a "$" is literal;
+  // with Regex on, $1 and friends stay live, which is the point of the mode.
+  function replText(s) {
+    var useRegex = (typeof regexCheck !== "undefined") && regexCheck.value === true;
+    return useRegex ? String(s) : escRepl(s);
+  }
+
+  // The one place a Match pattern becomes a RegExp, so Case / Word / Regex
+  // apply to every target. Returns null only for an empty pattern; a pattern
+  // that cannot compile as a regex is treated as plain text rather than
+  // silently doing something else.
   function buildRegexFromUI(pattern) {
-    try {
-      if (!pattern || pattern === "") return null;
-      var src = pattern;
-      // Wrap with word boundaries if Whole Word
-      if (wholeWordCheck && wholeWordCheck.value) {
-        // Avoid double boundary if user already provided \b
-        if (src.indexOf("\\b") === -1) {
-          src = "\\b" + src + "\\b";
-        }
+    if (!pattern || pattern === "") return null;
+
+    var useRegex = (typeof regexCheck !== "undefined") && regexCheck.value === true;
+    var flags = (matchCaseCheck && matchCaseCheck.value) ? "g" : "gi";
+    var src = useRegex ? pattern : escapeRegex(pattern);
+
+    if (wholeWordCheck && wholeWordCheck.value) {
+      // Avoid a double boundary if the user already wrote one
+      if (src.indexOf("\\b") === -1) {
+        src = "\\b" + src + "\\b";
       }
-      var flags = matchCaseCheck && matchCaseCheck.value ? "g" : "gi";
+    }
+
+    try {
       return new RegExp(src, flags);
     } catch (e) {
+      dbg("buildRegexFromUI", e);
+    }
+
+    // Invalid regex: fall back to matching it literally
+    try {
+      var literal = escapeRegex(pattern);
+      if (wholeWordCheck && wholeWordCheck.value) literal = "\\b" + literal + "\\b";
+      return new RegExp(literal, flags);
+    } catch (e2) {
+      dbg("buildRegexFromUI literal", e2);
       return null;
     }
   }
@@ -844,7 +918,7 @@
               if (prop.selected) {
                 result.push(prop);
               }
-            } catch (e) {}
+            } catch (e) { dbg("silent", e); }
           }
         }
         else if (prop.propertyType === PropertyType.INDEXED_GROUP || 
@@ -855,910 +929,429 @@
         }
       } catch (e) {
         // Skip properties that cause errors
+        dbg("Skip properties that cause errors", e);
       }
     }
     
     try {
       checkProperty(layer);
-    } catch (e) {}
+    } catch (e) { dbg("silent", e); }
     return result;
   }
   
+  // Read-only test. After Effects allows setting .name only on a property whose
+  // parent is an indexed group - shape group children, masks, effects, pins.
+  // The previous version probed by assigning prop.name = prop.name, which wrote
+  // to the project from inside the preview on every keystroke.
   function canRenameProperty(prop) {
     try {
       if (!prop || prop.name === undefined) return false;
-      var original = prop.name;
-      prop.name = original; // no-op set; will throw if disallowed
-      return true;
+      var parent = prop.parentProperty;
+      if (!parent) return false;
+      return parent.propertyType === PropertyType.INDEXED_GROUP;
     } catch (e) {
+      dbg("canRenameProperty", e);
       return false;
     }
   }
   
+  // --- Shared collectors ----------------------------------------------------
+  // Preview and apply call these, so the panel cannot disagree with the result.
+  
+  function collectEffects(selectedLayers) {
+    var result = [];
+    
+    for (var i = 0; i < selectedLayers.length; i++) {
+      var layer = selectedLayers[i];
+      var group = layer.property("Effects");
+      if (!group || group.numProperties === 0) continue;
+      
+      for (var e = 1; e <= group.numProperties; e++) {
+        var effect = group.property(e);
+        var picked = false;
+        
+        try {
+          if (effect.selected) picked = true;
+        } catch (err) { dbg("effect.selected", err); }
+        
+        if (!picked) {
+          try {
+            for (var pi = 1; pi <= effect.numProperties; pi++) {
+              if (effect.property(pi).selected) { picked = true; break; }
+            }
+          } catch (err2) { dbg("effect child selected", err2); }
+        }
+        
+        if (picked) result.push(effect);
+      }
+    }
+    
+    // Nothing explicitly selected: fall back to every effect on the first layer,
+    // which is what the Effect Controls panel is showing.
+    if (result.length === 0 && selectedLayers.length > 0) {
+      var first = selectedLayers[0].property("Effects");
+      if (first && first.numProperties > 0) {
+        for (var f = 1; f <= first.numProperties; f++) {
+          result.push(first.property(f));
+        }
+      }
+    }
+    
+    return result;
+  }
+  
+  function collectSelectedProps(selectedLayers) {
+    var result = [];
+    
+    function checkProperty(prop) {
+      if (!prop) return;
+      
+      try {
+        if (prop.selected && prop.name !== undefined) result.push(prop);
+      } catch (e) {
+        dbg("prop.selected", e);
+      }
+      
+      if (prop.propertyType === PropertyType.INDEXED_GROUP ||
+          prop.propertyType === PropertyType.NAMED_GROUP) {
+        for (var i = 1; i <= prop.numProperties; i++) {
+          checkProperty(prop.property(i));
+        }
+      }
+    }
+    
+    for (var i = 0; i < selectedLayers.length; i++) {
+      checkProperty(selectedLayers[i]);
+    }
+    
+    return result;
+  }
+  
+  function collectTextLayers(selectedLayers) {
+    var result = [];
+    for (var i = 0; i < selectedLayers.length; i++) {
+      if (selectedLayers[i] instanceof TextLayer) result.push(selectedLayers[i]);
+    }
+    return result;
+  }
+  
+  function collectLayerMarkers(selectedLayers) {
+    var result = [];
+    for (var i = 0; i < selectedLayers.length; i++) {
+      var layer = selectedLayers[i];
+      if (!layer.marker || layer.marker.numKeys === 0) continue;
+      for (var j = 1; j <= layer.marker.numKeys; j++) {
+        result.push({ prop: layer.marker, key: j });
+      }
+    }
+    return result;
+  }
+  
+  function collectExpressionProps(selectedLayers) {
+    var result = [];
+    for (var i = 0; i < selectedLayers.length; i++) {
+      var props = [];
+      try {
+        props = collectSelectedPropertiesWithExpressions(selectedLayers[i]) || [];
+      } catch (e) {
+        dbg("collectExpressionProps", e);
+      }
+      result = result.concat(props);
+    }
+    return result;
+  }
+  
+  var PREVIEW_ROWS = 10;
+  var previewPool = null;
+  
+  // The rows are built once and reused. Adding and removing StaticText on every
+  // keystroke made ScriptUI churn and the panel feel heavy.
+  function ensurePreviewPool() {
+    if (previewPool) return previewPool;
+    previewPool = [];
+    for (var i = 0; i <= PREVIEW_ROWS; i++) {
+      // Single-line on purpose: a multiline statictext needs an explicit size in
+      // ScriptUI or it collapses, and every message here is one short line.
+      var row = previewPanel.add("statictext", undefined, "");
+      row.graphics.font = ScriptUI.newFont(row.graphics.font.name, row.graphics.font.style, 10);
+      row.visible = false;
+      previewPool.push(row);
+    }
+    previewItems = previewPool;
+    return previewPool;
+  }
+  
+  function showPreviewLines(lines, more) {
+    var pool = ensurePreviewPool();
+    var width = 148; // conservative text width inside the 160px panel
+    var n = Math.min(lines.length, PREVIEW_ROWS);
+    var i;
+    
+    for (i = 0; i < n; i++) {
+      pool[i].text = truncatePreviewText(String(lines[i]), previewPanel.graphics, width);
+      pool[i].visible = true;
+    }
+    
+    if (more) {
+      pool[n].text = "...";
+      pool[n].visible = true;
+      n++;
+    }
+    
+    for (i = n; i < pool.length; i++) {
+      pool[i].text = "";
+      pool[i].visible = false;
+    }
+    
+    previewPanel.layout.layout(true);
+  }
+  
+  function showPreviewMessage(message) {
+    showPreviewLines([message], false);
+  }
+  
+  // Names for the first PREVIEW_ROWS entries of a set, using the same buildName
+  // the apply pass uses. extrasFor is optional and receives the entry.
+  function previewNames(entries, nameOf, find, template, showCurrent, extrasFor) {
+    var lines = [];
+    var limit = Math.min(entries.length, PREVIEW_ROWS);
+    
+    for (var i = 0; i < limit; i++) {
+      var entry = entries[i];
+      var oldName = "";
+      try { oldName = String(nameOf(entry)); } catch (e) { dbg("previewNames", e); }
+      
+      if (showCurrent) {
+        lines.push(oldName);
+      } else {
+        var extras = extrasFor ? extrasFor(entry) : null;
+        lines.push(buildName(find, template, oldName, i, entries.length, extras));
+      }
+    }
+    
+    return lines;
+  }
+  
   function updatePreview() {
     try {
-      // Clear existing preview items
-      for (var i = previewItems.length - 1; i >= 0; i--) {
-        previewPanel.remove(previewItems[i]);
-      }
-      previewItems = [];
-      
       var selectedTarget = targetDropdown.selection ? targetDropdown.selection.text : "Layers";
       var pattern = findText.text === "Match (optional)" ? "" : findText.text;
       var template = renameText.text === "Rename to" ? "" : renameText.text;
-      var activePanel = detectActivePanel();
+      var showCurrent = (pattern.length === 0 && template.length === 0);
       
-      // Show selection count header
-      var selectionCount = 0;
-      if (app.project.activeItem instanceof CompItem && app.project.activeItem.selectedLayers.length > 0) {
-        selectionCount = app.project.activeItem.selectedLayers.length;
-      } else if (app.project && app.project.selection && app.project.selection.length > 0) {
-        selectionCount = app.project.selection.length;
-      }
+      var comp = (app.project && app.project.activeItem instanceof CompItem) ? app.project.activeItem : null;
+      var layers = comp ? comp.selectedLayers : [];
+      var projectSel = (app.project && app.project.selection) ? app.project.selection : [];
+      
+      var selectionCount = layers.length > 0 ? layers.length : projectSel.length;
       previewPanel.text = "Preview (" + selectionCount + ")";
       
-      // If no pattern or template, show current names
-      var showCurrentNames = (pattern.length === 0 && template.length === 0);
-      var availableWidth = 148; // Conservative width for preview text inside the 160px panel
-      
-      // Handle layer selections
-      if (app.project.activeItem instanceof CompItem && 
-          app.project.activeItem.selectedLayers.length > 0 &&
-          (selectedTarget === "Layers" || selectedTarget === "All (Recursive)")) {
-        
-        var selectedLayers = app.project.activeItem.selectedLayers;
-        var previewNames = [];
-        
-        // Determine which layers to show in preview
-        var layersToPreview = [];
-        if (selectedLayers.length <= 10) {
-          // Show all if 10 or fewer
-          for (var i = 0; i < selectedLayers.length; i++) {
-            layersToPreview.push({layer: selectedLayers[i], index: i});
-          }
-        } else {
-          // Show first 10
-          for (var i = 0; i < 10; i++) {
-            layersToPreview.push({layer: selectedLayers[i], index: i});
-          }
-        }
-        
-        for (var i = 0; i < layersToPreview.length; i++) {
-          var layerData = layersToPreview[i];
-          var layer = layerData.layer;
-          var index = layerData.index;
+      // --- Layers -----------------------------------------------------------
+      if (layers.length > 0 && (selectedTarget === "Layers" || selectedTarget === "All (Recursive)")) {
+        var lines = [];
+        var limit = Math.min(layers.length, PREVIEW_ROWS);
+        for (var i = 0; i < limit; i++) {
+          var layer = layers[i];
           var oldName = layer.name;
-          var previewName = "";
           
-          // If no pattern or template, just show current name
-          if (showCurrentNames) {
-            previewName = oldName;
-          }
-          // Check if template contains codes
-          else if (/\[([#A-Za-z0-9↑↓]+)\]/g.test(template)) {
-            previewName = processNameTemplate(template, oldName, index, selectedLayers.length);
+          if (showCurrent) {
+            lines.push(oldName);
           } else {
-            // Simple find and replace
-            if (pattern && pattern.length > 0) {
-              try {
-                var regex = buildRegexFromUI(pattern) || new RegExp(pattern, 'g');
-                if (template === "") {
-                  previewName = oldName.replace(regex, "");
-                } else {
-                  previewName = oldName.replace(regex, template);
-                }
-              } catch (e) {
-                if (template === "") {
-                  previewName = oldName.split(pattern).join("");
-                } else {
-                  previewName = oldName.split(pattern).join(template);
-                }
-              }
-            } else {
-              previewName = template;
-            }
+            lines.push(layerName(pattern, template, oldName, i, layers.length, layer));
           }
-          
-          previewNames.push(previewName);
         }
         
-        for (var i = 0; i < previewNames.length; i++) {
-          var truncatedName = truncatePreviewText(previewNames[i], previewPanel.graphics, availableWidth);
-          var itemText = previewPanel.add("statictext", undefined, truncatedName);
-          itemText.graphics.font = ScriptUI.newFont(itemText.graphics.font.name, itemText.graphics.font.style, 10);
-          previewItems.push(itemText);
-        }
-        if (selectedLayers.length > 10) {
-          var ellipsisText = previewPanel.add("statictext", undefined, "...");
-          ellipsisText.graphics.font = ScriptUI.newFont(ellipsisText.graphics.font.name, ellipsisText.graphics.font.style, 10);
-          previewItems.push(ellipsisText);
-        }
-        previewPanel.layout.layout(true);
+        showPreviewLines(lines, layers.length > PREVIEW_ROWS);
         return;
       }
       
-      // Handle project panel selections
-      if (app.project && app.project.selection && app.project.selection.length > 0 &&
-          (selectedTarget === "Project Items" || activePanel === "project")) {
+      // --- Project items ----------------------------------------------------
+      if (projectSel.length > 0 && selectedTarget === "Project Items") {
+        var items = [];
+        for (var pi = 0; pi < projectSel.length; pi++) items.push(projectSel[pi]);
         
-        var selectedItems = app.project.selection;
-        var previewNames = [];
-        
-        // Determine which items to show in preview
-        var itemsToPreview = [];
-        if (selectedItems.length <= 10) {
-          // Show all if 10 or fewer
-          for (var i = 0; i < selectedItems.length; i++) {
-            itemsToPreview.push({item: selectedItems[i], index: i});
-          }
-        } else {
-          // Show first 10
-          for (var i = 0; i < 10; i++) {
-            itemsToPreview.push({item: selectedItems[i], index: i});
-          }
+        showPreviewLines(
+          previewNames(items, function(it) { return it.name; }, pattern, template, showCurrent, itemExtras),
+          items.length > PREVIEW_ROWS);
+        return;
+      }
+      
+      // --- Effects ----------------------------------------------------------
+      if (selectedTarget === "Effects") {
+        var effects = comp ? collectEffects(layers) : [];
+        if (effects.length === 0) {
+          showPreviewMessage("No effects found to preview");
+          return;
+        }
+        showPreviewLines(
+          previewNames(effects, function(fx) { return fx.name; }, pattern, template, showCurrent, effectExtras),
+          effects.length > PREVIEW_ROWS);
+        return;
+      }
+      
+      // --- Text content -----------------------------------------------------
+      if (selectedTarget === "Text Content") {
+        var textLayers = comp ? collectTextLayers(layers) : [];
+        if (textLayers.length === 0) {
+          showPreviewMessage("No text layers selected");
+          return;
+        }
+        showPreviewLines(
+          previewNames(textLayers,
+            function(l) { return l.property("Source Text").value.text; },
+            pattern, template, showCurrent,
+            function(l) {
+              var ex = {};
+              try {
+                var td = l.property("Source Text").value;
+                ex["[Font]"] = td.font;
+                ex["[Size]"] = td.fontSize + "px";
+              } catch (e) { dbg("text extras", e); }
+              return ex;
+            }),
+          textLayers.length > PREVIEW_ROWS);
+        return;
+      }
+      
+      // --- Markers ----------------------------------------------------------
+      if (selectedTarget === "Markers") {
+        var markers = comp ? collectLayerMarkers(layers) : [];
+        if (markers.length === 0) {
+          showPreviewMessage("No layer markers to preview");
+          return;
+        }
+        showPreviewLines(
+          previewNames(markers,
+            function(m) { return m.prop.keyValue(m.key).comment; },
+            pattern, template, showCurrent,
+            function(m) { return markerExtras(m.prop, m.key, comp); }),
+          markers.length > PREVIEW_ROWS);
+        return;
+      }
+      
+      // --- Expressions ------------------------------------------------------
+      if (selectedTarget === "Expressions") {
+        var exprProps = comp ? collectExpressionProps(layers) : [];
+        if (exprProps.length === 0) {
+          showPreviewMessage("No selected properties with expressions");
+          return;
+        }
+        var exprLines = previewNames(exprProps,
+          function(pr) { return pr.expression; }, pattern, template, showCurrent);
+        for (var el = 0; el < exprLines.length; el++) {
+          exprLines[el] = String(exprLines[el]).replace(/\r?\n|\r/g, " ");
+        }
+        showPreviewLines(exprLines, exprProps.length > PREVIEW_ROWS);
+        return;
+      }
+      
+      // --- Selected properties ----------------------------------------------
+      if (selectedTarget === "Selected Properties") {
+        var props = comp ? collectSelectedProps(layers) : [];
+        if (props.length === 0) {
+          showPreviewMessage("No properties selected");
+          return;
+        }
+        showPreviewLines(
+          previewNames(props, function(pr) { return pr.name; }, pattern, template, showCurrent, propExtras),
+          props.length > PREVIEW_ROWS);
+        return;
+      }
+      
+      // --- Shape properties -------------------------------------------------
+      if (selectedTarget === "Shape Properties") {
+        var shapeLayers = comp ? shapeLayersFrom(layers) : [];
+        if (shapeLayers.length === 0) {
+          showPreviewMessage("No shape layers selected");
+          return;
         }
         
-        for (var i = 0; i < itemsToPreview.length; i++) {
-          var itemData = itemsToPreview[i];
-          var item = itemData.item;
-          var index = itemData.index;
-          var oldName = item.name;
-          var previewName = "";
+        var useGlobal = (typeof globalShapeNumberingCheck !== "undefined") &&
+                        globalShapeNumberingCheck.value === true;
+        var entries = numberShapeProps(collectShapeProps(shapeLayers, pattern), useGlobal);
+        var findProvided = pattern && pattern.length > 0;
+        var shapeLines = [];
+        
+        for (var si = 0; si < entries.length && shapeLines.length < PREVIEW_ROWS; si++) {
+          var entry = entries[si];
+          var shapeOld = entry.prop.name;
           
-          // If no pattern or template, just show current name
-          if (showCurrentNames) {
-            previewName = oldName;
-          }
-          // Process template codes for project items
-          else if (/\[([#A-Za-z0-9↑↓]+)\]/g.test(template)) {
-            previewName = replacePaddedNumberTokens(template, index, selectedItems.length, parseInt(startNumber.text) || 1);
-            
-            // [N] - Current name
-            if (previewName.indexOf("[N]") !== -1) {
-              previewName = previewName.replace(/\[N\]/g, oldName);
-            }
-            
-            // [#↑] - Ascending number
-            if (previewName.indexOf("[#↑]") !== -1) {
-              var startVal = parseInt(startNumber.text) || 1;
-              var formattedNumber = formatNumber(startVal + index);
-              previewName = previewName.replace(/\[#↑\]/g, formattedNumber);
-            }
-            
-            // [#↓] - Descending number
-            if (previewName.indexOf("[#↓]") !== -1) {
-              var startVal = parseInt(startNumber.text) || 1;
-              var formattedNumber = formatNumber(startVal + (selectedItems.length - index - 1));
-              previewName = previewName.replace(/\[#↓\]/g, formattedNumber);
-            }
-            
-            // Comp-specific templates
-            if (item instanceof CompItem) {
-              if (previewName.indexOf("[Res]") !== -1) {
-                var resolution = item.width + "x" + item.height;
-                previewName = previewName.replace(/\[Res\]/g, resolution);
-              }
-              
-              if (previewName.indexOf("[LenS]") !== -1) {
-                var lengthSec = item.duration.toFixed(2) + "s";
-                previewName = previewName.replace(/\[LenS\]/g, lengthSec);
-              }
-              
-              if (previewName.indexOf("[LenF]") !== -1) {
-                var lengthFrames = Math.round(item.duration * item.frameRate) + "f";
-                previewName = previewName.replace(/\[LenF\]/g, lengthFrames);
-              }
-              
-              if (previewName.indexOf("[AR]") !== -1) {
-                var aspectRatio = calculateAspectRatio(item.width, item.height);
-                previewName = previewName.replace(/\[AR\]/g, aspectRatio);
-              }
-              
-              if (previewName.indexOf("[FR]") !== -1) {
-                var frameRate = item.frameRate.toFixed(2) + " fps";
-                previewName = previewName.replace(/\[FR\]/g, frameRate);
-              }
-            }
-            
-            // [Date] - Current Date
-            if (previewName.indexOf("[Date]") !== -1) {
-              var currentDate = formatDate(new Date());
-              previewName = previewName.replace(/\[Date\]/g, currentDate);
-            }
+          if (showCurrent) {
+            shapeLines.push(shapeOld);
+          } else if (findProvided && !entry.matched) {
+            continue; // skipped by the apply pass too
           } else {
-            // Simple find and replace
-            if (pattern && pattern.length > 0) {
-            try {
-              var regex = buildRegexFromUI(pattern) || new RegExp(pattern, 'g');
-                if (template === "") {
-                  previewName = oldName.replace(regex, "");
-                } else {
-                  previewName = oldName.replace(regex, template);
-                }
-              } catch (e) {
-                if (template === "") {
-                  previewName = oldName.split(pattern).join("");
-                } else {
-                  previewName = oldName.split(pattern).join(template);
-                }
-              }
-            } else {
-              previewName = replacePaddedNumberTokens(template, index, selectedItems.length, parseInt(startNumber.text) || 1);
-            }
+            shapeLines.push(buildName(pattern, template, shapeOld, entry.index, entry.total));
           }
-          
-          previewNames.push(previewName);
         }
         
-        for (var i = 0; i < previewNames.length; i++) {
-          var truncatedName = truncatePreviewText(previewNames[i], previewPanel.graphics, availableWidth);
-          var itemText = previewPanel.add("statictext", undefined, truncatedName);
-          itemText.graphics.font = ScriptUI.newFont(itemText.graphics.font.name, itemText.graphics.font.style, 10);
-          previewItems.push(itemText);
+        if (shapeLines.length === 0) {
+          showPreviewMessage("No renameable shape properties");
+          return;
         }
-        if (selectedItems.length > 10) {
-          var ellipsisText = previewPanel.add("statictext", undefined, "...");
-          ellipsisText.graphics.font = ScriptUI.newFont(ellipsisText.graphics.font.name, ellipsisText.graphics.font.style, 10);
-          previewItems.push(ellipsisText);
-        }
-        previewPanel.layout.layout(true);
+        showPreviewLines(shapeLines, entries.length > shapeLines.length);
         return;
       }
       
-      // Handle effects selections
-      if (selectedTarget === "Effects" || activePanel === "effects") {
-        if (app.project.activeItem instanceof CompItem && 
-            app.project.activeItem.selectedLayers.length > 0) {
-          
-          var layer = app.project.activeItem.selectedLayers[0];
-          if (layer.property("Effects") && layer.property("Effects").numProperties > 0) {
-            var effectsGroup = layer.property("Effects");
-            
-            // Collect selected effects or all effects if none selected
-            var selectedEffects = [];
-            for (var i = 1; i <= effectsGroup.numProperties; i++) {
-              var effect = effectsGroup.property(i);
-              try {
-                if (effect.selected) {
-                  selectedEffects.push({effect: effect, index: i - 1});
-                }
-              } catch (e) {}
-            }
-            
-            // If no effects are specifically selected, use all effects
-            if (selectedEffects.length === 0) {
-              for (var i = 1; i <= effectsGroup.numProperties; i++) {
-                selectedEffects.push({effect: effectsGroup.property(i), index: i - 1});
-              }
-            }
-            
-            var previewNames = [];
-            var effectsToPreview = [];
-            
-            if (selectedEffects.length <= 10) {
-              // Show all if 10 or fewer
-              effectsToPreview = selectedEffects;
-            } else {
-              // Show first 10
-              for (var i = 0; i < 10; i++) {
-                effectsToPreview.push(selectedEffects[i]);
-              }
-            }
-            
-            for (var i = 0; i < effectsToPreview.length; i++) {
-              var effectData = effectsToPreview[i];
-              var effect = effectData.effect;
-              var index = effectData.index;
-              var oldName = effect.name;
-              var previewName = "";
-              
-              // If no pattern or template, just show current name
-              if (showCurrentNames) {
-                previewName = oldName;
-              }
-              // Process template codes for effects
-              else if (/\[([#A-Za-z0-9↑↓]+)\]/g.test(template)) {
-                previewName = replacePaddedNumberTokens(template, index, selectedEffects.length, parseInt(startNumber.text) || 1);
-                
-                // [N] - Current name
-                if (previewName.indexOf("[N]") !== -1) {
-                  previewName = previewName.replace(/\[N\]/g, oldName);
-                }
-                
-                // [#↑] - Ascending number
-                if (previewName.indexOf("[#↑]") !== -1) {
-                  var startVal = parseInt(startNumber.text) || 1;
-                  var formattedNumber = formatNumber(startVal + index);
-                  previewName = previewName.replace(/\[#↑\]/g, formattedNumber);
-                }
-                
-                // [#↓] - Descending number
-                if (previewName.indexOf("[#↓]") !== -1) {
-                  var startVal = parseInt(startNumber.text) || 1;
-                  var formattedNumber = formatNumber(startVal + (selectedEffects.length - index - 1));
-                  previewName = previewName.replace(/\[#↓\]/g, formattedNumber);
-                }
-                
-                // [ET] - Effect Type
-                if (previewName.indexOf("[ET]") !== -1) {
-                  var effectType = effect.matchName.split("_")[1] || effect.matchName;
-                  previewName = previewName.replace(/\[ET\]/g, effectType);
-                }
-                
-                // [En] - Enabled State
-                if (previewName.indexOf("[En]") !== -1) {
-                  var enabledState = effect.enabled ? "On" : "Off";
-                  previewName = previewName.replace(/\[En\]/g, enabledState);
-                }
-              } else {
-                // Simple find and replace
-                if (pattern && pattern.length > 0) {
-                  try {
-                    var regex = new RegExp(pattern, 'g');
-                    if (template === "") {
-                      previewName = oldName.replace(regex, "");
-                    } else {
-                      previewName = oldName.replace(regex, template);
-                    }
-                  } catch (e) {
-                    if (template === "") {
-                      previewName = oldName.split(pattern).join("");
-                    } else {
-                      previewName = oldName.split(pattern).join(template);
-                    }
-                  }
-                } else {
-                  previewName = replacePaddedNumberTokens(template, index, selectedEffects.length, parseInt(startNumber.text) || 1);
-                }
-              }
-              
-              previewNames.push(previewName);
-            }
-            
-            for (var i = 0; i < previewNames.length; i++) {
-              var truncatedName = truncatePreviewText(previewNames[i], previewPanel.graphics, availableWidth);
-              var itemText = previewPanel.add("statictext", undefined, truncatedName);
-              itemText.graphics.font = ScriptUI.newFont(itemText.graphics.font.name, itemText.graphics.font.style, 10);
-              previewItems.push(itemText);
-            }
-            if (selectedEffects.length > 10) {
-              var ellipsisText = previewPanel.add("statictext", undefined, "...");
-              ellipsisText.graphics.font = ScriptUI.newFont(ellipsisText.graphics.font.name, ellipsisText.graphics.font.style, 10);
-              previewItems.push(ellipsisText);
-            }
-            previewPanel.layout.layout(true);
-            return;
+      // --- Masks ------------------------------------------------------------
+      if (selectedTarget === "Masks") {
+        var masks = [];
+        for (var mi = 0; mi < layers.length; mi++) {
+          var ml = layers[mi];
+          if (!ml.mask || ml.mask.numProperties === 0) continue;
+          for (var mj = 1; mj <= ml.mask.numProperties; mj++) {
+            masks.push(ml.mask.property(mj));
           }
         }
-        
-        var msgText = previewPanel.add("statictext", undefined, "No effects found\nto preview");
-        msgText.graphics.font = ScriptUI.newFont(msgText.graphics.font.name, msgText.graphics.font.style, 9);
-        previewItems.push(msgText);
-        previewPanel.layout.layout(true);
+        if (masks.length === 0) {
+          showPreviewMessage("No masks on the selected layers");
+          return;
+        }
+        showPreviewLines(
+          previewNames(masks, function(m) { return m.name; }, pattern, template, showCurrent),
+          masks.length > PREVIEW_ROWS);
         return;
       }
       
-      // Handle Text Content selections
-      if (selectedTarget === "Text Content" && app.project.activeItem instanceof CompItem) {
-        var selectedLayers = app.project.activeItem.selectedLayers;
-        var textLayers = [];
-        for (var i = 0; i < selectedLayers.length; i++) {
-          if (selectedLayers[i] instanceof TextLayer) {
-            textLayers.push(selectedLayers[i]);
+      // --- Source comp ------------------------------------------------------
+      if (selectedTarget === "Source Comp") {
+        var comps = [];
+        for (var ci = 0; ci < layers.length; ci++) {
+          var cl = layers[ci];
+          if (cl instanceof AVLayer && cl.source instanceof CompItem) {
+            var dup = false;
+            for (var cd = 0; cd < comps.length; cd++) {
+              if (comps[cd] === cl.source) { dup = true; break; }
+            }
+            if (!dup) comps.push(cl.source);
           }
         }
-
-        if (textLayers.length > 0) {
-          var previewNames = [];
-          var layersToPreview = textLayers.length > 10 ? textLayers.slice(0, 10) : textLayers;
-
-          for (var i = 0; i < layersToPreview.length; i++) {
-            var layer = layersToPreview[i];
-            var textProp = layer.property("Source Text");
-            if (!textProp) continue;
-
-            var oldText = textProp.value.text;
-            var newText = "";
-
-            if (showCurrentNames) {
-              newText = oldText;
-            } else if (pattern && pattern.length > 0) {
-              try {
-                var regex = buildRegexFromUI(pattern) || new RegExp(pattern, 'g');
-                newText = oldText.replace(regex, template);
-              } catch (e) {
-                newText = oldText.split(pattern).join(template);
-              }
-            } else {
-              newText = template;
-            }
-            previewNames.push(newText);
-          }
-
-          for (var i = 0; i < previewNames.length; i++) {
-            var truncatedName = truncatePreviewText(previewNames[i], previewPanel.graphics, availableWidth);
-            var itemText = previewPanel.add("statictext", undefined, truncatedName);
-            itemText.graphics.font = ScriptUI.newFont(itemText.graphics.font.name, itemText.graphics.font.style, 10);
-            previewItems.push(itemText);
-          }
-          if (textLayers.length > 10) {
-            var ellipsisText = previewPanel.add("statictext", undefined, "...");
-            previewItems.push(ellipsisText);
-          }
-          previewPanel.layout.layout(true);
+        if (comps.length === 0) {
+          showPreviewMessage("No precomp layers selected");
           return;
         }
+        showPreviewLines(
+          previewNames(comps, function(c) { return c.name; }, pattern, template, showCurrent, itemExtras),
+          comps.length > PREVIEW_ROWS);
+        return;
       }
       
-      // Handle Markers selections
-      if (selectedTarget === "Markers" && app.project.activeItem instanceof CompItem) {
-        var selectedLayers = app.project.activeItem.selectedLayers;
-        var markers = [];
-        for (var i = 0; i < selectedLayers.length; i++) {
-          var layer = selectedLayers[i];
-          if (layer.marker && layer.marker.numKeys > 0) {
-            for (var j = 1; j <= layer.marker.numKeys; j++) {
-              var markerValue = layer.marker.keyValue(j);
-              if (markerValue.comment) {
-                markers.push({layer: layer, comment: markerValue.comment, index: j});
-              }
-            }
-          }
-        }
-
-        if (markers.length > 0) {
-          var previewNames = [];
-          var markersToPreview = markers.length > 10 ? markers.slice(0, 10) : markers;
-
-          for (var i = 0; i < markersToPreview.length; i++) {
-            var markerInfo = markersToPreview[i];
-            var oldComment = markerInfo.comment;
-            var newComment = "";
-
-            if (showCurrentNames) {
-              newComment = oldComment;
-            } else if (pattern && pattern.length > 0) {
-              try {
-                var regex = buildRegexFromUI(pattern) || new RegExp(pattern, 'g');
-                newComment = oldComment.replace(regex, template);
-              } catch (e) {
-                newComment = oldComment.split(pattern).join(template);
-              }
-            } else {
-              newComment = template;
-            }
-            previewNames.push(newComment);
-          }
-
-          for (var i = 0; i < previewNames.length; i++) {
-            var truncatedName = truncatePreviewText(previewNames[i], previewPanel.graphics, availableWidth);
-            var itemText = previewPanel.add("statictext", undefined, truncatedName);
-            itemText.graphics.font = ScriptUI.newFont(itemText.graphics.font.name, itemText.graphics.font.style, 10);
-            previewItems.push(itemText);
-          }
-          if (markers.length > 10) {
-            var ellipsisText = previewPanel.add("statictext", undefined, "...");
-            previewItems.push(ellipsisText);
-          }
-          previewPanel.layout.layout(true);
-          return;
-        }
-      }
-      
-      // Handle Expressions selections
-      if (selectedTarget === "Expressions" && app.project.activeItem instanceof CompItem) {
-        var selectedLayers = app.project.activeItem.selectedLayers;
-        var expressions = [];
-        for (var i = 0; i < selectedLayers.length; i++) {
-          var props = [];
-          try {
-            props = collectSelectedPropertiesWithExpressions(selectedLayers[i]) || [];
-          } catch (e) {
-            props = [];
-          }
-          for (var j = 0; j < props.length; j++) {
-            expressions.push({layer: selectedLayers[i], prop: props[j]});
-          }
-        }
-
-        if (expressions.length > 0) {
-          var previewNames = [];
-          var expressionsToPreview = expressions.length > 10 ? expressions.slice(0, 10) : expressions;
-
-          for (var i = 0; i < expressionsToPreview.length; i++) {
-            try {
-              var exprInfo = expressionsToPreview[i];
-              var oldExpr = "";
-              try { oldExpr = String(exprInfo.prop.expression); } catch (e) { oldExpr = ""; }
-              var newExpr = "";
-
-              if (showCurrentNames) {
-                newExpr = oldExpr;
-              } else if (pattern && pattern.length > 0) {
-                try {
-                  var regex = buildRegexFromUI(pattern) || new RegExp(pattern, 'g');
-                  newExpr = oldExpr.replace(regex, template);
-                } catch (e) {
-                  newExpr = oldExpr.split(pattern).join(template);
-                }
-              } else {
-                newExpr = template;
-              }
-              previewNames.push(newExpr.replace(/\r?\n|\r/g, " "));
-            } catch (innerErr) {
-              // skip this item on error
-            }
-          }
-
-          for (var i = 0; i < previewNames.length; i++) {
-            var truncatedName = truncatePreviewText(previewNames[i], previewPanel.graphics, availableWidth);
-            var itemText = previewPanel.add("statictext", undefined, truncatedName);
-            itemText.graphics.font = ScriptUI.newFont(itemText.graphics.font.name, itemText.graphics.font.style, 10);
-            previewItems.push(itemText);
-          }
-          if (expressions.length > 10) {
-            var ellipsisText = previewPanel.add("statictext", undefined, "...");
-            previewItems.push(ellipsisText);
-          }
-          previewPanel.layout.layout(true);
-          return;
-        }
-      }
-      
-      // Handle Selected Properties selections
-      if (selectedTarget === "Selected Properties" && app.project.activeItem instanceof CompItem) {
-        var selectedLayers = app.project.activeItem.selectedLayers;
-        
-        function collectSelectedProperties(layer) {
-          var result = [];
-          
-          function checkProperty(prop) {
-            if (!prop) return;
-            
-            try {
-              if (prop.selected && prop.name !== undefined) {
-                result.push(prop);
-              }
-            } catch (e) {}
-            
-            if (prop.propertyType === PropertyType.INDEXED_GROUP || 
-                prop.propertyType === PropertyType.NAMED_GROUP) {
-              for (var i = 1; i <= prop.numProperties; i++) {
-                checkProperty(prop.property(i));
-              }
-            }
-          }
-          
-          checkProperty(layer);
-          
-          if (layer instanceof ShapeLayer && layer.property("Contents")) {
-            checkProperty(layer.property("Contents"));
-          }
-          
-          return result;
-        }
-        
-        var selectedProperties = [];
-        for (var i = 0; i < selectedLayers.length; i++) {
-          var props = collectSelectedProperties(selectedLayers[i]);
-          selectedProperties = selectedProperties.concat(props);
-        }
-        
-        // Filter to renameable properties for preview
-        var renameableProperties = [];
-        for (var i = 0; i < selectedProperties.length; i++) {
-          if (canRenameProperty(selectedProperties[i])) {
-            renameableProperties.push(selectedProperties[i]);
-          }
-        }
-        
-        if (renameableProperties.length > 0) {
-          var previewNames = [];
-          var maxPreview = 10;
-          
-          for (var i = 0; i < renameableProperties.length && i < maxPreview; i++) {
-            var prop = renameableProperties[i];
-            var oldName = prop.name || "";
-            var newName = template;
-            
-            if (showCurrentNames) {
-              newName = oldName;
-            } else {
-              if (template === "[N]") {
-                newName = oldName;
-              } else if (template.indexOf("[N]") !== -1) {
-                newName = template.replace(/\[N\]/g, oldName);
-              }
-              
-              if (template.indexOf("[#↑]") !== -1) {
-                var startValAsc = parseInt(startNumber.text) || 1;
-                var formattedNumberAsc = formatNumber(startValAsc + i);
-                newName = newName.replace(/\[#↑\]/g, formattedNumberAsc);
-              }
-              
-              if (template.indexOf("[#↓]") !== -1) {
-                var startValDesc = parseInt(startNumber.text) || 1;
-                var formattedNumberDesc = formatNumber(startValDesc + (renameableProperties.length - i - 1));
-                newName = newName.replace(/\[#↓\]/g, formattedNumberDesc);
-              }
-              
-              if (template.indexOf("[Path]") !== -1) {
-                var path = "";
-                try {
-                  var current = prop;
-                  var pathParts = [];
-                  while (current && current.name) {
-                    pathParts.unshift(current.name);
-                    current = current.parentProperty;
-                  }
-                  path = pathParts.join("/");
-                } catch (e) {
-                  path = "Unknown";
-                }
-                newName = newName.replace(/\[Path\]/g, path);
-              }
-              
-              if (template.indexOf("[Val]") !== -1 && prop.propertyType === PropertyType.PROPERTY) {
-                var valueStr = "N/A";
-                try {
-                  if (prop.value !== undefined) {
-                    if (prop.value.length) {
-                      valueStr = "[" + prop.value.join(", ") + "]";
-                    } else {
-                      valueStr = prop.value.toString();
-                    }
-                  }
-                } catch (e) {
-                  valueStr = "Error";
-                }
-                newName = newName.replace(/\[Val\]/g, valueStr);
-              }
-              
-              var findProvided = pattern && pattern.length > 0 && pattern !== "Match (optional)";
-              if (findProvided) {
-                try {
-                  var regex = buildRegexFromUI(pattern) || new RegExp(pattern, 'g');
-                  if (template === newName) {
-                    newName = oldName.replace(regex, template);
-                  } else {
-                    var matches = oldName.match(regex);
-                    if (matches && matches.length > 0) {
-                      newName = newName.replace(pattern, matches[0]);
-                    }
-                  }
-                } catch (e) {
-                  if (template === newName) {
-                    newName = oldName.split(pattern).join(template);
-                  }
-                }
-              }
-            }
-            
-            previewNames.push(newName);
-          }
-          
-          for (var i = 0; i < previewNames.length; i++) {
-            var truncatedName = truncatePreviewText(previewNames[i], previewPanel.graphics, availableWidth);
-            var itemText = previewPanel.add("statictext", undefined, truncatedName);
-            itemText.graphics.font = ScriptUI.newFont(itemText.graphics.font.name, itemText.graphics.font.style, 10);
-            previewItems.push(itemText);
-          }
-          if (renameableProperties.length > maxPreview) {
-            var ellipsisText = previewPanel.add("statictext", undefined, "...");
-            previewItems.push(ellipsisText);
-          }
-          previewPanel.layout.layout(true);
-          return;
-        }
-      }
-      
-      // Handle Shape Properties selections
-      if (selectedTarget === "Shape Properties" && app.project.activeItem instanceof CompItem) {
-        var selectedLayers = app.project.activeItem.selectedLayers;
-        var shapeLayers = [];
-        for (var i = 0; i < selectedLayers.length; i++) {
-          if (selectedLayers[i] instanceof ShapeLayer && selectedLayers[i].property("Contents")) {
-            shapeLayers.push(selectedLayers[i]);
-          }
-        }
-        
-        if (shapeLayers.length > 0) {
-          var findProvided = pattern && pattern.length > 0 && pattern !== "Match (optional)";
-          var hasAscToken = template.indexOf("[#↑]") !== -1;
-          var hasDescToken = template.indexOf("[#↓]") !== -1;
-          var useGlobalSeq = (typeof globalShapeNumberingCheck !== "undefined") && globalShapeNumberingCheck.value === true;
-          var shouldGlobalNumber = useGlobalSeq && (hasAscToken || hasDescToken) && !showCurrentNames;
-          var startValGlobal = parseInt(startNumber.text) || 1;
-          var globalTotal = 0;
-          var globalIndex = 0;
-          var maxPreview = 10;
-          var hitPreviewLimit = false;
-          
-          function buildMatchResult(name) {
-            var hasMatch = false;
-            var matches = null;
-            var regex = null;
-            
-            if (findProvided) {
-              try {
-                regex = buildRegexFromUI(pattern) || new RegExp(pattern, 'g');
-                matches = name.match(regex);
-                hasMatch = matches && matches.length > 0;
-              } catch (e) {
-                try {
-                  regex = new RegExp(pattern, 'g');
-                  matches = name.match(regex);
-                  hasMatch = matches && matches.length > 0;
-                } catch (err) {
-                  hasMatch = false;
-                }
-              }
-            }
-            
-            return {
-              hasMatch: hasMatch,
-              matches: matches,
-              regex: regex
-            };
-          }
-          
-          function countNumberedProps(group) {
-            for (var g = 1; g <= group.numProperties; g++) {
-              var prop = group.property(g);
-              var isRenameable = canRenameProperty(prop);
-              var matchInfo = buildMatchResult(prop.name);
-              var shouldNumber = isRenameable && ((!findProvided) || matchInfo.hasMatch);
-              
-              if (shouldNumber) {
-                globalTotal++;
-              }
-              
-              if (prop.propertyType === PropertyType.INDEXED_GROUP || 
-                  prop.propertyType === PropertyType.NAMED_GROUP) {
-                countNumberedProps(prop);
-              }
-            }
-          }
-          
-          if (shouldGlobalNumber) {
-            for (var i = 0; i < shapeLayers.length; i++) {
-              var layerForCount = shapeLayers[i];
-              countNumberedProps(layerForCount.property("Contents"));
-            }
-          }
-          
-          var previewNames = [];
-          
-          function processShapeGroup(group) {
-            var localIndex = 0; // counts renameable props within this group for local numbering
-            for (var g = 1; g <= group.numProperties; g++) {
-              if (previewNames.length >= maxPreview) {
-                hitPreviewLimit = true;
-                return;
-              }
-              
-              var prop = group.property(g);
-              var oldName = prop.name || "";
-              var isRenameable = canRenameProperty(prop);
-              
-              if (!isRenameable) {
-                // Still traverse children even if this property cannot be renamed
-                if (prop.propertyType === PropertyType.INDEXED_GROUP || 
-                    prop.propertyType === PropertyType.NAMED_GROUP) {
-                  processShapeGroup(prop);
-                }
-                continue;
-              }
-              
-              if (showCurrentNames) {
-                previewNames.push(oldName);
-              } else {
-                var newName = template;
-                var matchInfo = buildMatchResult(oldName);
-                var shouldNumber = (!findProvided) || matchInfo.hasMatch;
-                
-                if (template === "[N]") {
-                  newName = oldName;
-                } else if (template.indexOf("[N]") !== -1) {
-                  newName = template.replace(/\[N\]/g, oldName);
-                }
-                
-                if (shouldGlobalNumber && shouldNumber) {
-                  if (hasAscToken) {
-                    var formattedUp = formatNumber(startValGlobal + globalIndex);
-                    newName = newName.replace(/\[#↑\]/g, formattedUp);
-                  }
-                  if (hasDescToken) {
-                    var formattedDown = formatNumber(startValGlobal + (globalTotal - globalIndex - 1));
-                    newName = newName.replace(/\[#↓\]/g, formattedDown);
-                  }
-                  globalIndex++;
-                } else {
-                  if (hasAscToken) {
-                    var startVal = parseInt(startNumber.text) || 1;
-                    var formattedNumber = formatNumber(startVal + localIndex);
-                    newName = newName.replace(/\[#↑\]/g, formattedNumber);
-                  }
-                  if (hasDescToken) {
-                    var startValDesc = parseInt(startNumber.text) || 1;
-                    var formattedNumberDesc = formatNumber(startValDesc + (group.numProperties - g));
-                    newName = newName.replace(/\[#↓\]/g, formattedNumberDesc);
-                  }
-                }
-                
-                localIndex++;
-                
-                if (findProvided) {
-                  if (matchInfo.hasMatch) {
-                    try {
-                      var regexToUse = matchInfo.regex || new RegExp(pattern, 'g');
-                      if (template === newName) {
-                        newName = oldName.replace(regexToUse, template);
-                      } else if (matchInfo.matches && matchInfo.matches[0]) {
-                        newName = newName.replace(pattern, matchInfo.matches[0]);
-                      }
-                    } catch (e) {
-                      if (template === newName) {
-                        newName = oldName.split(pattern).join(template);
-                      }
-                    }
-                  } else {
-                    newName = oldName;
-                  }
-                }
-                
-                previewNames.push(newName);
-              }
-              
-              if (prop.propertyType === PropertyType.INDEXED_GROUP || 
-                  prop.propertyType === PropertyType.NAMED_GROUP) {
-                processShapeGroup(prop);
-              }
-            }
-          }
-          
-          for (var s = 0; s < shapeLayers.length; s++) {
-            if (previewNames.length >= maxPreview) {
-              hitPreviewLimit = true;
-              break;
-            }
-            processShapeGroup(shapeLayers[s].property("Contents"));
-          }
-          
-          for (var i = 0; i < previewNames.length; i++) {
-            var truncatedName = truncatePreviewText(previewNames[i], previewPanel.graphics, availableWidth);
-            var itemText = previewPanel.add("statictext", undefined, truncatedName);
-            itemText.graphics.font = ScriptUI.newFont(itemText.graphics.font.name, itemText.graphics.font.style, 10);
-            previewItems.push(itemText);
-          }
-          if (hitPreviewLimit) {
-            var ellipsisText = previewPanel.add("statictext", undefined, "...");
-            previewItems.push(ellipsisText);
-          }
-          previewPanel.layout.layout(true);
-          return;
-        }
-      }
-      
-      // Default fallback
-      var msgText;
-      if (app.project.activeItem instanceof CompItem && 
-          app.project.activeItem.selectedLayers.length > 0) {
-        msgText = previewPanel.add("statictext", undefined, "Preview not available\nfor " + selectedTarget);
-      } else if (app.project && app.project.selection && app.project.selection.length > 0) {
-        msgText = previewPanel.add("statictext", undefined, "Project items selected");
+      // --- Fallback ---------------------------------------------------------
+      if (layers.length > 0) {
+        showPreviewMessage("Preview not available for " + selectedTarget);
+      } else if (projectSel.length > 0) {
+        showPreviewMessage("Project items selected");
       } else {
-        msgText = previewPanel.add("statictext", undefined, "Select items to\nsee preview");
+        showPreviewMessage("Select items to see preview");
       }
-      msgText.graphics.font = ScriptUI.newFont(msgText.graphics.font.name, msgText.graphics.font.style, 9);
-      previewItems.push(msgText);
-      previewPanel.layout.layout(true);
       
     } catch (e) {
-      var errorText = previewPanel.add("statictext", undefined, "Error:\n" + e.toString().substring(0, 50));
-      errorText.graphics.font = ScriptUI.newFont(errorText.graphics.font.name, errorText.graphics.font.style, 9);
-      previewItems.push(errorText);
-      previewPanel.layout.layout(true);
+      dbg("updatePreview", e);
+      try {
+        showPreviewMessage("Preview error: " + e.toString().substring(0, 60));
+      } catch (e2) {
+        dbg("updatePreview fallback", e2);
+      }
     }
   }
   
@@ -1772,80 +1365,222 @@
   }
   
   // Replace padded number tokens in a template string.
-  // Supports tokens like [#↑], [##↑], [###↑] and [#↓], [##↓], [###↓]
+  // Supports [#up], [##up], [###up] and the matching down tokens, where
   function replacePaddedNumberTokens(input, index, totalCount, startVal) {
     try {
       var result = input;
-      var startValueLocal = (startVal !== undefined && startVal !== null) ? startVal : (parseInt(startNumber.text) || 1);
+      var startValueLocal = (startVal !== undefined && startVal !== null) ? startVal : (startNum());
       
       // Ascending padded tokens
-      result = result.replace(/\[(#+)↑\]/g, function(match, hashes) {
+      result = result.replace(/\[(#+)\u2191\]/g, function(match, hashes) {
         var num = startValueLocal + index;
         return formatNumber(num, hashes.length);
       });
       
       // Descending padded tokens
-      result = result.replace(/\[(#+)↓\]/g, function(match, hashes) {
+      result = result.replace(/\[(#+)\u2193\]/g, function(match, hashes) {
         var num = startValueLocal + (totalCount - index - 1);
         return formatNumber(num, hashes.length);
       });
       
       // Default tokens without explicit padding
-      result = result.replace(/\[#↑\]/g, function() {
+      result = result.replace(/\[#\u2191\]/g, function() {
         var num = startValueLocal + index;
         return formatNumber(num);
       });
-      result = result.replace(/\[#↓\]/g, function() {
+      result = result.replace(/\[#\u2193\]/g, function() {
         var num = startValueLocal + (totalCount - index - 1);
         return formatNumber(num);
       });
       
       return result;
     } catch (e) {
+      dbg("replacePaddedNumberTokens", e);
       return input;
     }
   }
-  
+
+  // The one place a per-item name is built from the Rename field. Every target
+  // that renames a single named thing goes through here, so Case / Word / Regex,
+  // the padded number tokens and $-in-replacement behave the same everywhere.
+  //   index  - 0-based position in the set being renamed
+  //   total  - size of that set
+  //   extras - optional { "[ET]": "Blur", ... } token values for this target
+  function propPath(prop) {
+    try {
+      var current = prop;
+      var pathParts = [];
+      while (current && current.name) {
+        pathParts.unshift(current.name);
+        current = current.parentProperty;
+      }
+      return pathParts.join("/");
+    } catch (e) {
+      dbg("propPath", e);
+      return "Unknown";
+    }
+  }
+
+  function propValueString(prop) {
+    try {
+      if (prop.propertyType !== PropertyType.PROPERTY) return "N/A";
+      if (prop.value === undefined) return "N/A";
+      if (prop.value.length) return "[" + prop.value.join(", ") + "]";
+      return prop.value.toString();
+    } catch (e) {
+      dbg("propValueString", e);
+      return "Error";
+    }
+  }
+
+  // Token values each target can supply. Preview and apply both read from
+  // these, so what the panel shows is what gets written.
+  function propExtras(prop) {
+    return { "[Path]": propPath(prop), "[Val]": propValueString(prop) };
+  }
+
+  function effectExtras(effect) {
+    var type = effect.matchName;
+    try { type = effect.matchName.split("_")[1] || effect.matchName; } catch (e) { dbg("effectExtras", e); }
+    return { "[ET]": type, "[En]": effect.enabled ? "On" : "Off" };
+  }
+
+  function itemExtras(item) {
+    var extras = { "[Date]": formatDate(new Date()) };
+    if (item instanceof CompItem) {
+      extras["[Res]"]  = item.width + "x" + item.height;
+      extras["[LenS]"] = item.duration.toFixed(2) + "s";
+      extras["[LenF]"] = Math.round(item.duration * item.frameRate) + "f";
+      extras["[AR]"]   = calculateAspectRatio(item.width, item.height);
+      extras["[FR]"]   = item.frameRate.toFixed(2) + " fps";
+    }
+    return extras;
+  }
+
+  function formatTime(seconds, frameRate) {
+    var h = Math.floor(seconds / 3600);
+    var m = Math.floor((seconds % 3600) / 60);
+    var s = Math.floor(seconds % 60);
+    var f = Math.floor((seconds % 1) * frameRate);
+
+    if (h < 10) h = "0" + h;
+    if (m < 10) m = "0" + m;
+    if (s < 10) s = "0" + s;
+    if (f < 10) f = "0" + f;
+
+    return h + ":" + m + ":" + s + ":" + f;
+  }
+
+  function markerExtras(markerProperty, keyIndex, comp) {
+    var rate = (comp && comp.frameRate) ? comp.frameRate : 25;
+    var extras = {};
+    try {
+      extras["[Time]"] = formatTime(markerProperty.keyTime(keyIndex), rate);
+      extras["[Dur]"]  = formatTime(markerProperty.keyValue(keyIndex).duration || 0, rate);
+    } catch (e) {
+      dbg("markerExtras", e);
+    }
+    return extras;
+  }
+
+  // Source Text that is keyframed or expression-driven cannot be rewritten with
+  // a plain setValue - it would either throw or quietly change one frame only.
+  function canWriteSourceText(textProp) {
+    try {
+      if (!textProp) return false;
+      if (textProp.numKeys > 0) return false;
+      if (textProp.expressionEnabled) return false;
+      return true;
+    } catch (e) {
+      dbg("canWriteSourceText", e);
+      return false;
+    }
+  }
+
+  function buildName(find, replace, oldName, index, total, extras) {
+    var newName = replace;
+
+    if (replace === "[N]") {
+      newName = oldName;
+    } else if (replace.indexOf("[N]") !== -1) {
+      newName = replaceToken(replace, "[N]", oldName);
+    }
+
+    newName = replacePaddedNumberTokens(newName, index, total, startNum());
+
+    if (extras) {
+      for (var token in extras) {
+        if (extras.hasOwnProperty(token)) {
+          newName = replaceToken(newName, token, extras[token]);
+        }
+      }
+    }
+
+    if (find && find.length > 0 && find !== "Match (optional)") {
+      var regex = buildRegexFromUI(find);
+      if (!regex) return newName;
+
+      if (replace === newName) {
+        // Template is plain replacement text: substitute it into the old name
+        newName = oldName.replace(regex, replText(replace));
+      } else {
+        // Template carries tokens: put the matched text back where the Match
+        // string appears inside the template
+        var matches = oldName.match(regex);
+        if (matches && matches.length > 0) {
+          newName = replaceToken(newName, find, matches[0]);
+        }
+      }
+    }
+
+    return newName;
+  }
+
   function highlightRenamedItems(items) {
     if (!items || items.length === 0) return;
     
-    // Store current selection
-    var currentSelection = [];
+    // Remember layers and project items separately. The old version only saved
+    // comp layers, so renaming comp sources left the project selection wrong.
+    var prevLayers = [];
+    var prevItems = [];
+    var i;
+    
     try {
       if (app.project.activeItem instanceof CompItem) {
         var layers = app.project.activeItem.selectedLayers;
-        for (var i = 0; i < layers.length; i++) {
-          currentSelection.push(layers[i]);
-        }
+        for (i = 0; i < layers.length; i++) prevLayers.push(layers[i]);
       }
-    } catch (e) {}
+      var sel = app.project.selection;
+      for (i = 0; i < sel.length; i++) prevItems.push(sel[i]);
+    } catch (e) {
+      dbg("highlight save", e);
+    }
     
-    // Flash renamed items briefly
+    function setSelected(list, value) {
+      for (var k = 0; k < list.length; k++) {
+        try { list[k].selected = value; } catch (e) { dbg("setSelected", e); }
+      }
+    }
+    
     try {
-      // Select only renamed items
-      for (var i = 0; i < currentSelection.length; i++) {
-        currentSelection[i].selected = false;
-      }
+      setSelected(prevLayers, false);
+      setSelected(prevItems, false);
+      setSelected(items, true);
       
-      for (var i = 0; i < items.length; i++) {
-        items[i].selected = true;
-      }
-      
-      // Restore original selection after a delay
       app.scheduleTask(function() {
         try {
-          for (var i = 0; i < items.length; i++) {
-            items[i].selected = false;
-          }
-          
-          for (var i = 0; i < currentSelection.length; i++) {
-            currentSelection[i].selected = true;
-          }
-        } catch (e) {}
+          setSelected(items, false);
+          setSelected(prevLayers, true);
+          setSelected(prevItems, true);
+        } catch (e) {
+          dbg("highlight restore", e);
+        }
       }, 300, false);
-    } catch (e) {}
+    } catch (e) {
+      dbg("highlightRenamedItems", e);
+    }
   }
-
+  
   // Button Event Handlers
   closeBtn.onClick = function() {
     win.close();
@@ -1856,11 +1591,11 @@
   };
   
   numberAscBtn.onClick = function() {
-    insertAtCursor(renameText, "[#↑]");
+    insertAtCursor(renameText, "[#\u2191]");
   };
   
   numberDescBtn.onClick = function() {
-    insertAtCursor(renameText, "[#↓]");
+    insertAtCursor(renameText, "[#\u2193]");
   };
   
   function insertAtCursor(textField, textToInsert) {
@@ -1935,130 +1670,114 @@
     var pattern = findText.text === "Match (optional)" ? "" : findText.text;
     var replacement = renameText.text === "Rename to" ? "" : renameText.text;
     
-    // If find has text but rename is empty, we'll continue and delete matched text
+    // Find text with an empty Rename field means "delete what matched"
     if (pattern.length === 0 && replacement.length === 0) {
       showError("Input Required", "Please enter either a pattern to match or a name to replace with.");
       return;
     }
     
+    if (!targetDropdown.selection) return;
     var selectedTarget = targetDropdown.selection.text;
     
-    // Special case for [#↑] or [#↓] alone
-    if (replacement === "[#↑]") {
-      renameLayersSequential(true);
-      updatePreview();
-      return;
-    } else if (replacement === "[#↓]") {
-      renameLayersSequential(false);
+    // A bare [#up] / [#down] gets the sequential renamer, which also keeps an
+    // exclusively-used source name in step. That only makes sense for layers,
+    // so every other target goes through its own renamer as usual.
+    var bareNumberToken = (replacement === "[#\u2191]" || replacement === "[#\u2193]");
+    var layerTarget = (selectedTarget === "Layers" || selectedTarget === "All (Recursive)");
+    
+    if (bareNumberToken && layerTarget) {
+      renameLayersSequential(replacement === "[#\u2191]");
       updatePreview();
       return;
     }
     
-    var hasTemplateCodes = /\[[#A-Za-z0-9↑↓]+\]/g.test(replacement);
-    
-    if (selectedTarget === "Layers" && detectActivePanel() === "timeline") {
-      if (hasTemplateCodes) {
-        renameLayersWithTemplate(pattern, replacement);
-      } else {
-        renameLayersFindReplace(pattern, replacement);
-      }
-    } else if (selectedTarget === "Project Items" && detectActivePanel() === "project") {
-      renameProjectItems(pattern, replacement);
-    } else if (selectedTarget === "Effects" && detectActivePanel() === "effects") {
-      renameEffects(pattern, replacement);
-    } else if (selectedTarget === "Expressions" && detectActivePanel() === "expressions") {
-      updateExpressions(pattern, replacement);
-    } else {
-      switch (selectedTarget) {
-        case "Layers":
-          if (hasTemplateCodes) {
-            renameLayersWithTemplate(pattern, replacement);
-          } else {
-            renameLayersFindReplace(pattern, replacement);
-          }
-          break;
-        case "Project Items":
-          renameProjectItems(pattern, replacement);
-          break;
-        case "Effects":
-          renameEffects(pattern, replacement);
-          break;
-        case "Text Content":
-          updateTextContent(pattern, replacement);
-          break;
-        case "Markers":
-          updateMarkers(pattern, replacement);
-          break;
-        case "Expressions":
-          updateExpressions(pattern, replacement);
-          break;
-        case "Selected Properties":
-          renameProperties(pattern, replacement);
-          break;
-        case "Shape Properties":
-          renameShapeProperties(pattern, replacement);
-          break;
-        case "Masks":
-          renameMasks(pattern, replacement);
-          break;
-        case "Puppet Pins":
-          renamePuppetPins(pattern, replacement);
-          break;
-        case "Source Comp":
-          renameSourceComp(pattern, replacement);
-          break;
-        case "All (Recursive)":
-          renameAll(pattern, replacement);
-          break;
-      }
+    switch (selectedTarget) {
+      case "Layers":
+        renameLayers(pattern, replacement);
+        break;
+      case "Project Items":
+        renameProjectItems(pattern, replacement);
+        break;
+      case "Effects":
+        renameEffects(pattern, replacement);
+        break;
+      case "Text Content":
+        updateTextContent(pattern, replacement);
+        break;
+      case "Markers":
+        updateMarkers(pattern, replacement);
+        break;
+      case "Expressions":
+        updateExpressions(pattern, replacement);
+        break;
+      case "Selected Properties":
+        renameProperties(pattern, replacement);
+        break;
+      case "Shape Properties":
+        renameShapeProperties(pattern, replacement);
+        break;
+      case "Masks":
+        renameMasks(pattern, replacement);
+        break;
+      case "Puppet Pins":
+        renamePuppetPins(pattern, replacement);
+        break;
+      case "Source Comp":
+        renameSourceComp(pattern, replacement);
+        break;
+      case "All (Recursive)":
+        renameAll(pattern, replacement);
+        break;
     }
     
     updatePreview();
   };
   
   // Rename Functions
-  function renameLayersFindReplace(find, replace) {
-    if (!checkCompAndSelection()) return;
+  // The one way a layer name is built, used by the preview and by Apply.
+  function layerName(find, template, oldName, index, total, layer) {
+    var hasTokens = /\[[#A-Za-z0-9\u2191\u2193]+\]/.test(template);
     
+    if (!hasTokens) {
+      return buildName(find, template, oldName, index, total);
+    }
+    
+    var name = processNameTemplate(template, oldName, index, total, layer);
+    
+    // Same rule buildName uses: with a Match pattern, drop the matched text
+    // back into the template wherever the Match string appears in it.
+    if (find && find.length > 0 && find !== "Match (optional)") {
+      var regex = buildRegexFromUI(find);
+      if (regex) {
+        var m = oldName.match(regex);
+        if (m && m.length > 0) name = replaceToken(name, find, m[0]);
+      }
+    }
+    
+    return name;
+  }
+  
+  function renameLayers(find, replace) {
+    if (!checkCompAndSelection()) return 0;
+    
+    var count = 0;
     try {
-      app.beginUndoGroup("Find and Replace Rename");
+      app.beginUndoGroup("Rename Layers");
       var selectedLayers = app.project.activeItem.selectedLayers;
-      var count = 0;
       var renamedLayers = [];
       
       for (var i = 0; i < selectedLayers.length; i++) {
-        var oldName = selectedLayers[i].name;
-        var newName;
-        
-        // Apply find/replace if specified
-        if (find && find.length > 0) {
-          try {
-            var regex = buildRegexFromUI(find) || new RegExp(find, 'g');
-            newName = oldName.replace(regex, replace);
-          } catch (e) {
-            // If regex fails, do a plain string replacement
-            newName = oldName.split(find).join(replace);
-          }
-        } else {
-          // No find pattern, use replace text directly
-          newName = replace;
-        }
-        
-        // Process template codes after find/replace
-        if (newName === "[N]") {
-          newName = oldName;
-        } else if (newName.indexOf("[N]") !== -1) {
-          newName = newName.replace(/\[N\]/g, oldName);
-        }
+        var layer = selectedLayers[i];
+        var oldName = layer.name;
+        var newName = layerName(find, replace, oldName, i, selectedLayers.length, layer);
         
         if (oldName !== newName) {
-          selectedLayers[i].name = newName;
-          renamedLayers.push(selectedLayers[i]);
+          layer.name = newName;
+          renamedLayers.push(layer);
           count++;
         }
       }
       
-      // Highlight renamed layers if any
       if (renamedLayers.length > 0) {
         highlightRenamedItems(renamedLayers);
       }
@@ -2069,81 +1788,63 @@
     } finally {
       app.endUndoGroup();
     }
+    return count;
   }
   
-  function processNameTemplate(template, currentName, index, totalLayers) {
+  // Every token is substituted in one pass. The previous version looped on
+  // indexOf until the token was gone, which never terminates when the
+  // substituted value contains the token - a layer named "[N]" hung AE.
+  function processNameTemplate(template, currentName, index, totalLayers, layerArg) {
     var result = template;
-    var startValue = parseInt(startNumber.text) || 1;
+    var startValue = startNum();
     var comp = app.project.activeItem;
-    var layer = null;
-    
-    if (comp && comp.selectedLayers.length > index) {
+    var layer = layerArg || null;
+
+    if (!layer && comp && comp.selectedLayers.length > index) {
       layer = comp.selectedLayers[index];
     }
-    
-    while (result.indexOf("[N]") !== -1) {
-      result = result.replace("[N]", currentName);
-    }
-    
+
+    result = replaceToken(result, "[N]", currentName);
+
     // Replace any padded/default number tokens
     result = replacePaddedNumberTokens(result, index, totalLayers, startValue);
-    
-    while (result.indexOf("[T]") !== -1 && layer) {
-      var layerType = getLayerType(layer);
-      result = result.replace("[T]", layerType);
+
+    if (layer) {
+      result = replaceToken(result, "[T]", getLayerType(layer));
+
+      if (comp) {
+        var durationInFrames = Math.round((layer.outPoint - layer.inPoint) * comp.frameRate);
+        result = replaceToken(result, "[F]", durationInFrames + "f");
+      }
+
+      result = replaceToken(result, "[Sec]", (layer.outPoint - layer.inPoint).toFixed(2) + "s");
+      result = replaceToken(result, "[Sh]", layer.shy ? "-Shy" : "");
+      result = replaceToken(result, "[P]", layer.parent ? "-" + layer.parent.name : "");
     }
-    
-    while (result.indexOf("[F]") !== -1 && layer && comp) {
-      var frameRate = comp.frameRate;
-      var durationInFrames = Math.round((layer.outPoint - layer.inPoint) * frameRate);
-      result = result.replace("[F]", durationInFrames + "f");
-    }
-    
-    while (result.indexOf("[Sec]") !== -1 && layer) {
-      var durationInSeconds = layer.outPoint - layer.inPoint;
-      result = result.replace("[Sec]", durationInSeconds.toFixed(2) + "s");
-    }
-    
-    while (result.indexOf("[Sh]") !== -1 && layer) {
-      var shyText = layer.shy ? "-Shy" : "";
-      result = result.replace("[Sh]", shyText);
-    }
-    
-    while (result.indexOf("[P]") !== -1 && layer) {
-      var parentText = layer.parent ? "-" + layer.parent.name : "";
-      result = result.replace("[P]", parentText);
-    }
-    
+
     if (layer instanceof TextLayer) {
-      while (result.indexOf("[Font]") !== -1) {
-        try {
-          var fontName = layer.property("Source Text").value.font;
-          result = result.replace("[Font]", fontName);
-        } catch (e) {
-          result = result.replace("[Font]", "Unknown");
-        }
+      if (result.indexOf("[Font]") !== -1) {
+        var fontName = "Unknown";
+        try { fontName = layer.property("Source Text").value.font; } catch (e) { dbg("[Font]", e); }
+        result = replaceToken(result, "[Font]", fontName);
       }
-      
-      while (result.indexOf("[Size]") !== -1) {
-        try {
-          var fontSize = layer.property("Source Text").value.fontSize;
-          result = result.replace("[Size]", fontSize + "px");
-        } catch (e) {
-          result = result.replace("[Size]", "Unknown");
-        }
+
+      if (result.indexOf("[Size]") !== -1) {
+        var fontSize = "Unknown";
+        try { fontSize = layer.property("Source Text").value.fontSize + "px"; } catch (e) { dbg("[Size]", e); }
+        result = replaceToken(result, "[Size]", fontSize);
       }
-      
-      while (result.indexOf("[Color]") !== -1) {
+
+      if (result.indexOf("[Color]") !== -1) {
+        var hex = "Unknown";
         try {
           var color = layer.property("Source Text").value.fillColor;
-          var hex = rgbToHex(Math.round(color[0] * 255), Math.round(color[1] * 255), Math.round(color[2] * 255));
-          result = result.replace("[Color]", hex);
-        } catch (e) {
-          result = result.replace("[Color]", "Unknown");
-        }
+          hex = rgbToHex(Math.round(color[0] * 255), Math.round(color[1] * 255), Math.round(color[2] * 255));
+        } catch (e) { dbg("[Color]", e); }
+        result = replaceToken(result, "[Color]", hex);
       }
     }
-    
+
     return result;
   }
   
@@ -2179,82 +1880,20 @@
     }
   }
   
-  function renameLayersWithTemplate(find, template) {
-    if (!checkCompAndSelection()) return;
-    
-    try {
-      app.beginUndoGroup("Template Rename");
-      var selectedLayers = app.project.activeItem.selectedLayers;
-      var count = 0;
-      var renamedLayers = [];
-      
-      var hasKnownTemplates = /\[N\]|\[#↑\]|\[#↓\]|\[T\]|\[F\]|\[Sec\]|\[Sh\]|\[P\]|\[Font\]|\[Size\]|\[Color\]|\[ET\]|\[En\]|\[Time\]|\[Dur\]|\[Path\]|\[Val\]/g.test(template);
-      
-      if (!hasKnownTemplates && templateDropdown.hasTemplates) {
-        hasKnownTemplates = true;
-      }
-      
-      // Ensure padded tokens are left intact here; processNameTemplate handles them per-index
-      for (var i = 0; i < selectedLayers.length; i++) {
-        var oldName = selectedLayers[i].name;
-        var newName = template;
-        
-        if (hasKnownTemplates) {
-          newName = processNameTemplate(template, oldName, i, selectedLayers.length);
-        } else {
-          if (template.indexOf("[") >= 0 && template.indexOf("]") >= 0) {
-            newName = processNameTemplate(template, oldName, i, selectedLayers.length);
-          }
-        }
-        
-        if (find && find.length > 0) {
-          try {
-            var regex = new RegExp(find, 'g');
-            var matchedPart = oldName.match(regex);
-            if (matchedPart) {
-              for (var j = 0; j < matchedPart.length; j++) {
-                newName = newName.replace(find, matchedPart[j]);
-              }
-            }
-          } catch (e) {
-            // If regex fails, just continue
-          }
-        }
-        
-        if (oldName !== newName) {
-          selectedLayers[i].name = newName;
-          renamedLayers.push(selectedLayers[i]);
-          count++;
-        }
-      }
-      
-      // Highlight renamed layers if any
-      if (renamedLayers.length > 0) {
-        highlightRenamedItems(renamedLayers);
-      }
-      
-      updateStatus("Renamed " + count + " layer(s) with template");
-    } catch (e) {
-      updateStatus("Error: " + e.toString());
-    } finally {
-      app.endUndoGroup();
-    }
-  }
-  
   function renameLayersSequential(ascending) {
-    if (!checkCompAndSelection()) return;
+    if (!checkCompAndSelection()) return 0;
     
+    var count = 0;
     try {
       app.beginUndoGroup('Sequential Rename Layers');
       var curComp = app.project.activeItem;
       
       var basename = renameText.text;
-      if (basename === "[#↑]" || basename === "[#↓]") {
+      if (basename === "[#\u2191]" || basename === "[#\u2193]" || basename === "Rename to") {
         basename = "";
       }
       
-      var startFrom = parseInt(startNumber.text) || 1;
-      var count = 0;
+      var startFrom = startNum();
       var selectedLayers = curComp.selectedLayers;
       var layersInSelectionOrder = [];
       var renamedLayers = [];
@@ -2267,25 +1906,41 @@
         layersInSelectionOrder.reverse();
       }
       
-      for (var i = 0; i < layersInSelectionOrder.length; i++) {
+      // A source is safe to rename along with its layer only when nothing else
+      // in the project points at it. Counting layers in the current comp alone
+      // renamed precomps and footage that other comps were still using.
+      function sourceIsExclusive(layer) {
+        try {
+          var src = layer.source;
+          if (!src) return false;
+          
+          var usedIn = src.usedIn; // comps that contain this item
+          if (!usedIn || usedIn.length !== 1) return false;
+          if (usedIn[0] !== curComp) return false;
+          
+          var uses = 0;
+          for (var j = 1; j <= curComp.numLayers; j++) {
+            if (curComp.layer(j).source === src) uses++;
+            if (uses > 1) return false;
+          }
+          return uses === 1;
+        } catch (e) {
+          dbg("sourceIsExclusive", e);
+          return false;
+        }
+      }
+      
+      for (i = 0; i < layersInSelectionOrder.length; i++) {
         var currLayer = layersInSelectionOrder[i];
         var formattedNumber = formatNumber(startFrom + i);
-        
         var name = (basename ? basename + ' ' : '') + formattedNumber;
         
-        try {
-          var sourceUsageCount = 0;
-          for (var j = 1; j <= curComp.numLayers; j++) {
-            if (curComp.layer(j).source === currLayer.source) {
-              sourceUsageCount++;
-            }
-          }
-          
-          if (sourceUsageCount === 1) {
+        if (sourceIsExclusive(currLayer)) {
+          try {
             currLayer.source.name = name;
+          } catch (e) {
+            dbg("source.name", e);
           }
-        } catch (error) {
-          // Skip source renaming if no source
         }
         
         currLayer.name = name;
@@ -2293,7 +1948,6 @@
         count++;
       }
       
-      // Highlight renamed layers if any
       if (renamedLayers.length > 0) {
         highlightRenamedItems(renamedLayers);
       }
@@ -2304,6 +1958,7 @@
     } finally {
       app.endUndoGroup();
     }
+    return count;
   }
   
   function renameLayersSpecial(mode) {
@@ -2356,7 +2011,7 @@
                 var firstGroup = contents.property(1);
                 var groupName = firstGroup.name;
                 
-                // Remove space and number at the end if they exist (e.g., "Ellipse 1" → "Ellipse")
+                // Remove a trailing space+number, e.g. "Ellipse 1" becomes "Ellipse"
                 groupName = groupName.replace(/\s+\d+$/, "");
                 
                 // Replace "Ellipse" with "Circle"
@@ -2406,21 +2061,6 @@
           // Use the basic type if no special conditions
           else {
             newName = basicType;
-          }
-        } else if (mode === "Length Frames") {
-          var frameRate = comp.frameRate;
-          var durationInFrames = Math.round((layer.outPoint - layer.inPoint) * frameRate);
-          newName = layer.name + " [" + durationInFrames + "f]";
-        } else if (mode === "Length Time") {
-          var durationInSeconds = layer.outPoint - layer.inPoint;
-          newName = layer.name + " [" + durationInSeconds.toFixed(2) + "s]";
-        } else if (mode === "Shy") {
-          newName = layer.name + (layer.shy ? " -Shy" : "");
-        } else if (mode === "Parent") {
-          if (layer.parent) {
-            newName = layer.name + " -" + layer.parent.name;
-          } else {
-            newName = layer.name;
           }
         }
         
@@ -2494,88 +2134,32 @@
       }
     } catch (e) {
       // If anything goes wrong, default to false
+      dbg("If anything goes wrong, default to false", e);
     }
     
     return false;
   }
   
   function renameProjectItems(find, replace) {
-    if (!checkProjectSelection()) return;
+    if (!checkProjectSelection()) return 0;
     
+    var count = 0;
     try {
       app.beginUndoGroup("Rename Project Items");
       var selectedItems = app.project.selection;
-      var count = 0;
-      var renamedItems = [];
       
       for (var i = 0; i < selectedItems.length; i++) {
         var item = selectedItems[i];
         var oldName = item.name;
-        var newName;
-        
-        // Apply find/replace if specified
-        if (find && find.length > 0) {
-          try {
-            var regex = buildRegexFromUI(find) || new RegExp(find, 'g');
-            newName = oldName.replace(regex, replace);
-          } catch (e) {
-            // If regex fails, do a plain string replacement
-            newName = oldName.split(find).join(replace);
-          }
-        } else {
-          // No find pattern, use replace text directly
-          newName = replace;
-        }
-        
-        // Process templates after find/replace
-        // [N] - Current name
-        if (newName === "[N]") {
-          newName = oldName;
-        } else if (newName.indexOf("[N]") !== -1) {
-          newName = newName.replace(/\[N\]/g, oldName);
-        }
-        
-        // Padded/default number tokens
-        newName = replacePaddedNumberTokens(newName, i, selectedItems.length, parseInt(startNumber.text) || 1);
-        
-        // Comp-specific templates
-        if (item instanceof CompItem) {
-          if (newName.indexOf("[Res]") !== -1) {
-            var resolution = item.width + "x" + item.height;
-            newName = newName.replace(/\[Res\]/g, resolution);
-          }
-          
-          if (newName.indexOf("[LenS]") !== -1) {
-            var lengthSec = item.duration.toFixed(2) + "s";
-            newName = newName.replace(/\[LenS\]/g, lengthSec);
-          }
-          
-          if (newName.indexOf("[LenF]") !== -1) {
-            var lengthFrames = Math.round(item.duration * item.frameRate) + "f";
-            newName = newName.replace(/\[LenF\]/g, lengthFrames);
-          }
-          
-          if (newName.indexOf("[AR]") !== -1) {
-            var aspectRatio = calculateAspectRatio(item.width, item.height);
-            newName = newName.replace(/\[AR\]/g, aspectRatio);
-          }
-          
-          if (newName.indexOf("[FR]") !== -1) {
-            var frameRate = item.frameRate.toFixed(2) + " fps";
-            newName = newName.replace(/\[FR\]/g, frameRate);
-          }
-        }
-        
-        // [Date] - Current Date
-        if (newName.indexOf("[Date]") !== -1) {
-          var currentDate = formatDate(new Date());
-          newName = newName.replace(/\[Date\]/g, currentDate);
-        }
+        var newName = buildName(find, replace, oldName, i, selectedItems.length, itemExtras(item));
         
         if (oldName !== newName) {
-          item.name = newName;
-          renamedItems.push(item);
-          count++;
+          try {
+            item.name = newName;
+            count++;
+          } catch (e) {
+            dbg("item.name", e);
+          }
         }
       }
       
@@ -2585,6 +2169,7 @@
     } finally {
       app.endUndoGroup();
     }
+    return count;
   }
   
   function calculateAspectRatio(width, height) {
@@ -2615,96 +2200,15 @@
       var selectedLayers = app.project.activeItem.selectedLayers;
       var count = 0;
       
-      function collectSelectedEffects(layer) {
-        var result = [];
-        
-        if (layer.property("Effects") && layer.property("Effects").numProperties > 0) {
-          var effectsGroup = layer.property("Effects");
-          
-          for (var i = 1; i <= effectsGroup.numProperties; i++) {
-            var effect = effectsGroup.property(i);
-            
-            try {
-              if (effect.selected) {
-                result.push(effect);
-                continue;
-              }
-            } catch (e) {}
-            
-            var hasSelectedProperty = false;
-            try {
-              for (var p = 1; p <= effect.numProperties; p++) {
-                if (effect.property(p).selected) {
-                  result.push(effect);
-                  hasSelectedProperty = true;
-                  break;
-                }
-              }
-            } catch (e) {}
-          }
-        }
-        
-        return result;
-      }
-      
-      var selectedEffects = [];
-      for (var i = 0; i < selectedLayers.length; i++) {
-        var effects = collectSelectedEffects(selectedLayers[i]);
-        selectedEffects = selectedEffects.concat(effects);
-      }
-      
-      if (selectedEffects.length === 0 && detectActivePanel() === "effects" && selectedLayers.length > 0) {
-        var layer = selectedLayers[0];
-        if (layer.property("Effects") && layer.property("Effects").numProperties > 0) {
-          for (var i = 1; i <= layer.property("Effects").numProperties; i++) {
-            selectedEffects.push(layer.property("Effects").property(i));
-          }
-        }
-      }
+      var selectedEffects = collectEffects(selectedLayers);
       
       if (selectedEffects.length > 0) {
         for (var i = 0; i < selectedEffects.length; i++) {
           var effect = selectedEffects[i];
           var oldName = effect.name;
-          var newName;
+          var newName = buildName(find, replace, oldName, i, selectedEffects.length, effectExtras(effect));
           
-          // Apply find/replace if specified
-          if (find && find.length > 0 && find !== "Match (optional)") {
-            try {
-              var regex = new RegExp(find, 'g');
-              newName = oldName.replace(regex, replace);
-            } catch (e) {
-              // If regex fails, do a plain string replacement
-              newName = oldName.split(find).join(replace);
-            }
-          } else {
-            // No find pattern, use replace text directly
-            newName = replace;
-          }
-          
-          // Process templates after find/replace
-          if (newName === "[N]") {
-            newName = oldName;
-          } else if (newName.indexOf("[N]") !== -1) {
-            newName = newName.replace(/\[N\]/g, oldName);
-          }
-          
-          // Padded/default number tokens for effects
-          newName = replacePaddedNumberTokens(newName, i, selectedEffects.length, parseInt(startNumber.text) || 1);
-          
-          if (newName.indexOf("[ET]") !== -1) {
-            var effectType = effect.matchName.split("_")[1] || effect.matchName;
-            newName = newName.replace(/\[ET\]/g, effectType);
-          }
-          
-          if (newName.indexOf("[En]") !== -1) {
-            var enabledState = effect.enabled ? "On" : "Off";
-            newName = newName.replace(/\[En\]/g, enabledState);
-          }
-          
-          if (newName === "Rename to") {
-            newName = oldName;
-          }
+          if (newName === "Rename to") newName = oldName;
           
           if (oldName !== newName) {
             try {
@@ -2731,125 +2235,62 @@
     }
   }
   
-  function getSelectedEffects() {
-    try {
-      if (app.project.activeItem instanceof CompItem && 
-          app.project.activeItem.selectedLayers.length === 1) {
-          
-        var layer = app.project.activeItem.selectedLayers[0];
-        
-        if (layer.property("Effects") && layer.property("Effects").numProperties > 0) {
-          var allEffects = [];
-          
-          for (var i = 1; i <= layer.property("Effects").numProperties; i++) {
-            allEffects.push(layer.property("Effects").property(i));
-          }
-          
-          return allEffects;
-        }
-      }
-      
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
-  
-  function isEffectInList(effect, effectsList) {
-    if (!effectsList) return true;
-    
-    for (var i = 0; i < effectsList.length; i++) {
-      if (effectsList[i] === effect) {
-        return true;
-      }
-    }
-    
-    return false;
-  }
-  
   function updateTextContent(find, replace) {
-    if (!checkCompAndSelection()) return;
+    if (!checkCompAndSelection()) return 0;
     
+    var count = 0;
     try {
       app.beginUndoGroup("Update Text Content");
       var selectedLayers = app.project.activeItem.selectedLayers;
-      var count = 0;
       var updatedLayers = [];
+      var skippedAnimated = 0;
+      var textLayers = [];
       
       for (var i = 0; i < selectedLayers.length; i++) {
-        var layer = selectedLayers[i];
+        if (selectedLayers[i] instanceof TextLayer) textLayers.push(selectedLayers[i]);
+      }
+      
+      if (textLayers.length === 0) {
+        showError("No Text Layers", "None of the selected layers are text layers.");
+        return 0;
+      }
+      
+      for (var t = 0; t < textLayers.length; t++) {
+        var layer = textLayers[t];
+        var textProp = layer.property("Source Text");
+        if (!textProp) continue;
         
-        if (layer instanceof TextLayer) {
-          var textProp = layer.property("Source Text");
-          if (textProp) {
-            var textDocument = textProp.value;
-            var oldText = textDocument.text;
-            var newText;
-            
-            // Apply find/replace if specified
-            if (find && find.length > 0) {
-              try {
-                var regex = new RegExp(find, 'g');
-                newText = oldText.replace(regex, replace);
-              } catch (e) {
-                // If regex fails, do a plain string replacement
-                newText = oldText.split(find).join(replace);
-              }
-            } else {
-              // No find pattern, use replace text directly
-              newText = replace;
-            }
-            
-            // Process templates after find/replace
-            if (newText === "[N]") {
-              newText = oldText;
-            } else if (newText.indexOf("[N]") !== -1) {
-              newText = newText.replace(/\[N\]/g, oldText);
-            }
-            
-            if (newText.indexOf("[#↑]") !== -1) {
-              var startVal = parseInt(startNumber.text) || 1;
-              var formattedNumber = formatNumber(startVal + i);
-              newText = newText.replace(/\[#↑\]/g, formattedNumber);
-            }
-            
-            if (newText.indexOf("[#↓]") !== -1) {
-              var startVal = parseInt(startNumber.text) || 1;
-              var formattedNumber = formatNumber(startVal + (selectedLayers.length - i - 1));
-              newText = newText.replace(/\[#↓\]/g, formattedNumber);
-            }
-            
-            if (newText.indexOf("[Font]") !== -1) {
-              try {
-                var fontName = textDocument.font;
-                newText = newText.replace(/\[Font\]/g, fontName);
-              } catch (e) {
-                newText = newText.replace(/\[Font\]/g, "Unknown");
-              }
-            }
-            
-            if (newText.indexOf("[Size]") !== -1) {
-              try {
-                var fontSize = textDocument.fontSize;
-                newText = newText.replace(/\[Size\]/g, fontSize + "px");
-              } catch (e) {
-                newText = newText.replace(/\[Size\]/g, "Unknown");
-              }
-            }
-            
-            if (oldText !== newText) {
-              textDocument.text = newText;
-              textProp.setValue(textDocument);
-              updatedLayers.push(layer);
-              count++;
-            }
-          }
+        // Keyframed or expression-driven Source Text cannot be rewritten with a
+        // plain setValue: it would throw, or silently change one frame only.
+        if (!canWriteSourceText(textProp)) {
+          skippedAnimated++;
+          continue;
+        }
+        
+        var textDocument = textProp.value;
+        var oldText = textDocument.text;
+        var extras = {};
+        try { extras["[Font]"] = textDocument.font; } catch (e) { extras["[Font]"] = "Unknown"; }
+        try { extras["[Size]"] = textDocument.fontSize + "px"; } catch (e2) { extras["[Size]"] = "Unknown"; }
+        
+        var newText = buildName(find, replace, oldText, t, textLayers.length, extras);
+        
+        if (oldText !== newText) {
+          textDocument.text = newText;
+          textProp.setValue(textDocument);
+          updatedLayers.push(layer);
+          count++;
         }
       }
       
-      // Highlight updated layers if any
       if (updatedLayers.length > 0) {
         highlightRenamedItems(updatedLayers);
+      }
+      
+      if (skippedAnimated > 0) {
+        showError("Some Text Skipped",
+                  skippedAnimated + " text layer(s) have keyframed or expression-driven Source Text and were left alone.",
+                  "Updated " + count + " layer(s). Note that rewriting Source Text applies one character style to the whole string.");
       }
       
       updateStatus("Updated " + count + " text layer content(s)");
@@ -2858,6 +2299,7 @@
     } finally {
       app.endUndoGroup();
     }
+    return count;
   }
   
   function renameSelectedLayersFromFirstMarker() {
@@ -2886,6 +2328,7 @@
           }
         } catch (e) {
           // Skip layers that cause errors
+          dbg("Skip layers that cause errors", e);
         }
       }
       
@@ -2905,7 +2348,7 @@
                 break;
               }
             }
-          } catch (e) {}
+          } catch (e) { dbg("silent", e); }
         }
         
         // Only show error if no markers found, not if already correctly named
@@ -2923,105 +2366,43 @@
   }
   
   function updateMarkers(find, replace) {
-    if (!checkCompAndSelection()) return;
+    if (!checkCompAndSelection()) return 0;
     
+    var count = 0;
     try {
       app.beginUndoGroup("Update Markers");
       var comp = app.project.activeItem;
       var selectedLayers = comp.selectedLayers;
-      var count = 0;
       
-      function processMarker(markerProperty, markerIndex, objIndex, totalObjs) {
-        var marker = markerProperty.keyValue(markerIndex);
+      // Layer markers on the selected layers only. The previous version also
+      // rewrote every composition marker, which the preview never showed and
+      // the selection never asked for. Composition markers are reachable from
+      // the "All (Recursive)" target, which says it reaches that far.
+      var markers = [];
+      for (var i = 0; i < selectedLayers.length; i++) {
+        var layer = selectedLayers[i];
+        if (!layer.marker || layer.marker.numKeys === 0) continue;
+        for (var j = 1; j <= layer.marker.numKeys; j++) {
+          markers.push({ prop: layer.marker, key: j });
+        }
+      }
+      
+      if (markers.length === 0) {
+        showError("No Markers Found", "The selected layer(s) have no markers.");
+        return 0;
+      }
+      
+      for (var k = 0; k < markers.length; k++) {
+        var info = markers[k];
+        var marker = info.prop.keyValue(info.key);
         var oldComment = marker.comment;
-        var newComment = replace;
-        
-        if (replace === "[N]") {
-          newComment = oldComment;
-        } else if (replace.indexOf("[N]") !== -1) {
-          newComment = replace.replace(/\[N\]/g, oldComment);
-        }
-        
-        if (replace.indexOf("[#↑]") !== -1) {
-          var startVal = parseInt(startNumber.text) || 1;
-          var formattedNumber = formatNumber(startVal + objIndex);
-          newComment = newComment.replace(/\[#↑\]/g, formattedNumber);
-        }
-        
-        if (replace.indexOf("[#↓]") !== -1) {
-          var startVal = parseInt(startNumber.text) || 1;
-          var formattedNumber = formatNumber(startVal + (totalObjs - objIndex - 1));
-          newComment = newComment.replace(/\[#↓\]/g, formattedNumber);
-        }
-        
-        if (replace.indexOf("[Time]") !== -1) {
-          var markerTime = markerProperty.keyTime(markerIndex);
-          var timeStr = formatTime(markerTime, comp.frameRate);
-          newComment = newComment.replace(/\[Time\]/g, timeStr);
-        }
-        
-        if (replace.indexOf("[Dur]") !== -1) {
-          var duration = marker.duration || 0;
-          var durationStr = formatTime(duration, comp.frameRate);
-          newComment = newComment.replace(/\[Dur\]/g, durationStr);
-        }
-        
-        if (find && find.length > 0) {
-          try {
-            var regex = new RegExp(find, 'g');
-            if (replace === newComment) {
-              newComment = oldComment.replace(regex, replace);
-            } else {
-              var matches = oldComment.match(regex);
-              if (matches && matches.length > 0) {
-                newComment = newComment.replace(find, matches[0]);
-              }
-            }
-          } catch (e) {
-            if (replace === newComment) {
-              newComment = oldComment.split(find).join(replace);
-            }
-          }
-        }
+        var newComment = buildName(find, replace, oldComment, k, markers.length,
+                                   markerExtras(info.prop, info.key, comp));
         
         if (oldComment !== newComment) {
           marker.comment = newComment;
-          markerProperty.setValueAtKey(markerIndex, marker);
-          return true;
-        }
-        return false;
-      }
-      
-      function formatTime(seconds, frameRate) {
-        var h = Math.floor(seconds / 3600);
-        var m = Math.floor((seconds % 3600) / 60);
-        var s = Math.floor(seconds % 60);
-        var f = Math.floor((seconds % 1) * frameRate);
-        
-        if (h < 10) h = "0" + h;
-        if (m < 10) m = "0" + m;
-        if (s < 10) s = "0" + s;
-        if (f < 10) f = "0" + f;
-        
-        return h + ":" + m + ":" + s + ":" + f;
-      }
-      
-      if (comp.markerProperty) {
-        for (var i = 1; i <= comp.markerProperty.numKeys; i++) {
-          if (processMarker(comp.markerProperty, i, i-1, comp.markerProperty.numKeys)) {
-            count++;
-          }
-        }
-      }
-      
-      for (var i = 0; i < selectedLayers.length; i++) {
-        var layer = selectedLayers[i];
-        if (layer.marker && layer.marker.numKeys > 0) {
-          for (var j = 1; j <= layer.marker.numKeys; j++) {
-            if (processMarker(layer.marker, j, j-1, layer.marker.numKeys)) {
-              count++;
-            }
-          }
+          info.prop.setValueAtKey(info.key, marker);
+          count++;
         }
       }
       
@@ -3031,154 +2412,66 @@
     } finally {
       app.endUndoGroup();
     }
+    return count;
   }
   
-  function updateExpressions(find, replace) {
-    if (!checkCompAndSelection()) return;
-    
+  // nested === true: called from renameAll. Do the work and return the count,
+  // but leave the undo group to the caller and stay quiet about empty results.
+  function updateExpressions(find, replace, nested) {
+    if (!checkCompAndSelection()) return 0;
+
+    var count = 0;
     try {
-      app.beginUndoGroup("Update Expressions");
+      if (!nested) app.beginUndoGroup("Update Expressions");
       var selectedLayers = app.project.activeItem.selectedLayers;
-      var count = 0;
-      
-      function collectSelectedPropertiesWithExpressions(layer) {
-        var result = [];
-        
-        function checkProperty(prop) {
-          if (!prop) return;
-          
-          if (prop.propertyType === PropertyType.PROPERTY) {
-            if (prop.selected && prop.canSetExpression && prop.expression && prop.expression !== "") {
-              result.push(prop);
-            }
-          }
-          else if (prop.propertyType === PropertyType.INDEXED_GROUP || 
-                  prop.propertyType === PropertyType.NAMED_GROUP) {
-            for (var i = 1; i <= prop.numProperties; i++) {
-              checkProperty(prop.property(i));
-            }
-          }
-        }
-        
-        checkProperty(layer);
-        return result;
-      }
-      
-      var selectedPropertiesWithExpressions = [];
-      for (var i = 0; i < selectedLayers.length; i++) {
-        var props = collectSelectedPropertiesWithExpressions(selectedLayers[i]);
-        selectedPropertiesWithExpressions = selectedPropertiesWithExpressions.concat(props);
-      }
+
+      var selectedPropertiesWithExpressions = collectExpressionProps(selectedLayers);
       
       if (selectedPropertiesWithExpressions.length > 0) {
         for (var i = 0; i < selectedPropertiesWithExpressions.length; i++) {
           var prop = selectedPropertiesWithExpressions[i];
           var oldExpr = prop.expression;
-          var newExpr = replace;
           var wasEnabled = prop.expressionEnabled;
-          
-          if (replace === "[N]") {
-            newExpr = oldExpr;
-          } else if (replace.indexOf("[N]") !== -1) {
-            newExpr = replace.replace(/\[N\]/g, oldExpr);
-          }
-          
-          if (replace.indexOf("[#↑]") !== -1) {
-            var startVal = parseInt(startNumber.text) || 1;
-            var formattedNumber = formatNumber(startVal + i);
-            newExpr = newExpr.replace(/\[#↑\]/g, formattedNumber);
-          }
-          
-          if (replace.indexOf("[#↓]") !== -1) {
-            var startVal = parseInt(startNumber.text) || 1;
-            var formattedNumber = formatNumber(startVal + (selectedPropertiesWithExpressions.length - i - 1));
-            newExpr = newExpr.replace(/\[#↓\]/g, formattedNumber);
-          }
-          
-          if (find && find.length > 0 && find !== "Match (optional)") {
-            try {
-              var regex = buildRegexFromUI(find) || new RegExp(find, 'g');
-              if (replace === newExpr) {
-                newExpr = oldExpr.replace(regex, replace);
-              } else {
-                var matches = oldExpr.match(regex);
-                if (matches && matches.length > 0) {
-                  newExpr = newExpr.replace(find, matches[0]);
-                }
-              }
-            } catch (e) {
-              if (replace === newExpr) {
-                newExpr = oldExpr.split(find).join(replace);
-              }
-            }
-          }
+          var newExpr = buildName(find, replace, oldExpr, i, selectedPropertiesWithExpressions.length);
           
           if (oldExpr !== newExpr) {
-            prop.expression = newExpr;
-            prop.expressionEnabled = wasEnabled;
-            count++;
+            try {
+              prop.expression = newExpr;
+              prop.expressionEnabled = wasEnabled;
+              count++;
+            } catch (e) {
+              dbg("prop.expression", e);
+            }
           }
         }
         
-        updateStatus("Updated " + count + " selected property expression(s)");
-        if (count === 0) {
-          showError("No Expressions Updated", "No expressions were updated. Check your search/replace text or ensure selected properties have expressions.");
+        if (!nested) {
+          updateStatus("Updated " + count + " selected property expression(s)");
+          if (count === 0) {
+            showError("No Expressions Updated", "No expressions were updated. Check your search/replace text or ensure selected properties have expressions.");
+          }
         }
-      } else {
+      } else if (!nested) {
         updateStatus("No selected properties with expressions found.");
         showError("No Expressions Found", "No selected properties with expressions found. Please select properties in the Timeline panel first.");
       }
     } catch (e) {
-      updateStatus("Error: " + e.toString());
+      if (nested) { dbg("updateExpressions", e); } else { updateStatus("Error: " + e.toString()); }
     } finally {
-      app.endUndoGroup();
+      if (!nested) app.endUndoGroup();
     }
+    return count;
   }
   
-  function renameProperties(find, replace) {
-    if (!checkCompAndSelection()) return;
-    
+  function renameProperties(find, replace, nested) {
+    if (!checkCompAndSelection()) return 0;
+
+    var count = 0;
     try {
-      app.beginUndoGroup("Rename Properties");
+      if (!nested) app.beginUndoGroup("Rename Properties");
       var selectedLayers = app.project.activeItem.selectedLayers;
-      var count = 0;
-      
-      function collectSelectedProperties(layer) {
-        var result = [];
-        
-        function checkProperty(prop) {
-          if (!prop) return;
-          
-          try {
-            if (prop.selected && prop.name !== undefined) {
-              result.push(prop);
-            }
-          } catch (e) {
-            // Skip properties that can't be checked
-          }
-          
-          if (prop.propertyType === PropertyType.INDEXED_GROUP || 
-              prop.propertyType === PropertyType.NAMED_GROUP) {
-            for (var i = 1; i <= prop.numProperties; i++) {
-              checkProperty(prop.property(i));
-            }
-          }
-        }
-        
-        checkProperty(layer);
-        
-        if (layer instanceof ShapeLayer && layer.property("Contents")) {
-          checkProperty(layer.property("Contents"));
-        }
-        
-        return result;
-      }
-      
-      var selectedProperties = [];
-      for (var i = 0; i < selectedLayers.length; i++) {
-        var props = collectSelectedProperties(selectedLayers[i]);
-        selectedProperties = selectedProperties.concat(props);
-      }
+
+      var selectedProperties = collectSelectedProps(selectedLayers);
       
       if (selectedProperties.length > 0) {
         for (var i = 0; i < selectedProperties.length; i++) {
@@ -3186,518 +2479,342 @@
           
           try {
             var oldName = prop.name;
-            var newName = replace;
-            
-            if (replace === "[N]") {
-              newName = oldName;
-            } else if (replace.indexOf("[N]") !== -1) {
-              newName = replace.replace(/\[N\]/g, oldName);
-            }
-            
-            if (replace.indexOf("[#↑]") !== -1) {
-              var startVal = parseInt(startNumber.text) || 1;
-              var formattedNumber = formatNumber(startVal + i);
-              newName = newName.replace(/\[#↑\]/g, formattedNumber);
-            }
-            
-            if (replace.indexOf("[#↓]") !== -1) {
-              var startVal = parseInt(startNumber.text) || 1;
-              var formattedNumber = formatNumber(startVal + (selectedProperties.length - i - 1));
-              newName = newName.replace(/\[#↓\]/g, formattedNumber);
-            }
-            
-            if (replace.indexOf("[Path]") !== -1) {
-              var path = "";
-              try {
-                var current = prop;
-                var pathParts = [];
-                while (current && current.name) {
-                  pathParts.unshift(current.name);
-                  current = current.parentProperty;
-                }
-                path = pathParts.join("/");
-              } catch (e) {
-                path = "Unknown";
-              }
-              newName = newName.replace(/\[Path\]/g, path);
-            }
-            
-            if (replace.indexOf("[Val]") !== -1 && prop.propertyType === PropertyType.PROPERTY) {
-              var valueStr = "N/A";
-              try {
-                if (prop.value !== undefined) {
-                  if (prop.value.length) {
-                    valueStr = "[" + prop.value.join(", ") + "]";
-                  } else {
-                    valueStr = prop.value.toString();
-                  }
-                }
-              } catch (e) {
-                valueStr = "Error";
-              }
-              newName = newName.replace(/\[Val\]/g, valueStr);
-            }
-            
-            if (find && find.length > 0 && find !== "Match (optional)") {
-              try {
-                var regex = buildRegexFromUI(find) || new RegExp(find, 'g');
-                if (replace === newName) {
-                  newName = oldName.replace(regex, replace);
-                } else {
-                  var matches = oldName.match(regex);
-                  if (matches && matches.length > 0) {
-                    newName = newName.replace(find, matches[0]);
-                  }
-                }
-              } catch (e) {
-                if (replace === newName) {
-                  newName = oldName.split(find).join(replace);
-                }
-              }
-            }
+            var newName = buildName(find, replace, oldName, i, selectedProperties.length, propExtras(prop));
             
             if (oldName !== newName) {
               try {
                 prop.name = newName;
                 count++;
               } catch (err) {
-                // Skip properties that can't be renamed
+                dbg("prop.name", err);
               }
             }
           } catch (e) {
-            // Skip properties that caused errors
+            dbg("renameProperties item", e);
           }
         }
         
-        updateStatus("Renamed " + count + " selected propert(ies)");
-        if (count === 0) {
-          showError("No Properties Renamed", "No properties were renamed. Make sure the selected properties allow renaming and check your search/replace text.");
+        if (!nested) {
+          updateStatus("Renamed " + count + " selected propert(ies)");
+          if (count === 0) {
+            showError("No Properties Renamed", "No properties were renamed. Make sure the selected properties allow renaming and check your search/replace text.");
+          }
         }
-      } else {
+      } else if (!nested) {
         updateStatus("No selected properties found.");
         showError("No Properties Selected", "No selected properties found. Please select properties in the Timeline panel first.");
       }
     } catch (e) {
-      updateStatus("Error: " + e.toString());
+      if (nested) { dbg("renameProperties", e); } else { updateStatus("Error: " + e.toString()); }
     } finally {
-      app.endUndoGroup();
+      if (!nested) app.endUndoGroup();
     }
+    return count;
   }
   
-  function renameMasks(find, replace) {
-    if (!checkCompAndSelection()) return;
+  function renameMasks(find, replace, nested) {
+    if (!checkCompAndSelection()) return 0;
     
+    var count = 0;
     try {
-      app.beginUndoGroup("Rename Masks");
+      if (!nested) app.beginUndoGroup("Rename Masks");
       var selectedLayers = app.project.activeItem.selectedLayers;
-      var count = 0;
       
-      function collectSelectedMasks(layer) {
-        var result = [];
-        
-        if (layer.mask && layer.mask.numProperties > 0) {
-          for (var j = 1; j <= layer.mask.numProperties; j++) {
-            var mask = layer.mask.property(j);
-            try {
-              if (mask.selected) {
-                result.push(mask);
-              }
-            } catch (e) {
-              // If we can't check selection, skip
-            }
+      // Masks that are actually selected, else every mask on the selected
+      // layers - but only after the user says so. Silently renaming every mask
+      // on a layer because none happened to be selected loses work.
+      var masks = [];
+      var i, j;
+      
+      for (i = 0; i < selectedLayers.length; i++) {
+        var layer = selectedLayers[i];
+        if (!layer.mask || layer.mask.numProperties === 0) continue;
+        for (j = 1; j <= layer.mask.numProperties; j++) {
+          var m = layer.mask.property(j);
+          try {
+            if (m.selected) masks.push(m);
+          } catch (e) {
+            dbg("mask.selected", e);
           }
-        }
-        
-        return result;
-      }
-      
-      var selectedMasks = [];
-      var hasSelectedMasks = false;
-      
-      for (var i = 0; i < selectedLayers.length; i++) {
-        var masks = collectSelectedMasks(selectedLayers[i]);
-        if (masks.length > 0) {
-          selectedMasks = selectedMasks.concat(masks);
-          hasSelectedMasks = true;
         }
       }
       
-      if (hasSelectedMasks) {
-        for (var i = 0; i < selectedMasks.length; i++) {
-          var mask = selectedMasks[i];
-          var oldName = mask.name;
-          var newName = replace;
-          
-          if (replace === "[N]") {
-            newName = oldName;
-          } else if (replace.indexOf("[N]") !== -1) {
-            newName = replace.replace(/\[N\]/g, oldName);
+      if (masks.length === 0) {
+        var allMasks = [];
+        for (i = 0; i < selectedLayers.length; i++) {
+          var l2 = selectedLayers[i];
+          if (!l2.mask || l2.mask.numProperties === 0) continue;
+          for (j = 1; j <= l2.mask.numProperties; j++) {
+            allMasks.push(l2.mask.property(j));
           }
-          
-          if (replace.indexOf("[#↑]") !== -1) {
-            var startVal = parseInt(startNumber.text) || 1;
-            var formattedNumber = formatNumber(startVal + i);
-            newName = newName.replace(/\[#↑\]/g, formattedNumber);
-          }
-          
-          if (replace.indexOf("[#↓]") !== -1) {
-            var startVal = parseInt(startNumber.text) || 1;
-            var formattedNumber = formatNumber(startVal + (selectedMasks.length - i - 1));
-            newName = newName.replace(/\[#↓\]/g, formattedNumber);
-          }
-          
-          if (find && find.length > 0) {
-            try {
-              var regex = new RegExp(find, 'g');
-              if (replace === newName) {
-                newName = oldName.replace(regex, replace);
-              } else {
-                var matches = oldName.match(regex);
-                if (matches && matches.length > 0) {
-                  newName = newName.replace(find, matches[0]);
-                }
-              }
-            } catch (e) {
-              if (replace === newName) {
-                newName = oldName.split(find).join(replace);
-              }
-            }
-          }
-          
-          if (oldName !== newName) {
+        }
+        
+        if (allMasks.length === 0) {
+          if (!nested) showError("No Masks Found", "The selected layers have no masks.");
+          return 0;
+        }
+        
+        if (nested) {
+          // Rename All never renames unselected masks on its own
+          return 0;
+        }
+        
+        if (!confirm("No masks are selected.\n\nRename all " + allMasks.length +
+                     " mask(s) on the selected layer(s)?")) {
+          return 0;
+        }
+        masks = allMasks;
+      }
+      
+      for (i = 0; i < masks.length; i++) {
+        var mask = masks[i];
+        var oldName = mask.name;
+        var newName = buildName(find, replace, oldName, i, masks.length);
+        
+        if (oldName !== newName) {
+          try {
             mask.name = newName;
             count++;
-          }
-        }
-      } else {
-        for (var i = 0; i < selectedLayers.length; i++) {
-          var layer = selectedLayers[i];
-          
-          if (layer.mask && layer.mask.numProperties > 0) {
-            for (var j = 1; j <= layer.mask.numProperties; j++) {
-              var mask = layer.mask.property(j);
-              var oldName = mask.name;
-              var newName = replace;
-              
-              if (replace === "[N]") {
-                newName = oldName;
-              } else if (replace.indexOf("[N]") !== -1) {
-                newName = replace.replace(/\[N\]/g, oldName);
-              }
-              
-              if (replace.indexOf("[#↑]") !== -1) {
-                var startVal = parseInt(startNumber.text) || 1;
-                var formattedNumber = formatNumber(startVal + j - 1);
-                newName = newName.replace(/\[#↑\]/g, formattedNumber);
-              }
-              
-              if (replace.indexOf("[#↓]") !== -1) {
-                var startVal = parseInt(startNumber.text) || 1;
-                var formattedNumber = formatNumber(startVal + (layer.mask.numProperties - j));
-                newName = newName.replace(/\[#↓\]/g, formattedNumber);
-              }
-              
-              if (find && find.length > 0) {
-                try {
-                  var regex = new RegExp(find, 'g');
-                  if (replace === newName) {
-                    newName = oldName.replace(regex, replace);
-                  } else {
-                    var matches = oldName.match(regex);
-                    if (matches && matches.length > 0) {
-                      newName = newName.replace(find, matches[0]);
-                    }
-                  }
-                } catch (e) {
-                  if (replace === newName) {
-                    newName = oldName.split(find).join(replace);
-                  }
-                }
-              }
-              
-              if (oldName !== newName) {
-                mask.name = newName;
-                count++;
-              }
-            }
+          } catch (e) {
+            dbg("mask.name", e);
           }
         }
       }
       
-      updateStatus("Renamed " + count + " mask(s)");
+      if (!nested) updateStatus("Renamed " + count + " mask(s)");
     } catch (e) {
-      updateStatus("Error: " + e.toString());
+      if (nested) { dbg("renameMasks", e); } else { updateStatus("Error: " + e.toString()); }
     } finally {
-      app.endUndoGroup();
+      if (!nested) app.endUndoGroup();
     }
+    return count;
   }
   
-  function renamePuppetPins(find, replace) {
-    if (!checkCompAndSelection()) return;
+  function renamePuppetPins(find, replace, nested) {
+    if (!checkCompAndSelection()) return 0;
     
+    var count = 0;
     try {
-      app.beginUndoGroup("Rename Puppet Pins");
+      if (!nested) app.beginUndoGroup("Rename Puppet Pins");
       var selectedLayers = app.project.activeItem.selectedLayers;
-      var count = 0;
       
-      for (var i = 0; i < selectedLayers.length; i++) {
-        var layer = selectedLayers[i];
-        
-        function findAndRenamePuppetPins(prop, depth) {
-          if (!prop) return 0;
-          
-          var localCount = 0;
-          
-          if (prop.matchName === "ADBE FreePin3 PosPin Atom" || 
-              prop.name.indexOf("Puppet Pin") === 0) {
-            
-            var oldName = prop.name;
-            var newName = replace;
-            
-            if (replace === "[N]") {
-              newName = oldName;
-            } else if (replace.indexOf("[N]") !== -1) {
-              newName = replace.replace(/\[N\]/g, oldName);
-            }
-            
-            if (replace.indexOf("[#↑]") !== -1) {
-              var startVal = parseInt(startNumber.text) || 1;
-              var formattedNumber = formatNumber(startVal + localCount);
-              newName = newName.replace(/\[#↑\]/g, formattedNumber);
-            }
-            
-            if (replace.indexOf("[#↓]") !== -1) {
-              var startVal = parseInt(startNumber.text) || 1;
-              var formattedNumber = formatNumber(startVal + localCount);
-              newName = newName.replace(/\[#↓\]/g, formattedNumber);
-            }
-            
-            if (find && find.length > 0) {
-              try {
-                var regex = new RegExp(find, 'g');
-                if (replace === newName) {
-                  newName = oldName.replace(regex, replace);
-                } else {
-                  var matches = oldName.match(regex);
-                  if (matches && matches.length > 0) {
-                    newName = newName.replace(find, matches[0]);
-                  }
-                }
-              } catch (e) {
-                if (replace === newName) {
-                  newName = oldName.split(find).join(replace);
-                }
-              }
-            }
-            
-            if (oldName !== newName) {
-              try {
-                prop.name = newName;
-                localCount++;
-                count++;
-              } catch (e) {
-                // Pin couldn't be renamed
-              }
-            }
-          }
-          
-          if (prop.numProperties) {
-            for (var j = 1; j <= prop.numProperties; j++) {
-              try {
-                localCount += findAndRenamePuppetPins(prop.property(j), depth + 1);
-              } catch (e) {
-                // Skip if we can't access this property
-              }
-            }
-          }
-          
-          return localCount;
-        }
-        
-        if (layer.property("Effects")) {
-          for (var e = 1; e <= layer.property("Effects").numProperties; e++) {
-            var effect = layer.property("Effects").property(e);
-            
-            if (effect.matchName === "ADBE FreePin3 ARAP Group" || 
-                effect.matchName === "ADBE FreePin3 IK Group" || 
-                effect.name.indexOf("Puppet") !== -1) {
-              
-              findAndRenamePuppetPins(effect, 0);
-            }
-          }
-        }
-        
-        if (count === 0) {
-          findAndRenamePuppetPins(layer, 0);
+      function isPuppetPin(prop) {
+        try {
+          if (prop.matchName === "ADBE FreePin3 PosPin Atom") return true;
+          return prop.name.indexOf("Puppet Pin") === 0;
+        } catch (e) {
+          dbg("isPuppetPin", e);
+          return false;
         }
       }
       
-      updateStatus("Renamed " + count + " puppet pin(s)");
+      // Collect first, rename second. The old version kept the counter inside
+      // the recursive walk, so it reset on every call and every pin got the
+      // same number - and [#down] used the ascending expression.
+      function collectPins(prop, out) {
+        if (!prop) return;
+        if (isPuppetPin(prop)) out.push(prop);
+        
+        var n = 0;
+        try { n = prop.numProperties || 0; } catch (e) { dbg("numProperties", e); }
+        for (var j = 1; j <= n; j++) {
+          try {
+            collectPins(prop.property(j), out);
+          } catch (e) {
+            dbg("collectPins", e);
+          }
+        }
+      }
+      
+      var pins = [];
+      for (var i = 0; i < selectedLayers.length; i++) {
+        var layer = selectedLayers[i];
+        var before = pins.length;
+        
+        var effects = layer.property("Effects");
+        if (effects) {
+          for (var e = 1; e <= effects.numProperties; e++) {
+            var effect = effects.property(e);
+            if (effect.matchName === "ADBE FreePin3 ARAP Group" ||
+                effect.matchName === "ADBE FreePin3 IK Group" ||
+                effect.name.indexOf("Puppet") !== -1) {
+              collectPins(effect, pins);
+            }
+          }
+        }
+        
+        // Fall back to walking this layer only if its own effects had none
+        if (pins.length === before) {
+          collectPins(layer, pins);
+        }
+      }
+      
+      if (pins.length === 0) {
+        if (!nested) showError("No Puppet Pins Found", "No puppet pins found on the selected layer(s).");
+        return 0;
+      }
+      
+      for (var k = 0; k < pins.length; k++) {
+        var pin = pins[k];
+        var oldName = pin.name;
+        var newName = buildName(find, replace, oldName, k, pins.length);
+        
+        if (oldName !== newName) {
+          try {
+            pin.name = newName;
+            count++;
+          } catch (e) {
+            dbg("pin.name", e);
+          }
+        }
+      }
+      
+      if (!nested) updateStatus("Renamed " + count + " puppet pin(s)");
     } catch (e) {
-      updateStatus("Error: " + e.toString());
+      if (nested) { dbg("renamePuppetPins", e); } else { updateStatus("Error: " + e.toString()); }
     } finally {
-      app.endUndoGroup();
+      if (!nested) app.endUndoGroup();
     }
+    return count;
+  }
+  
+  // One walk, used by both the preview and the apply pass, so the numbers the
+  // panel shows are the numbers that get written. Only properties AE will let
+  // us rename are collected, and only those are numbered.
+  function collectShapeProps(shapeLayers, find) {
+    var out = [];
+    var regex = (find && find.length > 0 && find !== "Match (optional)") ? buildRegexFromUI(find) : null;
+    
+    function walk(group) {
+      for (var g = 1; g <= group.numProperties; g++) {
+        var prop = group.property(g);
+        
+        if (canRenameProperty(prop)) {
+          var matched = true;
+          if (regex) {
+            var m = null;
+            try { m = prop.name.match(regex); } catch (e) { dbg("shape match", e); }
+            matched = !!(m && m.length > 0);
+          }
+          out.push({ prop: prop, matched: matched });
+        }
+        
+        if (prop.propertyType === PropertyType.INDEXED_GROUP ||
+            prop.propertyType === PropertyType.NAMED_GROUP) {
+          walk(prop);
+        }
+      }
+    }
+    
+    for (var i = 0; i < shapeLayers.length; i++) {
+      var layer = shapeLayers[i];
+      if (layer instanceof ShapeLayer && layer.property("Contents")) {
+        walk(layer.property("Contents"));
+      }
+    }
+    
+    return out;
+  }
+  
+  // Index/total each entry should number with. Global Seq numbers across the
+  // whole selection; otherwise numbering restarts per parent group.
+  function numberShapeProps(entries, global) {
+    var i, e;
+    
+    if (global) {
+      var total = 0;
+      for (i = 0; i < entries.length; i++) {
+        if (entries[i].matched) total++;
+      }
+      var seen = 0;
+      for (i = 0; i < entries.length; i++) {
+        e = entries[i];
+        e.index = e.matched ? seen : 0;
+        e.total = total;
+        if (e.matched) seen++;
+      }
+      return entries;
+    }
+    
+    // Per-group: bucket by parent, so [#down] counts that group's own members
+    var buckets = [];
+    function bucketFor(parent) {
+      for (var b = 0; b < buckets.length; b++) {
+        if (buckets[b].parent === parent) return buckets[b];
+      }
+      var fresh = { parent: parent, items: [] };
+      buckets.push(fresh);
+      return fresh;
+    }
+    
+    for (i = 0; i < entries.length; i++) {
+      var parent = null;
+      try { parent = entries[i].prop.parentProperty; } catch (err) { dbg("parentProperty", err); }
+      bucketFor(parent).items.push(entries[i]);
+    }
+    
+    for (var b2 = 0; b2 < buckets.length; b2++) {
+      var items = buckets[b2].items;
+      var bucketTotal = 0;
+      for (i = 0; i < items.length; i++) {
+        if (items[i].matched) bucketTotal++;
+      }
+      var n = 0;
+      for (i = 0; i < items.length; i++) {
+        e = items[i];
+        e.index = e.matched ? n : 0;
+        e.total = bucketTotal;
+        if (e.matched) n++;
+      }
+    }
+    
+    return entries;
+  }
+  
+  function shapeLayersFrom(selectedLayers) {
+    var out = [];
+    for (var i = 0; i < selectedLayers.length; i++) {
+      if (selectedLayers[i] instanceof ShapeLayer && selectedLayers[i].property("Contents")) {
+        out.push(selectedLayers[i]);
+      }
+    }
+    return out;
   }
   
   function renameShapeProperties(find, replace) {
-    if (!checkCompAndSelection()) return;
+    if (!checkCompAndSelection()) return 0;
     
+    var count = 0;
     try {
       app.beginUndoGroup("Rename Shape Properties");
-      var selectedLayers = app.project.activeItem.selectedLayers;
-      var count = 0;
+      var shapeLayers = shapeLayersFrom(app.project.activeItem.selectedLayers);
+      
+      if (shapeLayers.length === 0) {
+        showError("No Shape Layers", "None of the selected layers are shape layers.");
+        return 0;
+      }
+      
+      var useGlobalSeq = (typeof globalShapeNumberingCheck !== "undefined") &&
+                         globalShapeNumberingCheck.value === true;
+      var entries = numberShapeProps(collectShapeProps(shapeLayers, find), useGlobalSeq);
       var findProvided = find && find.length > 0 && find !== "Match (optional)";
-      var hasAscToken = replace.indexOf("[#↑]") !== -1;
-      var hasDescToken = replace.indexOf("[#↓]") !== -1;
-      var useGlobalSeq = (typeof globalShapeNumberingCheck !== "undefined") && globalShapeNumberingCheck.value === true;
-      var shouldGlobalNumber = useGlobalSeq && (hasAscToken || hasDescToken);
-      var startValGlobal = parseInt(startNumber.text) || 1;
-      var globalTotal = 0;
-      var globalIndex = 0;
       
-      function buildMatchResult(name) {
-        var hasMatch = false;
-        var matches = null;
-        var regex = null;
+      for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
         
-        if (findProvided) {
+        // With a Match pattern, leave non-matching properties alone
+        if (findProvided && !entry.matched) continue;
+        
+        var oldName = entry.prop.name;
+        var newName = buildName(find, replace, oldName, entry.index, entry.total);
+        
+        if (oldName !== newName) {
           try {
-            regex = (typeof buildRegexFromUI === "function" ? buildRegexFromUI(find) : null) || new RegExp(find, 'g');
-            matches = name.match(regex);
-            hasMatch = matches && matches.length > 0;
+            entry.prop.name = newName;
+            count++;
           } catch (e) {
-            try {
-              regex = new RegExp(find, 'g');
-              matches = name.match(regex);
-              hasMatch = matches && matches.length > 0;
-            } catch (err) {
-              hasMatch = false;
-            }
+            dbg("shape prop.name", e);
           }
-        }
-        
-        return {
-          hasMatch: hasMatch,
-          matches: matches,
-          regex: regex
-        };
-      }
-      
-      function countNumberedProps(group) {
-        for (var g = 1; g <= group.numProperties; g++) {
-          var prop = group.property(g);
-          var matchInfo = buildMatchResult(prop.name);
-          var shouldNumber = (!findProvided) || matchInfo.hasMatch;
-          
-          if (shouldNumber) {
-            globalTotal++;
-          }
-          
-          if (prop.propertyType === PropertyType.INDEXED_GROUP || 
-              prop.propertyType === PropertyType.NAMED_GROUP) {
-            countNumberedProps(prop);
-          }
-        }
-      }
-      
-      // Pre-count properties when global numbering is enabled so descending values are accurate
-      if (shouldGlobalNumber) {
-        for (var i = 0; i < selectedLayers.length; i++) {
-          var layerForCount = selectedLayers[i];
-          if (layerForCount instanceof ShapeLayer && layerForCount.property("Contents")) {
-            countNumberedProps(layerForCount.property("Contents"));
-          }
-        }
-      }
-      
-      for (var i = 0; i < selectedLayers.length; i++) {
-        var layer = selectedLayers[i];
-        
-        if (layer instanceof ShapeLayer) {
-          var contents = layer.property("Contents");
-          
-          function processShapeGroup(group, groupIndex, totalGroups) {
-            var groupCount = 0;
-            
-            for (var g = 1; g <= group.numProperties; g++) {
-              var prop = group.property(g);
-              var oldName = prop.name;
-              var newName = replace;
-              var matchInfo = buildMatchResult(oldName);
-              var shouldNumber = (!findProvided) || matchInfo.hasMatch;
-              
-              if (replace === "[N]") {
-                newName = oldName;
-              } else if (replace.indexOf("[N]") !== -1) {
-                newName = replace.replace(/\[N\]/g, oldName);
-              }
-              
-              if (shouldGlobalNumber && shouldNumber) {
-                if (hasAscToken) {
-                  var formattedUp = formatNumber(startValGlobal + globalIndex);
-                  newName = newName.replace(/\[#↑\]/g, formattedUp);
-                }
-                
-                if (hasDescToken) {
-                  var formattedDown = formatNumber(startValGlobal + (globalTotal - globalIndex - 1));
-                  newName = newName.replace(/\[#↓\]/g, formattedDown);
-                }
-                
-                globalIndex++;
-              } else {
-                if (hasAscToken) {
-                  var startVal = parseInt(startNumber.text) || 1;
-                  var formattedNumber = formatNumber(startVal + g - 1);
-                  newName = newName.replace(/\[#↑\]/g, formattedNumber);
-                }
-                
-                if (hasDescToken) {
-                  var startValDesc = parseInt(startNumber.text) || 1;
-                  var formattedNumberDesc = formatNumber(startValDesc + (group.numProperties - g));
-                  newName = newName.replace(/\[#↓\]/g, formattedNumberDesc);
-                }
-              }
-              
-              if (findProvided) {
-                if (matchInfo.hasMatch) {
-                  try {
-                    var regexToUse = matchInfo.regex || new RegExp(find, 'g');
-                    if (replace === newName) {
-                      newName = oldName.replace(regexToUse, replace);
-                    } else if (matchInfo.matches && matchInfo.matches[0]) {
-                      newName = newName.replace(find, matchInfo.matches[0]);
-                    }
-                  } catch (e) {
-                    if (replace === newName) {
-                      newName = oldName.split(find).join(replace);
-                    }
-                  }
-                } else {
-                  // No match: keep original name so this property is skipped
-                  newName = oldName;
-                }
-              }
-              
-              if (oldName !== newName) {
-                try {
-                  prop.name = newName;
-                  groupCount++;
-                } catch (e) {
-                  // Property cannot be renamed
-                }
-              }
-              
-              if (prop.propertyType === PropertyType.INDEXED_GROUP || 
-                  prop.propertyType === PropertyType.NAMED_GROUP) {
-                groupCount += processShapeGroup(prop, g-1, group.numProperties);
-              }
-            }
-            
-            return groupCount;
-          }
-          
-          count += processShapeGroup(contents, 0, 1);
         }
       }
       
@@ -3707,106 +2824,75 @@
     } finally {
       app.endUndoGroup();
     }
+    return count;
   }
   
-  function renameSourceComp(find, replace, returnCount) {
+  function renameSourceComp(find, replace, nested) {
     if (!checkCompAndSelection()) return 0;
     
+    var count = 0;
     try {
-      if (!returnCount) app.beginUndoGroup("Rename Comp Sources");
+      if (!nested) app.beginUndoGroup("Rename Comp Sources");
       var selectedLayers = app.project.activeItem.selectedLayers;
-      var count = 0;
       var renamedComps = [];
       
+      // One layer can appear twice in a selection pointing at the same precomp;
+      // rename each precomp once so the numbering does not double up.
+      var seen = [];
+      function alreadyDone(item) {
+        for (var s = 0; s < seen.length; s++) {
+          if (seen[s] === item) return true;
+        }
+        seen.push(item);
+        return false;
+      }
+      
+      var targets = [];
       for (var i = 0; i < selectedLayers.length; i++) {
         var layer = selectedLayers[i];
-        
         if (layer instanceof AVLayer && layer.source instanceof CompItem) {
-          var precomp = layer.source;
-          var oldName = precomp.name;
-          var newName = replace;
-          
-          if (replace === "[N]") {
-            newName = oldName;
-          } else if (replace.indexOf("[N]") !== -1) {
-            newName = replace.replace(/\[N\]/g, oldName);
-          }
-          
-          if (replace.indexOf("[#↑]") !== -1) {
-            var startVal = parseInt(startNumber.text) || 1;
-            var formattedNumber = formatNumber(startVal + i);
-            newName = newName.replace(/\[#↑\]/g, formattedNumber);
-          }
-          
-          if (replace.indexOf("[#↓]") !== -1) {
-            var startVal = parseInt(startNumber.text) || 1;
-            var formattedNumber = formatNumber(startVal + (selectedLayers.length - i - 1));
-            newName = newName.replace(/\[#↓\]/g, formattedNumber);
-          }
-          
-          // Add support for comp resolution and length templates
-          if (precomp instanceof CompItem) {
-            if (newName.indexOf("[Res]") !== -1) {
-              var resolution = precomp.width + "x" + precomp.height;
-              newName = newName.replace(/\[Res\]/g, resolution);
-            }
-            
-            if (newName.indexOf("[LenS]") !== -1) {
-              var lengthSec = precomp.duration.toFixed(2) + "s";
-              newName = newName.replace(/\[LenS\]/g, lengthSec);
-            }
-            
-            if (newName.indexOf("[LenF]") !== -1) {
-              var lengthFrames = Math.round(precomp.duration * precomp.frameRate) + "f";
-              newName = newName.replace(/\[LenF\]/g, lengthFrames);
-            }
-            
-            if (newName.indexOf("[FR]") !== -1) {
-              var frameRate = precomp.frameRate.toFixed(2) + "fps";
-              newName = newName.replace(/\[FR\]/g, frameRate);
-            }
-          }
-          
-          if (find && find.length > 0) {
-            try {
-              var regex = new RegExp(find, 'g');
-              if (replace === newName) {
-                newName = oldName.replace(regex, replace);
-              } else {
-                var matches = oldName.match(regex);
-                if (matches && matches.length > 0) {
-                  newName = newName.replace(find, matches[0]);
-                }
-              }
-            } catch (e) {
-              if (replace === newName) {
-                newName = oldName.split(find).join(replace);
-              }
-            }
-          }
-          
-          if (oldName !== newName) {
-            if (!returnCount) precomp.name = newName;
+          if (!alreadyDone(layer.source)) targets.push(layer.source);
+        }
+      }
+      
+      for (var t = 0; t < targets.length; t++) {
+        var precomp = targets[t];
+        var oldName = precomp.name;
+        
+        var extras = {
+          "[Res]":  precomp.width + "x" + precomp.height,
+          "[LenS]": precomp.duration.toFixed(2) + "s",
+          "[LenF]": Math.round(precomp.duration * precomp.frameRate) + "f",
+          "[AR]":   calculateAspectRatio(precomp.width, precomp.height),
+          "[FR]":   precomp.frameRate.toFixed(2) + " fps",
+          "[Date]": formatDate(new Date())
+        };
+        
+        var newName = buildName(find, replace, oldName, t, targets.length, extras);
+        
+        if (oldName !== newName) {
+          try {
+            precomp.name = newName;
             renamedComps.push(precomp);
             count++;
+          } catch (e) {
+            dbg("precomp.name", e);
           }
         }
       }
       
-      if (!returnCount) {
+      if (!nested) {
         updateStatus("Renamed " + count + " comp source(s)");
         if (renamedComps.length > 0) {
           highlightRenamedItems(renamedComps);
         }
       }
-      
-      return count;
     } catch (e) {
-      if (!returnCount) updateStatus("Error: " + e.toString());
-      return 0;
+      if (nested) { dbg("renameSourceComp", e); } else { updateStatus("Error: " + e.toString()); }
     } finally {
-      if (!returnCount) app.endUndoGroup();
+      if (!nested) app.endUndoGroup();
     }
+    return count;
   }
   
   function renameAll(find, replace) {
@@ -3816,216 +2902,127 @@
       var totalCount = 0;
       var results = {};
       var modifiedItems = [];
+      var i;
       
       if (checkCompAndSelection()) {
-        // Apply to all timeline items first
-        var layers = app.project.activeItem.selectedLayers;
-        var hasTemplateCodes = /\[([A-Za-z0-9↑↓]+)\]/g.test(replace);
+        var comp = app.project.activeItem;
+        var layers = comp.selectedLayers;
         
-        // For each selected layer, apply appropriate renames
-        for (var i = 0; i < layers.length; i++) {
+        for (i = 0; i < layers.length; i++) {
           var layer = layers[i];
           var oldName = layer.name;
           var newName;
           
-          // Process layer name
-          if (hasTemplateCodes) {
-            newName = processNameTemplate(replace, oldName, i, layers.length);
-          } else if (find && find.length > 0) {
-            try {
-              var regex = new RegExp(find, 'g');
-              newName = oldName.replace(regex, replace);
-            } catch (e) {
-              newName = oldName.split(find).join(replace);
-            }
-          } else {
-            newName = replace;
-          }
+          // Layer name
+          newName = layerName(find, replace, oldName, i, layers.length, layer);
           
           if (oldName !== newName) {
             layer.name = newName;
             modifiedItems.push(layer);
             totalCount++;
-            if (!results.layers) results.layers = 0;
-            results.layers++;
+            results.layers = (results.layers || 0) + 1;
           }
           
-          // Process text content if it's a text layer
+          // Source text
           if (layer instanceof TextLayer) {
             var textProp = layer.property("Source Text");
-            if (textProp) {
-              var textDoc = textProp.value;
-              var oldText = textDoc.text;
-              var newText;
-              
-              if (find && find.length > 0) {
-                try {
-                  var regex = new RegExp(find, 'g');
-                  newText = oldText.replace(regex, replace);
-                } catch (e) {
-                  newText = oldText.split(find).join(replace);
+            if (textProp && canWriteSourceText(textProp)) {
+              try {
+                var textDoc = textProp.value;
+                var oldText = textDoc.text;
+                var newText = buildName(find, replace, oldText, i, layers.length);
+                
+                if (oldText !== newText) {
+                  textDoc.text = newText;
+                  textProp.setValue(textDoc);
+                  results.text = (results.text || 0) + 1;
+                  totalCount++;
                 }
-              } else {
-                newText = replace;
-              }
-              
-              if (oldText !== newText) {
-                textDoc.text = newText;
-                textProp.setValue(textDoc);
-                if (!results.text) results.text = 0;
-                results.text++;
-                totalCount++;
+              } catch (err) {
+                dbg("renameAll source text", err);
               }
             }
           }
           
-          // Process effects
-          if (layer.property("Effects") && layer.property("Effects").numProperties > 0) {
-            for (var e = 1; e <= layer.property("Effects").numProperties; e++) {
-              var effect = layer.property("Effects").property(e);
+          // Effects
+          var effects = layer.property("Effects");
+          if (effects && effects.numProperties > 0) {
+            for (var fx = 1; fx <= effects.numProperties; fx++) {
+              var effect = effects.property(fx);
               var oldEffectName = effect.name;
-              var newEffectName;
-              
-              if (find && find.length > 0) {
-                try {
-                  var regex = new RegExp(find, 'g');
-                  newEffectName = oldEffectName.replace(regex, replace);
-                } catch (e) {
-                  newEffectName = oldEffectName.split(find).join(replace);
-                }
-              } else {
-                newEffectName = replace;
-              }
+              var newEffectName = buildName(find, replace, oldEffectName, fx - 1, effects.numProperties, effectExtras(effect));
               
               if (oldEffectName !== newEffectName) {
-                effect.name = newEffectName;
-                if (!results.effects) results.effects = 0;
-                results.effects++;
-                totalCount++;
+                try {
+                  effect.name = newEffectName;
+                  results.effects = (results.effects || 0) + 1;
+                  totalCount++;
+                } catch (err) {
+                  dbg("renameAll effect.name", err);
+                }
               }
             }
           }
         }
         
-        // Process comp markers
-        var comp = app.project.activeItem;
+        // Composition markers. "All (Recursive)" is the one target that says
+        // up front it reaches past the selection, so they belong here - and
+        // only here. The Markers target stays on the selected layers.
         if (comp.markerProperty && comp.markerProperty.numKeys > 0) {
-          for (var i = 1; i <= comp.markerProperty.numKeys; i++) {
+          var nKeys = comp.markerProperty.numKeys;
+          for (i = 1; i <= nKeys; i++) {
             var marker = comp.markerProperty.keyValue(i);
             var oldComment = marker.comment;
-            var newComment;
-            
-            if (find && find.length > 0) {
-              try {
-                var regex = new RegExp(find, 'g');
-                newComment = oldComment.replace(regex, replace);
-              } catch (e) {
-                newComment = oldComment.split(find).join(replace);
-              }
-            } else {
-              newComment = replace;
-            }
+            var newComment = buildName(find, replace, oldComment, i - 1, nKeys,
+                                       markerExtras(comp.markerProperty, i, comp));
             
             if (oldComment !== newComment) {
               marker.comment = newComment;
               comp.markerProperty.setValueAtKey(i, marker);
-              if (!results.markers) results.markers = 0;
-              results.markers++;
+              results.markers = (results.markers || 0) + 1;
               totalCount++;
             }
           }
         }
         
-        // Call specialized functions for other types
+        // These now run inside this undo group and report what they really did
         var expressionCount = updateExpressions(find, replace, true);
-        if (expressionCount) {
-          results.expressions = expressionCount;
-          totalCount += expressionCount;
-        }
+        if (expressionCount) { results.expressions = expressionCount; totalCount += expressionCount; }
         
         var propCount = renameProperties(find, replace, true);
-        if (propCount) {
-          results.properties = propCount;
-          totalCount += propCount;
-        }
+        if (propCount) { results.properties = propCount; totalCount += propCount; }
         
         var maskCount = renameMasks(find, replace, true);
-        if (maskCount) {
-          results.masks = maskCount;
-          totalCount += maskCount;
-        }
+        if (maskCount) { results.masks = maskCount; totalCount += maskCount; }
         
         var pinCount = renamePuppetPins(find, replace, true);
-        if (pinCount) {
-          results.pins = pinCount;
-          totalCount += pinCount;
-        }
+        if (pinCount) { results.pins = pinCount; totalCount += pinCount; }
         
         var compCount = renameSourceComp(find, replace, true);
-        if (compCount) {
-          results.comps = compCount;
-          totalCount += compCount;
-        }
+        if (compCount) { results.comps = compCount; totalCount += compCount; }
       }
       
-      // Process project items
+      // Project items
       if (app.project.selection.length > 0) {
         var projectItems = app.project.selection;
-        for (var i = 0; i < projectItems.length; i++) {
+        for (i = 0; i < projectItems.length; i++) {
           var item = projectItems[i];
-          var oldName = item.name;
-          var newName;
+          var oldItemName = item.name;
+          var newItemName = buildName(find, replace, oldItemName, i, projectItems.length, itemExtras(item));
           
-          if (find && find.length > 0) {
+          if (oldItemName !== newItemName) {
             try {
-              var regex = new RegExp(find, 'g');
-              newName = oldName.replace(regex, replace);
-            } catch (e) {
-              newName = oldName.split(find).join(replace);
+              item.name = newItemName;
+              modifiedItems.push(item);
+              results.items = (results.items || 0) + 1;
+              totalCount++;
+            } catch (err) {
+              dbg("renameAll item.name", err);
             }
-          } else {
-            newName = replace;
-          }
-          
-          // Process comp-specific templates
-          if (item instanceof CompItem) {
-            if (newName.indexOf("[Res]") !== -1) {
-              var resolution = item.width + "x" + item.height;
-              newName = newName.replace(/\[Res\]/g, resolution);
-            }
-            
-            if (newName.indexOf("[LenS]") !== -1) {
-              var lengthSec = item.duration.toFixed(2) + "s";
-              newName = newName.replace(/\[LenS\]/g, lengthSec);
-            }
-            
-            if (newName.indexOf("[LenF]") !== -1) {
-              var lengthFrames = Math.round(item.duration * item.frameRate) + "f";
-              newName = newName.replace(/\[LenF\]/g, lengthFrames);
-            }
-            
-            if (newName.indexOf("[AR]") !== -1) {
-              var aspectRatio = calculateAspectRatio(item.width, item.height);
-              newName = newName.replace(/\[AR\]/g, aspectRatio);
-            }
-            
-            if (newName.indexOf("[FR]") !== -1) {
-              var frameRate = item.frameRate.toFixed(2) + " fps";
-              newName = newName.replace(/\[FR\]/g, frameRate);
-            }
-          }
-          
-          if (oldName !== newName) {
-            item.name = newName;
-            modifiedItems.push(item);
-            if (!results.items) results.items = 0;
-            results.items++;
-            totalCount++;
           }
         }
       }
       
-      // Build detailed status message
       var statusMsg = "Renamed " + totalCount + " item(s): ";
       var details = [];
       
@@ -4043,13 +3040,10 @@
       statusMsg += details.join(", ");
       updateStatus(statusMsg);
       
-      // Show a summary dialog for large operations
       if (totalCount > 10) {
-        alert("Renamed " + totalCount + " items across " + Object.keys(results).length + " different types.\n" +
-              "See the script panel for details.");
+        alert("Renamed " + totalCount + " item(s):\n\n" + details.join("\n"));
       }
       
-      // Highlight renamed items if appropriate
       if (modifiedItems.length > 0 && modifiedItems.length <= 10) {
         highlightRenamedItems(modifiedItems);
       }
@@ -4118,19 +3112,8 @@
   // Initialize the UI
   updatePreview();
   
-  function checkSelection() {
-    if (app.project && app.project.activeItem instanceof CompItem) {
-      var layers = app.project.activeItem.selectedLayers;
-      win.text = scriptName + " v" + scriptVersion + " (" + layers.length + " layers)";
-    } else {
-      win.text = scriptName + " v" + scriptVersion;
-    }
-    
-    checkForSelectionChanges();
-  }
-  
   // Start periodic checking
-  app.scheduleTask(checkForSelectionChanges, 200, false);
+  pollTaskId = app.scheduleTask(checkForSelectionChanges, 200, false);
   
   // Set default button
   win.defaultElement = renameBtn;
@@ -4156,6 +3139,16 @@
     }
     // Refresh preview when toggling auto-detect to reflect any selection changes
     updatePreview();
+  };
+  
+  // Stop the poll when the palette closes
+  win.onClose = function() {
+    panelOpen = false;
+    if (pollTaskId !== null) {
+      try { app.cancelTask(pollTaskId); } catch (e) { dbg("cancelTask", e); }
+      pollTaskId = null;
+    }
+    return true;
   };
   
   // Show the window
