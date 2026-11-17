@@ -25,7 +25,14 @@ src = src.replace(marker, marker + `
         allPathSignature, checkUnchanged, carriesData, childrenOf,
         scanPrimitives, actAddToPivot, nearestT,
         followPositionExpr, setupFollower, actShowPoints, ICON_ART, drawArt, paintIconButton,
-        ICON_PX, HEAD_PX, ZOOM_PX, ICON_UNITS, roundRectPath };`);
+        ICON_PX, HEAD_PX, ZOOM_PX, ICON_UNITS, roundRectPath,
+        applyEdits, editsFor, editReport, boundsOfPicks, tipVec, tipKind, xformPt,
+        actKeyPaths, hasKeyAt, pointedPaths, isPointedAt, revealKeyed, actRevealPaths,
+        run, touched, countSel, countSelH, tipPicked, tipName, currentPicks,
+        actMovePoints, actAlign, actTransform, actCurve,
+        rawShape, cloneShape, geomFrom, snapAxis, inPolygon,
+        layerMatrix, mInv, mVec, mPt, manEntry,
+        actRelink, relinkOne, heldAt };`);
 
 const names = ["app", "CompItem", "Shape", "PropertyType", "PropertyValueType",
   "KeyframeInterpolationType", "MaskMode", "Window", "Panel", "ScriptUI", "$",
@@ -41,14 +48,20 @@ function ok(cond, label, extra) {
 }
 function section(s) { console.log("\n" + s); }
 
+// Built as plain arrays and assigned once: pushing into sh.vertices pushes
+// into a copy, in After Effects and now here too.
 function star(n, r) {
   const sh = new M.Shape();
+  const v = [], i0 = [], o = [];
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 - Math.PI / 2;
-    sh.vertices.push([Math.cos(a) * r, Math.sin(a) * r]);
-    sh.inTangents.push([0, 0]);
-    sh.outTangents.push([0, 0]);
+    v.push([Math.cos(a) * r, Math.sin(a) * r]);
+    i0.push([0, 0]);
+    o.push([0, 0]);
   }
+  sh.vertices = v;
+  sh.inTangents = i0;
+  sh.outTangents = o;
   sh.closed = true;
   return sh;
 }
@@ -78,12 +91,28 @@ function addShapeLayer(comp, name, groupName, shape, gpos, grot, gscl) {
 
 function pickAll(item, idx) { return [{ item, idx }]; }
 
+// A Shape's arrays read back as copies, in After Effects and in the mock, so
+// an edit has to be assigned back. Same rule the script itself follows.
+function setVert(sh, i, p) { const a = sh.vertices; a[i] = p; sh.vertices = a; }
+function setIn(sh, i, p) { const a = sh.inTangents; a[i] = p; sh.inTangents = a; }
+function setOut(sh, i, p) { const a = sh.outTangents; a[i] = p; sh.outTangents = a; }
+
+// Scan one layer's paths without going through the panel's own refresh,
+// which keeps a test's items its own.
+function scanOn(c, L) { return globalThis.__VXR.scanPaths(c, [L]); }
+
 function rulesInHead(head) {
   return head._kids.filter(c => c.type === "panel").length;
 }
 
 // ========================================================== source hygiene
 section("source hygiene");
+// applyOne used to declare "var touched" beside the run guard of that name,
+// which shadowed it: the call that marks a manifest write threw instead, and
+// the panel reported "nothing was changed" over an edit that had landed.
+ok(!/\bvar\s[^;\n]*\btouched\b/.test(raw),
+   "nothing declares a local named touched, which would quietly shadow the run guard",
+   (raw.split("\n").filter(l => /\bvar\s[^;\n]*\btouched\b/.test(l))[0] || "").trim());
 try { new vm.Script(raw); ok(true, "Vertex Rig.jsx parses"); }
 catch (e) { ok(false, "Vertex Rig.jsx parses", e.message); }
 
@@ -279,7 +308,7 @@ ok(comp.numLayers === beforeLayers - 1, "its control layer is gone");
 section("delete with bake");
 items = V.scanPaths(comp, [shapeL]);
 const keyed = star(5, 100);
-keyed.vertices[1] = [20, -140];
+setVert(keyed, 1, [20, -140]);
 items[0].prop.setValueAtTime(0, star(5, 100));
 items[0].prop.setValueAtTime(0.5, keyed);
 V.actDelete([], [shapeL], true);
@@ -1121,10 +1150,25 @@ section("preview: panning and zooming by hand");
   ok(!!(cv && cv._on.mousedown && cv._on.mousemove && cv._on.mouseup),
      "and for the three mouse events a drag needs");
 
-  // the gestures are invisible, so the canvas has to say what it can do
-  ok(!!(cv.helpTip && /pan/i.test(cv.helpTip) && /zoom/i.test(cv.helpTip) &&
-        /double/i.test(cv.helpTip)),
-     "and the canvas says how to pan, zoom and refit", cv.helpTip);
+  // The gestures are invisible, so they have to be written down somewhere.
+  // They used to be in this tooltip, which grew until it covered the artwork
+  // it was explaining; Help holds them now, and the canvas points at it.
+  ok(!!(cv.helpTip && cv.helpTip.length < 90 && /help/i.test(cv.helpTip)),
+     "the canvas says one line and names where the rest is", cv.helpTip);
+  const helpBtn = M.NODES.filter(n => /Every gesture/.test(n.says || ""))[0];
+  ok(!!helpBtn && typeof helpBtn.onClick === "function", "there is a Help button");
+  const helpSrc = raw.slice(raw.indexOf("var HELP = ["),
+                            raw.indexOf("function helpDialog"));
+  ok(/pan/i.test(helpSrc) && /zoom/i.test(helpSrc) && /frame everything/i.test(helpSrc),
+     "and Help says how to pan, zoom and refit");
+  ok(/arrow/i.test(helpSrc) && /lasso/i.test(helpSrc) && /align/i.test(helpSrc),
+     "along with the keys, the lasso and the alignments");
+  const helpRows = helpSrc.split("\n").filter(l => /^\s{8}\["/.test(l));
+  ok(helpRows.length >= 14 && helpRows.length <= 26,
+     "a page of it, not a manual", helpRows.length);
+  ok(helpRows.every(l => l.length <= 86),
+     "every line kept short enough to read across",
+     (helpRows.filter(l => l.length > 86)[0] || "").trim());
 
   const start = Object.assign({}, V.state.view);
   ok(V.state.viewManual === false, "a fitted view is not a hand-set one");
@@ -1564,8 +1608,8 @@ section("no Refresh button; the bulk repair is behind Preferences");
   const w = head._kids.reduce((n, c) => n + c.preferredSize[0], 0) +
             4 * (head._kids.length - 1);
   ok(w <= 368, "the top row fits", w + " of 368");
-  ok(head._kids.filter(c => c.type === "iconbutton").length === 7,
-     "seven icons on it now",
+  ok(head._kids.filter(c => c.type === "iconbutton").length === 8,
+     "eight icons on it now, Help among them",
      head._kids.filter(c => c.type === "iconbutton").length);
 }
 
@@ -1594,9 +1638,14 @@ section("show points selects the path property");
   ok(!items[0].prop.selected && !items[1].prop.selected,
      "and the path itself is not, so its points are not all grabbed");
   // After Effects selects the layer itself when a property on it is selected,
-  // and clearing the layer clears the property, so the panel does not touch it
-  ok(!/\.layer\.selected = true/.test(raw),
-     "the panel does not select the layer - After Effects does that itself");
+  // and clearing the layer clears the property, so Show points does not touch
+  // it. Scoped to that function: the reveal commands act on selected layers
+  // and have to say so outright, which is a different job.
+  const showSrc = raw.slice(raw.indexOf("function actShowPoints("),
+                            raw.indexOf("function toBezierOn("));
+  ok(!/\.layer\.selected = true/.test(showSrc) &&
+     !/\.selected = (true|want)/.test(showSrc.replace(/holders\[i\]\.selected = want;/, "")),
+     "Show points does not select the layer - After Effects does that itself");
   ok(/Showing the points of 2 paths/.test(said), "it says so", said);
 
   // pressing again puts them away
@@ -1997,12 +2046,1772 @@ section("icons: drawn paths, not pictures");
      "a button with no icon defined still falls back to its text");
 }
 
+// ====================================== editing points in the preview
+// Until now the preview could only be picked in. These check the other half:
+// that what is dragged on screen lands in the right place in the project, and
+// that it goes to whatever actually holds the point - the path's own value,
+// the control layer the rig gave it, or the Pivot that gathered it up.
+
+function geomMapOf() {
+  const out = {};
+  V.state.items.forEach((it, i) => { if (V.state.geom[i]) { out[it.key] = V.state.geom[i]; } });
+  return out;
+}
+
+function snapshot(sh) {
+  return {
+    v: sh.vertices.map(p => p.slice()),
+    i: sh.inTangents.map(p => p.slice()),
+    o: sh.outTangents.map(p => p.slice())
+  };
+}
+
+function sameShape(a, b, eps) {
+  if (a.v.length !== b.v.length) { return false; }
+  for (let n = 0; n < a.v.length; n++) {
+    for (const f of ["v", "i", "o"]) {
+      if (Math.abs(a[f][n][0] - b[f][n][0]) > eps) { return false; }
+      if (Math.abs(a[f][n][1] - b[f][n][1]) > eps) { return false; }
+    }
+  }
+  return true;
+}
+
+function curvy(r) {
+  const sh = new M.Shape();
+  const k = r * 0.5523;
+  sh.vertices = [[0, -r], [r, 0], [0, r], [-r, 0]];
+  sh.inTangents = [[-k, 0], [0, -k], [k, 0], [0, k]];
+  sh.outTangents = [[k, 0], [0, k], [-k, 0], [0, -k]];
+  sh.closed = true;
+  return sh;
+}
+
+section("editing: a point moved in the preview lands in the path");
+{
+  const c = newComp();
+  // A turned, unevenly scaled, offset group: the delta is stated in
+  // composition pixels and has to arrive in the path's own units.
+  const L = addShapeLayer(c, "Art", "Group 1", star(4, 100), [20, -30], 25, [150, 80]);
+  L.selected = true;
+  V.P.snap = false;
+  V.UI.refresh();
+
+  const item = V.state.items[0];
+  const was = V.state.geom[0].verts.map(p => p.slice());
+  const rawWas = snapshot(V.rawShape(c, item.prop));
+
+  V.actMovePoints([{ item, idx: [1] }], geomMapOf(), [12, -7]);
+  V.UI.refresh();
+
+  const now = V.state.geom[0].verts;
+  ok(Math.abs(now[1][0] - was[1][0] - 12) < 1e-6 &&
+     Math.abs(now[1][1] - was[1][1] + 7) < 1e-6,
+     "the point lands exactly where it was dragged, through a turned group",
+     [now[1][0] - was[1][0], now[1][1] - was[1][1]].join(","));
+  let others = true;
+  for (let n = 0; n < was.length; n++) {
+    if (n === 1) { continue; }
+    if (Math.abs(now[n][0] - was[n][0]) > 1e-9 ||
+        Math.abs(now[n][1] - was[n][1]) > 1e-9) { others = false; }
+  }
+  ok(others, "and nothing else on the path moved");
+
+  const rawNow = snapshot(V.rawShape(c, item.prop));
+  let tangentsHeld = true;
+  for (let n = 0; n < rawWas.i.length; n++) {
+    if (Math.abs(rawWas.i[n][0] - rawNow.i[n][0]) > 1e-9 ||
+        Math.abs(rawWas.o[n][1] - rawNow.o[n][1]) > 1e-9) { tangentsHeld = false; }
+  }
+  ok(tangentsHeld, "the curve is left alone: a tangent is kept from its vertex");
+
+  // several at once, from one delta
+  const before = V.state.geom[0].verts.map(p => p.slice());
+  V.actMovePoints([{ item, idx: [0, 2, 3] }], geomMapOf(), [-5, 9]);
+  V.UI.refresh();
+  const after = V.state.geom[0].verts;
+  ok([0, 2, 3].every(n => Math.abs(after[n][0] - before[n][0] + 5) < 1e-6 &&
+                          Math.abs(after[n][1] - before[n][1] - 9) < 1e-6),
+     "three points move together by the one delta");
+  ok(Math.abs(after[1][0] - before[1][0]) < 1e-9,
+     "and the one that was not picked stays");
+}
+
+section("editing: a rigged point moves its control, not the path");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(4, 100), [0, 0]);
+  L.selected = true;
+  V.P.snap = false;
+  V.UI.refresh();
+  V.actCreate([{ item: V.state.items[0], idx: [0] }], false, []);
+  V.UI.refresh();
+
+  const item = V.state.items[0];
+  const man = V.readManifest(item.prop);
+  ok(!!man && man.pts.length === 1, "one point is rigged");
+  const ctrl = V.linkedLayer(item.layer, man.pts[0].fx);
+  ok(!!ctrl, "and its control is there");
+
+  const rawWas = snapshot(V.rawShape(c, item.prop));
+  const posWas = ctrl.transform.position.value.slice();
+
+  V.actMovePoints([{ item, idx: [0] }], geomMapOf(), [14, -22]);
+
+  ok(Math.abs(ctrl.transform.position.value[0] - posWas[0] - 14) < 1e-6 &&
+     Math.abs(ctrl.transform.position.value[1] - posWas[1] + 22) < 1e-6,
+     "the control layer moves by the drag",
+     [ctrl.transform.position.value[0] - posWas[0],
+      ctrl.transform.position.value[1] - posWas[1]].join(","));
+  ok(sameShape(rawWas, snapshot(V.rawShape(c, item.prop)), 1e-9),
+     "and the path's own value is not touched - the rig would overwrite it");
+  const man2 = V.readManifest(item.prop);
+  ok(man2.pts.length === 1 && man2.pts[0].fx === man.pts[0].fx,
+     "the manifest is unchanged");
+}
+
+section("editing: a point held by a Pivot moves its place in the Pivot");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(5, 100), [0, 0]);
+  L.selected = true;
+  V.P.snap = false;
+  V.UI.refresh();
+  V.actPivot([{ item: V.state.items[0], idx: [0, 1, 2] }], []);
+  V.UI.refresh();
+
+  const item = V.state.items[0];
+  const man = V.readManifest(item.prop);
+  ok(man.pts.length === 3 && man.pts.every(e => !!e.pp),
+     "three points are held in the Pivot's own frame");
+  const piv = V.linkedLayer(item.layer, man.pts[0].fx);
+  const pivWas = piv.transform.position.value.slice();
+  const ppWas = man.pts.map(e => e.pp.slice());
+  const rawWas = snapshot(V.rawShape(c, item.prop));
+
+  let ppSaid = "";
+  const ppPrevSay = V.UI.say;
+  V.UI.say = m => { ppSaid = String(m); };
+  V.actMovePoints([{ item, idx: [man.pts[1].i] }], geomMapOf(), [8, 5]);
+  V.UI.say = ppPrevSay;
+  ok(/1 point moved/.test(ppSaid),
+     "and the move reports itself rather than falling over", ppSaid);
+
+  const man2 = V.readManifest(item.prop);
+  ok(Math.abs(man2.pts[1].pp[0] - ppWas[1][0] - 8) < 1e-5 &&
+     Math.abs(man2.pts[1].pp[1] - ppWas[1][1] - 5) < 1e-5,
+     "its place in the Pivot moves by the drag",
+     [man2.pts[1].pp[0] - ppWas[1][0], man2.pts[1].pp[1] - ppWas[1][1]].join(","));
+  ok(Math.abs(man2.pts[0].pp[0] - ppWas[0][0]) < 1e-9 &&
+     Math.abs(man2.pts[2].pp[0] - ppWas[2][0]) < 1e-9,
+     "the others riding on it stay where they are");
+  ok(Math.abs(piv.transform.position.value[0] - pivWas[0]) < 1e-9 &&
+     Math.abs(piv.transform.position.value[1] - pivWas[1]) < 1e-9,
+     "and the Pivot itself does not move");
+  ok(sameShape(rawWas, snapshot(V.rawShape(c, item.prop)), 1e-9),
+     "the path's own value is left alone");
+  try {
+    new vm.Script(item.prop.expression);
+    ok(true, "the rewritten expression still parses as JavaScript");
+  } catch (e) { ok(false, "the rewritten expression still parses as JavaScript", e.message); }
+}
+
+section("editing: alignment lines points up and leaves their curves alone");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", curvy(100), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  const item = V.state.items[0];
+  const rawWas = snapshot(V.rawShape(c, item.prop));
+  const bWas = V.boundsOfPicks([{ item, idx: [0, 1, 2] }], geomMapOf());
+
+  V.actAlign([{ item, idx: [0, 1, 2] }], geomMapOf(), "l");
+  V.UI.refresh();
+
+  const v = V.state.geom[0].verts;
+  ok(Math.abs(v[0][0] - v[1][0]) < 1e-6 && Math.abs(v[1][0] - v[2][0]) < 1e-6,
+     "the three picked points share one x", [v[0][0], v[1][0], v[2][0]].join(","));
+  ok(Math.abs(v[0][0] - bWas.minx) < 1e-6,
+     "and it is the left edge of the three, not of the whole path",
+     v[0][0] + " vs " + bWas.minx);
+
+  const rawNow = snapshot(V.rawShape(c, item.prop));
+  let held = true;
+  for (let n = 0; n < rawWas.i.length; n++) {
+    for (const f of ["i", "o"]) {
+      if (Math.abs(rawWas[f][n][0] - rawNow[f][n][0]) > 1e-9 ||
+          Math.abs(rawWas[f][n][1] - rawNow[f][n][1]) > 1e-9) { held = false; }
+    }
+  }
+  ok(held, "every tangent comes out bit for bit the same");
+  ok(Math.abs(rawWas.v[3][0] - rawNow.v[3][0]) < 1e-9,
+     "the point that was not picked is where it was");
+
+  const r = V.actAlign([{ item, idx: [0] }], geomMapOf(), "t");
+  ok(r === false, "one point on its own has nothing to line up with");
+}
+
+section("editing: the transform box turns points and their curves together");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", curvy(100), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  const item = V.state.items[0];
+  const map = geomMapOf();
+  const was = map[item.key].verts.map(p => p.slice());
+  const tipWas = V.tipVec(map[item.key], 0, "out").slice();
+  const b = V.boundsOfPicks([{ item, idx: [0, 1, 2, 3] }], map);
+  const centre = [(b.minx + b.maxx) / 2, (b.miny + b.maxy) / 2];
+
+  // a quarter turn, in the file's own matrix convention
+  V.actTransform([{ item, idx: [0, 1, 2, 3] }], map, [0, 1, -1, 0, 0, 0], centre);
+  V.UI.refresh();
+
+  const now = V.state.geom[0].verts;
+  let turned = true;
+  for (let n = 0; n < was.length; n++) {
+    const dx = was[n][0] - centre[0], dy = was[n][1] - centre[1];
+    const wx = centre[0] - dy, wy = centre[1] + dx;
+    if (Math.abs(now[n][0] - wx) > 1e-6 || Math.abs(now[n][1] - wy) > 1e-6) { turned = false; }
+  }
+  ok(turned, "every point lands on the quarter turn");
+  const tipNow = V.tipVec(V.state.geom[0], 0, "out");
+  ok(Math.abs(tipNow[0] + tipWas[1]) < 1e-6 && Math.abs(tipNow[1] - tipWas[0]) < 1e-6,
+     "and the handle turns with it, so the curve keeps its shape",
+     tipNow.join(",") + " from " + tipWas.join(","));
+
+  // scaling about a corner
+  const map2 = geomMapOf();
+  const before = map2[item.key].verts.map(p => p.slice());
+  const b2 = V.boundsOfPicks([{ item, idx: [0, 1, 2, 3] }], map2);
+  V.actTransform([{ item, idx: [0, 1, 2, 3] }], map2, [2, 0, 0, 2, 0, 0],
+                 [b2.minx, b2.miny]);
+  V.UI.refresh();
+  const after = V.state.geom[0].verts;
+  ok(after.every((p, n) =>
+       Math.abs(p[0] - (b2.minx + (before[n][0] - b2.minx) * 2)) < 1e-6 &&
+       Math.abs(p[1] - (b2.miny + (before[n][1] - b2.miny) * 2)) < 1e-6),
+     "doubling about the top left corner leaves that corner where it was");
+}
+
+section("editing: a handle dragged reshapes the curve");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", curvy(100), [0, 0], 0, [200, 200]);
+  L.selected = true;
+  V.UI.refresh();
+  const item = V.state.items[0];
+  const gm = V.state.geom[0];
+  ok(gm.tips.length === 8, "a curved path offers a tip for every side",
+     gm.tips.length);
+  ok(gm.tips.every(t => t.ctl === "free"),
+     "and on an unrigged path they are the path's own");
+
+  const map = geomMapOf();
+  const vertWas = gm.verts[0].slice();
+  V.actCurve(item, map, 0, { out: [40, 10] });
+  V.UI.refresh();
+
+  const now = V.state.geom[0];
+  const got = V.tipVec(now, 0, "out");
+  ok(Math.abs(got[0] - 40) < 1e-6 && Math.abs(got[1] - 10) < 1e-6,
+     "the tip lands where it was dragged, in composition pixels, through a scaled group",
+     got.join(","));
+  ok(Math.abs(now.verts[0][0] - vertWas[0]) < 1e-9 &&
+     Math.abs(now.verts[0][1] - vertWas[1]) < 1e-9,
+     "and the point it belongs to does not move");
+  const inNow = V.tipVec(now, 0, "in");
+  // a tip is reported in composition pixels, and this group runs at 200%
+  ok(Math.abs(inNow[0] + 110.46) < 0.02, "the other side is untouched", inNow.join(","));
+}
+
+section("editing: a tangent bound to a control is written through the bind frame");
+{
+  // The expression does not run here, so the check is the forward maths the
+  // expression itself does - _tv in buildPathExpression - applied to what was
+  // written. A turned, unevenly scaled group is what makes that map bite.
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", curvy(100), [0, 0], 35, [180, 60]);
+  L.selected = true;
+  V.UI.refresh();
+  V.actCreate([{ item: V.state.items[0], idx: [0] }], false, []);
+  V.UI.refresh();
+
+  const item = V.state.items[0];
+  const man = V.readManifest(item.prop);
+  ok(!!man.pts[0].tf, "the rigged point carries a bind frame");
+  ok(V.tipKind(man.pts[0], "out") === "bound",
+     "so its handle is bound rather than free", V.tipKind(man.pts[0], "out"));
+  const tf = man.pts[0].tf;
+  ok(Math.abs(tf[0] - 1) > 1e-6 || Math.abs(tf[1]) > 1e-6,
+     "and the frame is not the identity, so the inverse has work to do",
+     tf.join(","));
+
+  const want = [30, -18];
+  V.actCurve(item, geomMapOf(), 0, { out: want });
+
+  const ctrl = V.linkedLayer(item.layer, man.pts[0].fx);
+  const m = V.itemMatrix(item, 0), minv = V.mInv(m);
+  const v = V.rawShape(c, item.prop).outTangents[0];
+  // _tv: the path's tangent through the bind frame, then out of the control's
+  // own space into the path's - which is what the rig will hand back.
+  const Lmat = [minv[0], minv[1], minv[2], minv[3], minv[4], minv[5]];
+  const ctrlM = V.layerMatrix(ctrl, 0);
+  const through = V.mVec(
+    [Lmat[0] * ctrlM[0] + Lmat[2] * ctrlM[1], Lmat[1] * ctrlM[0] + Lmat[3] * ctrlM[1],
+     Lmat[0] * ctrlM[2] + Lmat[2] * ctrlM[3], Lmat[1] * ctrlM[2] + Lmat[3] * ctrlM[3], 0, 0],
+    V.mVec([tf[0], tf[1], tf[2], tf[3], 0, 0], v));
+  const back = V.mVec(m, through);
+  ok(Math.abs(back[0] - want[0]) < 1e-6 && Math.abs(back[1] - want[1]) < 1e-6,
+     "what the rig will hand back is exactly what was dragged to",
+     back.join(",") + " for " + want.join(","));
+}
+
+section("editing: a handle on a control is measured from where the point is now");
+{
+  // The trap: once a point is rigged, the path's own value is no longer where
+  // the point is - the rig overwrites it with the control's place. A handle
+  // dragged afterwards has to be measured from the control, not from the
+  // value underneath it, or it lands off by however far the point has moved.
+  for (const mode of ["masks", "layers"]) {
+    const c = newComp();
+    const L = addShapeLayer(c, "Art", "Group 1", curvy(100), [0, 0]);
+    L.selected = true;
+    V.P.snap = false;
+    V.P.handleMode = mode;
+    V.UI.refresh();
+    V.actCreate([{ item: V.state.items[0], idx: [1] }], true, []);
+    V.UI.refresh();
+
+    let item = V.state.items[0];
+    // Move the point well away, so the control and the stored value part ways
+    V.actMovePoints([{ item, idx: [1] }], geomMapOf(), [60, -45]);
+    V.UI.refresh();
+    item = V.state.items[0];
+
+    const man = V.readManifest(item.prop);
+    const e = man.pts.filter(q2 => q2.i === 1)[0];
+    ok(V.tipKind(e, "out") === (mode === "masks" ? "mask" : "layer"),
+       mode + ": the out handle is on a control", V.tipKind(e, "out"));
+
+    // The expression does not run here, so the canvas still draws the point
+    // at the value underneath it. The control is where the point really is,
+    // and it is the control the handle has to be measured from.
+    const ctrlLayer = V.linkedLayer(item.layer, e.fx);
+    const pointNow = V.mPt(V.layerMatrix(ctrlLayer, 0), [0, 0]);
+    const rawComp = V.mPt(V.itemMatrix(item, 0), V.rawShape(c, item.prop).vertices[1]);
+    ok(Math.abs(pointNow[0] - rawComp[0] - 60) < 1e-6 &&
+       Math.abs(pointNow[1] - rawComp[1] + 45) < 1e-6,
+       mode + ": the control has moved away from the value underneath it",
+       [rawComp[0] - pointNow[0], rawComp[1] - pointNow[1]].join(","));
+
+    const want = [52, 17];
+    V.actCurve(item, geomMapOf(), 1, { out: want });
+
+    const ctrl = V.linkedLayer(item.layer, e.fx);
+    let tipComp;
+    if (mode === "layers") {
+      const hl = V.linkedLayer(item.layer, e.of);
+      tipComp = V.mPt(V.layerMatrix(hl, 0), [0, 0]);
+    } else {
+      const masks = ctrl.property("ADBE Mask Parade");
+      let shape = null;
+      for (let n = 1; n <= masks.numProperties; n++) {
+        if (masks.property(n).name === "VXR Out") {
+          shape = masks.property(n).property("ADBE Mask Shape").value;
+        }
+      }
+      tipComp = V.mPt(V.layerMatrix(ctrl, 0), shape.vertices[1]);
+    }
+    ok(Math.abs(tipComp[0] - pointNow[0] - want[0]) < 1e-5 &&
+       Math.abs(tipComp[1] - pointNow[1] - want[1]) < 1e-5,
+       mode + ": the handle lands that far from the point, not from the value",
+       [tipComp[0] - pointNow[0], tipComp[1] - pointNow[1]].join(","));
+  }
+  V.P.handleMode = "masks";
+}
+
+section("editing: what it refuses, and says so");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(4, 100), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  const item = V.state.items[0];
+  const map = geomMapOf();
+
+  // another tool's expression owns the path
+  item.prop.expression = "value";
+  const rawWas = snapshot(item.prop.value);
+  let r = V.applyEdits(c, V.editsFor([{ item, idx: [0] }], map,
+    at => ({ pt: [at[0] + 10, at[1]] })));
+  ok(r.foreign === 1 && r.moved === 0, "a foreign expression is left alone",
+     JSON.stringify(r));
+  ok(sameShape(rawWas, snapshot(item.prop.value), 1e-9), "and its path is not written");
+  ok(/another tool/.test(V.editReport(r)), "the message says why", V.editReport(r));
+  item.prop.expression = "";
+
+  // a shape group with Skew on it: the maths cannot undo it, so it refuses
+  // rather than putting the point somewhere it was not dragged
+  const grp = L.property("ADBE Root Vectors Group").property("Group 1");
+  grp.property("ADBE Vector Transform Group").property("ADBE Vector Skew").setValue(20);
+  r = V.applyEdits(c, V.editsFor([{ item, idx: [0] }], map,
+    at => ({ pt: [at[0] + 10, at[1]] })));
+  ok(r.skewed === 1 && r.moved === 0, "Skew is refused", JSON.stringify(r));
+  ok(/Skew/.test(V.editReport(r)), "and named", V.editReport(r));
+  grp.property("ADBE Vector Transform Group").property("ADBE Vector Skew").setValue(0);
+}
+
+section("editing: a path with keyframes gets one, rather than losing them");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(4, 100), [0, 0]);
+  L.selected = true;
+  const prop = L.property("ADBE Root Vectors Group").property("Group 1")
+                .property("ADBE Vectors Group").property(1)
+                .property("ADBE Vector Shape");
+  prop.setValueAtTime(0, star(4, 100));
+  prop.setValueAtTime(2, star(4, 140));
+  c.time = 1;
+  V.UI.refresh();
+  const item = V.state.items[0];
+  const keysWas = prop.numKeys;
+  const was = V.state.geom[0].verts[0].slice();
+
+  V.actMovePoints([{ item, idx: [0] }], geomMapOf(), [11, 0]);
+
+  ok(prop.numKeys === keysWas + 1, "a key appears at the current time",
+     prop.numKeys + " from " + keysWas);
+  const at = prop.valueAtTime(1, false);
+  ok(Math.abs(at.vertices[0][0] - (was[0] - 960) - 11) < 1e-6,
+     "holding the move", at.vertices[0][0]);
+  c.time = 0;
+}
+
+section("editing: a rectangle becomes a path before it is moved");
+{
+  const c = newComp();
+  const L = c.layers.addShape();
+  L.name = "Boxy";
+  L.transform.position.setValue([960, 540]);
+  const grp = L.property("ADBE Root Vectors Group").addProperty("ADBE Vector Group");
+  grp.name = "Group 1";
+  const vecs = grp.property("ADBE Vectors Group");
+  const rect = vecs.addProperty("ADBE Vector Shape - Rect");
+  rect.property("ADBE Vector Rect Size").setValue([200, 120]);
+  L.selected = true;
+  V.P.snap = false;
+  V.UI.refresh();
+
+  const prim = V.state.items.filter(it => it.prim)[0];
+  ok(!!prim, "the rectangle shows its points");
+  const map = geomMapOf();
+  const was = map[prim.key].verts[0].slice();
+
+  V.actMovePoints([{ item: prim, idx: [0] }], map, [15, -9]);
+  V.UI.refresh();
+
+  const fresh = V.state.items.filter(it => !it.prim)[0];
+  ok(!!fresh, "it is a path afterwards");
+  const gm = V.state.geom[V.state.items.indexOf(fresh)];
+  ok(Math.abs(gm.verts[0][0] - was[0] - 15) < 1e-6 &&
+     Math.abs(gm.verts[0][1] - was[1] + 9) < 1e-6,
+     "and the point moved by the drag that asked for it",
+     [gm.verts[0][0] - was[0], gm.verts[0][1] - was[1]].join(","));
+}
+
+section("editing: a path keyframe, to edit this moment and not the whole thing");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(4, 100), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  const item = V.state.items[0];
+  ok(item.prop.numKeys === 0, "the path starts with none");
+
+  c.time = 1.25;
+  V.actKeyPaths([item]);
+  ok(item.prop.numKeys === 1, "one goes down at the current time",
+     item.prop.numKeys);
+  ok(Math.abs(item.prop.keyTime(1) - 1.25) < 1e-9, "at the time it was pressed",
+     item.prop.keyTime(1));
+  const at = item.prop.valueAtTime(1.25, false);
+  ok(Math.abs(at.vertices[0][1] + 100) < 1e-6,
+     "holding the shape it already had", at.vertices[0][1]);
+
+  // with one down, a move belongs to that moment rather than to all of time
+  V.P.snap = false;
+  V.UI.refresh();
+  V.actMovePoints([{ item: V.state.items[0], idx: [0] }], geomMapOf(), [17, 0]);
+  ok(item.prop.numKeys === 2, "moving a point adds a second, not a replacement",
+     item.prop.numKeys);
+
+  // a rectangle has no path to key, and is told so rather than ignored
+  const L2 = c.layers.addShape();
+  L2.name = "Boxy";
+  const g2 = L2.property("ADBE Root Vectors Group").addProperty("ADBE Vector Group");
+  g2.name = "Group 1";
+  g2.property("ADBE Vectors Group").addProperty("ADBE Vector Shape - Rect")
+    .property("ADBE Vector Rect Size").setValue([200, 120]);
+  L.selected = false;
+  L2.selected = true;
+  V.UI.refresh();
+  const prim = V.state.items.filter(it => it.prim)[0];
+  let said = "";
+  const wasSay = V.UI.say;
+  V.UI.say = s => { said = s; };
+  V.actKeyPaths([prim]);
+  V.UI.say = wasSay;
+  ok(/no path to key/.test(said), "and says to make it a path first", said);
+  c.time = 0;
+}
+
+section("editing: Keyframe follows the group picked out in the timeline");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Two", "Group 1", star(4, 100), [0, 0]);
+  const root = L.property("ADBE Root Vectors Group");
+  const g2 = root.addProperty("ADBE Vector Group");
+  g2.name = "Group 2";
+  const v2 = g2.property("ADBE Vectors Group");
+  v2.addProperty("ADBE Vector Shape - Group")
+    .property("ADBE Vector Shape").setValue(star(3, 60));
+  v2.addProperty("ADBE Vector Graphic - Fill");
+  L.selected = true;
+  V.state.sel = {};
+  V.UI.refresh();
+
+  const items = V.state.items;
+  ok(items.length === 2, "the layer offers two paths", items.length);
+  const one = items.filter(it => it.chain[0] === "Group 1")[0];
+  const two = items.filter(it => it.chain[0] === "Group 2")[0];
+  ok(!!one && !!two, "one in each group");
+
+  // Selecting a property selects its layer too, so the layer's own selection
+  // cannot say which shape was meant - only the properties can.
+  ok(V.pointedPaths(items).length === 2,
+     "with only the layer selected, every path on it counts",
+     V.pointedPaths(items).length);
+
+  g2.selected = true;
+  const pointed = V.pointedPaths(items);
+  ok(pointed.length === 1 && pointed[0] === two,
+     "a chosen shape group means that shape and not its neighbour",
+     pointed.length);
+
+  c.time = 0.5;
+  M.app._commands.length = 0;
+  const keyBtn = M.NODES.filter(n => /A path keyframe here/.test(n.says || ""))[0];
+  ok(!!keyBtn, "the Keyframe button is there");
+  keyBtn.onClick.call(keyBtn);
+
+  ok(two.prop.numKeys === 1 && one.prop.numKeys === 0,
+     "only the chosen group's path is keyed",
+     two.prop.numKeys + " keyed, " + one.prop.numKeys + " left alone");
+
+  // There is no way to twirl a property open from a script, so the key is
+  // shown with the U command instead - see the reveal note in memory.
+  ok(M.app._commands.indexOf(2387) >= 0,
+     "and the keyframed properties are revealed, the way U does",
+     M.app._commands.join(","));
+  ok(L.selected === true,
+     "with the layer selected, since that is what the command acts on");
+
+  g2.selected = false;
+  V.P.revealKeyed = false;
+  M.app._commands.length = 0;
+  c.time = 0.75;
+  keyBtn.onClick.call(keyBtn);
+  ok(M.app._commands.indexOf(2387) < 0, "the preference turns the reveal off",
+     M.app._commands.join(","));
+  ok(one.prop.numKeys === 1 && two.prop.numKeys === 2,
+     "and with no group chosen it keys both",
+     one.prop.numKeys + " / " + two.prop.numKeys);
+
+  // picked points still win over whatever the timeline says
+  V.P.revealKeyed = true;
+  g2.selected = true;
+  V.UI.refresh();
+  V.state.sel = {};
+  V.state.sel[V.state.items.filter(it => it.chain[0] === "Group 1")[0].key] = [0];
+  c.time = 0.9;
+  keyBtn.onClick.call(keyBtn);
+  ok(one.prop.numKeys === 2 && two.prop.numKeys === 2,
+     "a picked point keys its own path, not the chosen group's",
+     one.prop.numKeys + " / " + two.prop.numKeys);
+  V.state.sel = {};
+  g2.selected = false;
+  c.time = 0;
+}
+
+section("editing: Reveal opens paths without keying them");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(4, 100), [0, 0]);
+  L.selected = false;
+  V.state.sel = {};
+  V.UI.refresh();
+  const item = scanOn(c, L)[0];
+
+  let said = "";
+  const prev = V.UI.say;
+  V.UI.say = m => { said = String(m); };
+
+  // No keyframe of its own: the only command that reaches it is the one that
+  // opens everything modified, and the message has to own up to that.
+  M.app._commands.length = 0;
+  V.actRevealPaths([item]);
+  ok(M.app._commands.indexOf(2771) >= 0,
+     "a path with no keyframes is opened with the modified-properties command",
+     M.app._commands.join(","));
+  ok(/everything else modified/.test(said),
+     "and the message says what else came with it", said);
+  ok(L.selected === true,
+     "the layer is selected, since that is what the command acts on");
+  ok(item.prop.numKeys === 0, "and nothing was keyed on the way");
+
+  // Once it has a keyframe, the tidy command fits
+  c.time = 0.4;
+  V.actKeyPaths([item]);
+  M.app._commands.length = 0;
+  V.actRevealPaths([item]);
+  ok(M.app._commands.indexOf(2387) >= 0,
+     "a keyframed path is opened on its own", M.app._commands.join(","));
+  ok(M.app._commands.indexOf(2771) < 0, "without dragging the rest of the layer in");
+  ok(/Opened 1 path in the timeline\./.test(said), "and says just that", said);
+
+  // Mixed: one keyed, one not, so the wider command is the only one that
+  // reaches both
+  const g2 = L.property("ADBE Root Vectors Group").addProperty("ADBE Vector Group");
+  g2.name = "Group 2";
+  const v2 = g2.property("ADBE Vectors Group");
+  v2.addProperty("ADBE Vector Shape - Group")
+    .property("ADBE Vector Shape").setValue(star(3, 60));
+  const both = scanOn(c, L);
+  ok(both.length === 2, "two paths now", both.length);
+  M.app._commands.length = 0;
+  V.actRevealPaths(both);
+  ok(M.app._commands.indexOf(2771) >= 0,
+     "one of them unkeyed is enough to need the wider command",
+     M.app._commands.join(","));
+
+  // a rectangle has no path to open
+  M.app._commands.length = 0;
+  const L2 = c.layers.addShape();
+  L2.name = "Boxy";
+  const g3 = L2.property("ADBE Root Vectors Group").addProperty("ADBE Vector Group");
+  g3.name = "Group 1";
+  g3.property("ADBE Vectors Group").addProperty("ADBE Vector Shape - Rect")
+    .property("ADBE Vector Rect Size").setValue([200, 120]);
+  L.selected = false;
+  L2.selected = true;
+  V.UI.refresh();
+  const prim = V.state.items.filter(it => it.prim)[0];
+  V.actRevealPaths([prim]);
+  ok(M.app._commands.length === 0, "a rectangle asks for nothing to be run",
+     M.app._commands.join(","));
+  ok(/no path to open/.test(said), "and is told why", said);
+
+  V.UI.say = prev;
+  c.time = 0;
+}
+
+section("editing: a handle is picked for, and moves with what it is picked with");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", curvy(100), [0, 0]);
+  L.selected = true;
+  V.P.snap = false;
+  V.P.handleView = "all";
+  V.UI.refresh();
+  V.state.view = { s: 1, tx: 0, ty: 0 };
+  V.state.viewManual = true;
+
+  const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
+  const item = V.state.items[0];
+  const key = item.key;
+  const tipOf = (i, side) =>
+    V.state.geom[0].tips.filter(t2 => t2.i === i && t2.side === side)[0];
+
+  // --- clicking one ------------------------------------------------------
+  let tip = tipOf(0, "out");
+  ok(!!tip, "point 0 has an out handle");
+  cv.fire("mousedown", { clientX: tip.b[0], clientY: tip.b[1], detail: 1 });
+  cv.fire("mouseup", { clientX: tip.b[0], clientY: tip.b[1], detail: 1 });
+  ok(V.tipPicked(key, 0, "out") === true, "clicking a handle picks it",
+     JSON.stringify(V.state.selH));
+  ok(V.countSel() === 0, "and picks no point with it", V.countSel());
+
+  // --- shift-click adds a second ----------------------------------------
+  tip = tipOf(2, "in");
+  cv.fire("mousedown", { clientX: tip.b[0], clientY: tip.b[1], detail: 1, shiftKey: true });
+  cv.fire("mouseup", { clientX: tip.b[0], clientY: tip.b[1], detail: 1, shiftKey: true });
+  ok(V.countSelH() === 2 && V.tipPicked(key, 2, "in"),
+     "shift-click adds another", V.countSelH());
+
+  // --- a marquee takes in whatever was on screen inside it ---------------
+  // With every handle on show, a box round the lot takes the handles too.
+  cv.fire("mousedown", { clientX: 2, clientY: 2, detail: 1 });
+  cv.fire("mousemove", { clientX: 1900, clientY: 1000 });
+  cv.fire("mouseup", { clientX: 1900, clientY: 1000 });
+  ok(V.countSel() === 4, "a marquee round everything takes the four points",
+     V.countSel());
+  ok(V.countSelH() === 8, "and the eight handles that were on show with them",
+     V.countSelH());
+
+  // A handle the Handles setting is hiding was not there to be swept up.
+  V.P.handleView = "none";
+  V.state.sel = {};
+  V.state.selH = {};
+  cv.fire("mousedown", { clientX: 2, clientY: 2, detail: 1 });
+  cv.fire("mousemove", { clientX: 1900, clientY: 1000 });
+  cv.fire("mouseup", { clientX: 1900, clientY: 1000 });
+  ok(V.countSel() === 4, "with handles hidden the points still come", V.countSel());
+  ok(V.countSelH() === 0, "and nothing invisible is picked behind your back",
+     V.countSelH());
+
+  // In "picked" mode the handles on show are the picked points', which is
+  // nothing at all at the moment the box is drawn over a cleared selection.
+  V.P.handleView = "selected";
+  V.state.sel = {};
+  V.state.selH = {};
+  cv.fire("mousedown", { clientX: 2, clientY: 2, detail: 1 });
+  cv.fire("mousemove", { clientX: 1900, clientY: 1000 });
+  cv.fire("mouseup", { clientX: 1900, clientY: 1000 });
+  ok(V.countSel() === 4 && V.countSelH() === 0,
+     "and in picked mode a fresh box takes points only",
+     V.countSel() + " / " + V.countSelH());
+  V.P.handleView = "all";
+
+  // --- the transform box is the points' bounds, never the handles' -------
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.sel[key] = [0, 1];
+  const bPts = V.boundsOfPicks([{ item, idx: [0, 1] }], geomMapOf());
+  V.state.selH[key] = ["0:out", "2:in"];
+  const bWith = V.boundsOfPicks(V.currentPicks(), geomMapOf());
+  ok(bWith.minx === bPts.minx && bWith.maxx === bPts.maxx &&
+     bWith.miny === bPts.miny && bWith.maxy === bPts.maxy,
+     "picking handles does not stretch the bounds the box is drawn round",
+     [bWith.minx, bWith.maxx, bWith.miny, bWith.maxy].join(","));
+
+  // --- two points and a handle: the box transforms the points, and the
+  //     handles ride along attached, exactly as with no handle picked -----
+  const picks2 = [{ item, idx: [0, 1] }];
+  const map2 = geomMapOf();
+  const was2 = map2[key].verts.map(p => p.slice());
+  const tipWas = V.tipVec(map2[key], 0, "out").slice();
+  V.actTransform(picks2, map2, [0, 1, -1, 0, 0, 0], [bPts.minx, bPts.miny]);
+  V.UI.refresh();
+  const now2 = V.state.geom[0].verts;
+  ok(Math.abs(now2[0][0] - (bPts.minx - (was2[0][1] - bPts.miny))) < 1e-6,
+     "the picked points turn", now2[0].join(","));
+  const tipNow = V.tipVec(V.state.geom[0], 0, "out");
+  ok(Math.abs(tipNow[0] + tipWas[1]) < 1e-6 && Math.abs(tipNow[1] - tipWas[0]) < 1e-6,
+     "and their handles stay attached, turning with them",
+     tipNow.join(",") + " from " + tipWas.join(","));
+}
+
+section("the preview: a press inside the transform box moves what is in it");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(4, 120), [0, 0]);
+  L.selected = true;
+  V.P.snap = false;
+  V.P.showBox = true;
+  V.P.handleView = "selected";
+  V.UI.refresh();
+  V.state.view = { s: 1, tx: 0, ty: 0 };
+  V.state.viewManual = true;
+  const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
+  const item = V.state.items[0];
+
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.sel[item.key] = [0, 1, 2, 3];
+  const b = V.boundsOfPicks(V.currentPicks(), geomMapOf());
+  const mid = [(b.minx + b.maxx) / 2, (b.miny + b.maxy) / 2];
+  const was = V.state.geom[0].verts.map(p => p.slice());
+
+  // the middle of the box is not on any vertex of a four-point star
+  const onPoint = was.some(p => Math.abs(p[0] - mid[0]) < 10 &&
+                                Math.abs(p[1] - mid[1]) < 10);
+  ok(!onPoint, "the centre of the box is clear of every point");
+
+  cv.fire("mousedown", { clientX: mid[0], clientY: mid[1], detail: 1 });
+  ok(!!V.state.edit && V.state.edit.kind === "move",
+     "pressing inside the box arms a move, not a new marquee",
+     V.state.edit ? V.state.edit.kind : "nothing");
+  cv.fire("mousemove", { clientX: mid[0] + 25, clientY: mid[1] - 10 });
+  cv.fire("mouseup", { clientX: mid[0] + 25, clientY: mid[1] - 10 });
+  V.UI.refresh();
+  const now = V.state.geom[0].verts;
+  ok(now.every((p, n) => Math.abs(p[0] - was[n][0] - 25) < 1e-6 &&
+                         Math.abs(p[1] - was[n][1] + 10) < 1e-6),
+     "and the whole selection travels with it",
+     [now[0][0] - was[0][0], now[0][1] - was[0][1]].join(","));
+  ok(V.countSel() === 4, "the selection is still what it was", V.countSel());
+
+  // shift keeps a way to add to a selection from inside its own box
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.sel[item.key] = [0, 1];
+  const b2 = V.boundsOfPicks(V.currentPicks(), geomMapOf());
+  const mid2 = [(b2.minx + b2.maxx) / 2, (b2.miny + b2.maxy) / 2];
+  cv.fire("mousedown", { clientX: mid2[0], clientY: mid2[1], detail: 1, shiftKey: true });
+  ok(V.state.edit === null, "shift inside the box starts no move",
+     V.state.edit ? V.state.edit.kind : "nothing");
+  // down and to the left, over the two points that are not picked yet
+  cv.fire("mousemove", { clientX: mid2[0] - 180, clientY: mid2[1] + 220, shiftKey: true });
+  cv.fire("mouseup", { clientX: mid2[0] - 180, clientY: mid2[1] + 220, shiftKey: true });
+  ok(V.countSel() === 4, "it draws a marquee that adds to the selection",
+     V.countSel());
+
+  // with the box turned off, the middle is empty canvas again
+  V.P.showBox = false;
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.sel[item.key] = [0, 1, 2, 3];
+  cv.fire("mousedown", { clientX: mid[0], clientY: mid[1], detail: 1 });
+  ok(V.state.edit === null,
+     "no box means no inside to press, so a marquee starts as before");
+  cv.fire("mouseup", { clientX: mid[0], clientY: mid[1] });
+  V.P.showBox = true;
+  V.state.sel = {};
+  V.state.selH = {};
+}
+
+// ================================================================= relink
+// Standing in for the pen tool: write the path's own value with the rig's
+// expression stood down, which is exactly where an After Effects edit lands.
+function putRaw(c, prop, parts) {
+  const sh = new M.Shape();
+  sh.closed = parts.closed !== false;
+  sh.vertices = parts.v;
+  sh.inTangents = parts.i;
+  sh.outTangents = parts.o;
+  const live = prop.expressionEnabled;
+  if (live) { prop.expressionEnabled = false; }
+  if (prop.numKeys > 0) { prop.setValueAtTime(c.time, sh); } else { prop.setValue(sh); }
+  if (live) { prop.expressionEnabled = true; }
+}
+
+function rawOf(c, prop) {
+  const sh = V.rawShape(c, prop);
+  return { v: sh.vertices.map(p => p.slice()),
+           i: sh.inTangents.map(p => p.slice()),
+           o: sh.outTangents.map(p => p.slice()),
+           closed: sh.closed };
+}
+
+function rigged(points) {
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(5, 100), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  V.actCreate(pickAll(V.state.items[0], points), false);
+  V.UI.refresh();
+  const item = V.state.items[0];
+  return { c, L, item, man: V.readManifest(item.prop) };
+}
+
+function sayOf(fn) {
+  let said = "";
+  const prev = V.UI.say;
+  V.UI.say = m => { said = String(m); };
+  try { fn(); } finally { V.UI.say = prev; }
+  return said;
+}
+
+section("relink: a vertex added in After Effects does not strand the rig");
+{
+  const { c, item, man } = rigged([1, 3]);
+  ok(man.pts.length === 2 && man.pts.every(e => e.p && e.p.length === 2),
+     "a new rig writes down where each of its points sat in the path",
+     JSON.stringify(man.pts.map(e => e.p)));
+  const placeWas = man.pts.map(e => e.p.slice());
+  const ctrls = man.pts.map(e => V.linkedLayer(item.layer, e.fx));
+  const ctrlWas = ctrls.map(l => l.transform.position.value.slice());
+
+  // one more vertex, in front of both of them
+  const was = rawOf(c, item.prop);
+  putRaw(c, item.prop, { v: [[0, -150]].concat(was.v),
+                         i: [[0, 0]].concat(was.i),
+                         o: [[0, 0]].concat(was.o),
+                         closed: was.closed });
+  const brokenAt = V.readManifest(item.prop).pts.map(e => e.i).join(",");
+  ok(brokenAt === "1,3", "until it is relinked the rig still names the old indices",
+     brokenAt);
+
+  const said = sayOf(() => V.actRelink([item]));
+
+  const now = V.readManifest(item.prop);
+  ok(now.pts.map(e => e.i).join(",") === "2,4",
+     "both entries move on by the one vertex put in front of them",
+     now.pts.map(e => e.i).join(","));
+  const after = rawOf(c, item.prop);
+  // The manifest rounds what it stores to a millionth, so a place read back
+  // out of it is near the vertex it came from rather than identical to it.
+  ok(now.pts.every((e, n) =>
+       Math.abs(after.v[e.i][0] - placeWas[n][0]) < 1e-5 &&
+       Math.abs(after.v[e.i][1] - placeWas[n][1]) < 1e-5),
+     "each one now indexes the vertex it was given in the first place",
+     JSON.stringify(now.pts.map((e, n) => [after.v[e.i], placeWas[n]])));
+  ok(ctrls.every((l, n) =>
+       Math.abs(l.transform.position.value[0] - ctrlWas[n][0]) < 1e-9 &&
+       Math.abs(l.transform.position.value[1] - ctrlWas[n][1]) < 1e-9),
+     "and nothing on the composition had to move for it");
+  ok(/2 points put back/.test(said), "it says what it put right", said);
+
+  // and the other way: a vertex taken away
+  const back = rawOf(c, item.prop);
+  putRaw(c, item.prop, { v: back.v.slice(1), i: back.i.slice(1),
+                         o: back.o.slice(1), closed: back.closed });
+  V.actRelink([item]);
+  ok(V.readManifest(item.prop).pts.map(e => e.i).join(",") === "1,3",
+     "taking it away again walks them back",
+     V.readManifest(item.prop).pts.map(e => e.i).join(","));
+}
+
+section("relink: a control left behind by an edited curve is brought to it");
+{
+  const { c, item, man } = rigged([1, 3]);
+  const stay = V.linkedLayer(item.layer, man.pts[0].fx);
+  const stayWas = stay.transform.position.value.slice();
+  const ctrl = V.linkedLayer(item.layer, man.pts[1].fx);
+
+  // the user drags vertex 3 in the AE viewer: the value takes it, and the
+  // rig puts the point straight back, so the edit looks ignored
+  const was = rawOf(c, item.prop);
+  const moved = [was.v[3][0] + 12, was.v[3][1] - 9];
+  putRaw(c, item.prop, { v: was.v.map((p, n) => (n === 3 ? moved : p)),
+                         i: was.i, o: was.o, closed: was.closed });
+
+  const said = sayOf(() => V.actRelink([item]));
+
+  const now = V.readManifest(item.prop);
+  ok(now.pts[1].i === 3, "its index was right and stays right", now.pts[1].i);
+  const want = V.mPt(V.itemMatrix(item, c.time), moved);
+  const at = ctrl.transform.position.value;
+  ok(Math.abs(at[0] - want[0]) < 1e-6 && Math.abs(at[1] - want[1]) < 1e-6,
+     "the control has come to meet its point",
+     at.join(",") + " wanted " + want.join(","));
+  ok(Math.abs(now.pts[1].p[0] - moved[0]) < 1e-5 &&
+     Math.abs(now.pts[1].p[1] - moved[1]) < 1e-5,
+     "and the place written down is the new one",
+     now.pts[1].p.join(",") + " wanted " + moved.join(","));
+  ok(Math.abs(stay.transform.position.value[0] - stayWas[0]) < 1e-9 &&
+     Math.abs(stay.transform.position.value[1] - stayWas[1]) < 1e-9,
+     "the control whose point did not move is left alone");
+  ok(/1 control brought to its point/.test(said), "it says so", said);
+}
+
+section("relink: a rig that is already right is left alone");
+{
+  const { c, item, man } = rigged([0, 2, 4]);
+  const before = JSON.stringify(V.readManifest(item.prop));
+  const shapeWas = snapshot(V.rawShape(c, item.prop));
+  const said = sayOf(() => V.actRelink([item]));
+  ok(JSON.stringify(V.readManifest(item.prop)) === before,
+     "the manifest comes out of it unchanged");
+  ok(sameShape(shapeWas, snapshot(V.rawShape(c, item.prop)), 1e-12),
+     "and so does the path");
+  ok(/already in place/.test(said), "and it says there was nothing to do", said);
+  ok(man.pts.length === 3, "three points were rigged", man.pts.length);
+}
+
+section("relink: a rig made before places were written down");
+{
+  const { c, item } = rigged([1, 3]);
+  // strip "p" from the manifest, which is every rig built by an older build
+  const old = V.readManifest(item.prop);
+  old.pts.forEach(e => { delete e.p; });
+  item.prop.expression = V.buildPathExpression(old, item.chain);
+  ok(V.readManifest(item.prop).pts.every(e => !e.p), "no place is written down");
+
+  // its controls are still where they were put, so they can be matched on,
+  // and relinking writes the places down for next time
+  const said = sayOf(() => V.actRelink([item]));
+  const now = V.readManifest(item.prop);
+  ok(now.pts.every(e => !!e.p), "relink notes where each point sits", said);
+  ok(now.pts.map(e => e.i).join(",") === "1,3", "without moving any of them",
+     now.pts.map(e => e.i).join(","));
+  ok(/Noted where 2 points/.test(said), "and says that is what it did", said);
+
+  // but a control that has since been moved cannot be told from a point
+  // that has, so an older rig in that state is left alone and said so
+  const { c: c2, item: i2 } = rigged([1, 3]);
+  const bare = V.readManifest(i2.prop);
+  bare.pts.forEach(e => { delete e.p; });
+  i2.prop.expression = V.buildPathExpression(bare, i2.chain);
+  const drift = V.linkedLayer(i2.layer, bare.pts[1].fx);
+  drift.transform.position.setValue([drift.transform.position.value[0] + 40,
+                                     drift.transform.position.value[1] + 40]);
+  const said2 = sayOf(() => V.actRelink([i2]));
+  // Said as information, not as a failure: there was nothing to put right,
+  // only nothing to put it right WITH.
+  ok(/1 point was rigged before places were written down/.test(said2) &&
+     !/left alone/.test(said2),
+     "it says which one it would only have been guessing at", said2);
+  ok(Math.abs(drift.transform.position.value[0] -
+              (V.mPt(V.itemMatrix(i2, c2.time), rawOf(c2, i2.prop).v[3])[0] + 40)) < 1e-6,
+     "and leaves that control exactly where it found it");
+}
+
+section("relink: a point held by a Pivot moves index without moving the Pivot");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(5, 100), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  V.actPivot([{ item: V.state.items[0], idx: [1, 2, 3] }], []);
+  V.UI.refresh();
+  const item = V.state.items[0];
+  const man = V.readManifest(item.prop);
+  ok(man.pts.length === 3 && man.pts.every(e => e.pp && e.p),
+     "the Pivot holds three points, each with its place written down");
+  const piv = V.linkedLayer(item.layer, man.pts[0].fx);
+  const pivWas = piv.transform.position.value.slice();
+  const ppWas = man.pts.map(e => e.pp.slice());
+
+  const was = rawOf(c, item.prop);
+  putRaw(c, item.prop, { v: [[0, -150]].concat(was.v),
+                         i: [[0, 0]].concat(was.i),
+                         o: [[0, 0]].concat(was.o),
+                         closed: was.closed });
+  V.actRelink([item]);
+
+  const now = V.readManifest(item.prop);
+  ok(now.pts.map(e => e.i).join(",") === "2,3,4",
+     "all three move on by one", now.pts.map(e => e.i).join(","));
+  ok(now.pts.every((e, n) => Math.abs(e.pp[0] - ppWas[n][0]) < 1e-9 &&
+                             Math.abs(e.pp[1] - ppWas[n][1]) < 1e-9),
+     "their places in the Pivot's frame are untouched");
+  ok(Math.abs(piv.transform.position.value[0] - pivWas[0]) < 1e-9 &&
+     Math.abs(piv.transform.position.value[1] - pivWas[1]) < 1e-9,
+     "and the Pivot itself does not move");
+}
+
+section("relink: an entry whose control layer is gone is reported, not guessed");
+{
+  const { c, item, man } = rigged([1, 3]);
+  // After Effects sets a Layer Control to None when its layer goes away
+  V.findEffect(item.layer, man.pts[1].fx).property(1).setValue(0);
+  const said = sayOf(() => V.actRelink([item]));
+  ok(/control layer is gone/.test(said),
+     "it says which point has nothing holding it", said);
+  ok(V.readManifest(item.prop).pts.length === 2,
+     "and takes nothing out of the manifest on its own",
+     V.readManifest(item.prop).pts.length);
+}
+
+section("relink: nothing rigged, nothing to do");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(5, 100), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  const said = sayOf(() => V.actRelink([V.state.items[0]]));
+  ok(/none of those paths is rigged/.test(said), "it says so plainly", said);
+  const empty = sayOf(() => V.actRelink([]));
+  ok(/Select a shape layer/.test(empty), "and asks for something to work on", empty);
+}
+
+section("relink: a rig whose expression was only switched off");
+{
+  const { item } = rigged([1, 3]);
+  const exprWas = item.prop.expression;
+  item.prop.expressionEnabled = false;
+  ok(V.readManifest(item.prop) === null,
+     "with the expression off the path reads as unrigged everywhere else");
+
+  const said = sayOf(() => V.actRelink([item], []));
+  ok(item.prop.expressionEnabled === true, "Relink turns it back on", said);
+  ok(item.prop.expression === exprWas, "without rewriting a line of it");
+  ok(/switched off/.test(said), "and says that is what was wrong", said);
+  ok(V.readManifest(item.prop).pts.map(e => e.i).join(",") === "1,3",
+     "the rig it had is the rig it has back");
+}
+
+section("relink: a rig rebuilt from the controls the expression left behind");
+{
+  const { item, man } = rigged([0, 1, 2]);
+  const ctrls = man.pts.map(e => V.linkedLayer(item.layer, e.fx));
+  ok(ctrls.every((L, i) => new RegExp("Pt " + (i + 1) + "$").test(L.name)),
+     "the controls carry the index they were made for",
+     ctrls.map(L => L.name).join(" | "));
+  const ctrlAt = ctrls.map(L => L.transform.position.value.slice());
+
+  // the expression goes; the link effects and the control layers stay
+  item.prop.expression = "";
+  ok(V.readManifest(item.prop) === null, "the path is not rigged any more");
+  ok(V.findEffect(item.layer, man.pts[0].fx) !== null,
+     "but the links the rig left are still on the layer");
+
+  const said = sayOf(() => V.actRelink([item], []));
+  const now = V.readManifest(item.prop);
+  ok(!!now && now.pts.length === 3, "Relink builds it again from those", said);
+  ok(now.pts.map(e => e.i).join(",") === "0,1,2", "on the right vertices",
+     now ? now.pts.map(e => e.i).join(",") : "");
+  ok(now.pts.every(e => !!e.p && !!e.tf),
+     "with a place and a bind frame written, the same as Create makes");
+  ok(now.pts.every((e, i) => e.fx === man.pts[i].fx),
+     "reusing the links rather than piling new ones on");
+  ok(ctrlAt.every((p, i) => {
+       const at = V.linkedLayer(item.layer, now.pts[i].fx).transform.position.value;
+       return Math.abs(at[0] - p[0]) < 1e-9 && Math.abs(at[1] - p[1]) < 1e-9;
+     }), "and no control had to move for it");
+  ok(/rebuilt the rig on 3 points/.test(said), "it says what it did", said);
+  ok(/3 by where they stand/.test(said),
+     "standing on their own points is the strongest evidence there is", said);
+}
+
+section("relink: a rebuilt rig falls back to the name when a control has moved");
+{
+  const { item, man } = rigged([0, 1, 2]);
+  // animate every control away from its point, the way a working rig is
+  man.pts.forEach(e => {
+    const L = V.linkedLayer(item.layer, e.fx);
+    const p = L.transform.position.value;
+    L.transform.position.setValueAtTime(0, [p[0] + 120, p[1] - 90]);
+  });
+  item.prop.expression = "";
+
+  const said = sayOf(() => V.actRelink([item], []));
+  const now = V.readManifest(item.prop);
+  ok(!!now && now.pts.map(e => e.i).join(",") === "0,1,2",
+     "the name puts each control back on the vertex it was made for",
+     now ? now.pts.map(e => e.i).join(",") : said);
+  ok(/3 placed by name/.test(said), "and it says it went by name", said);
+}
+
+section("relink: controls picked in the timeline are adopted");
+{
+  const { item, man } = rigged([0, 2]);
+  const ctrls = man.pts.map(e => V.linkedLayer(item.layer, e.fx));
+  // the expression and the links both gone: all that is left is the layers
+  item.prop.expression = "";
+  man.pts.forEach(e => V.findEffect(item.layer, e.fx).remove());
+  ok(V.findEffect(item.layer, man.pts[0].fx) === null,
+     "nothing on the layer points at them any more");
+  const blind = sayOf(() => V.actRelink([item], []));
+  ok(/none of those paths is rigged/.test(blind),
+     "with nothing picked there is nothing to go on", blind);
+  ok(/Select the point controls/.test(blind), "and it says what would help", blind);
+
+  const said = sayOf(() => V.actRelink([item], ctrls));
+  const now = V.readManifest(item.prop);
+  ok(!!now && now.pts.length === 2, "the two picked controls rebuild the rig", said);
+  ok(now.pts.map(e => e.i).join(",") === "0,2",
+     "on the vertices they are standing on",
+     now ? now.pts.map(e => e.i).join(",") : "");
+  ok(now.pts.every(e => V.linkedLayer(item.layer, e.fx) !== null),
+     "and fresh links were made to hold them");
+}
+
+section("relink: a rebuild says what it could not take up again");
+{
+  const { item, man } = rigged([1]);
+  // give the point handles, then take the expression away
+  V.actCreate(pickAll(item, [1]), true);
+  const withH = V.readManifest(item.prop);
+  const e = withH.pts[0];
+  ok(!!(e.im || e["if"]) && !!(e.om || e.of), "the point has both handles");
+  item.prop.expression = "";
+
+  const said = sayOf(() => V.actRelink([item], []));
+  const now = V.readManifest(item.prop);
+  ok(!!now && now.pts.length === 1, "the point itself is rebuilt", said);
+  ok(!now.pts[0].im && !now.pts[0]["if"] && !now.pts[0].om && !now.pts[0].of,
+     "without claiming handles it cannot place");
+  ok(/2 handles could not be taken up again/.test(said),
+     "and it says so rather than losing them quietly", said);
+  ok(!/Pivot/.test(said), "a handle control is not mistaken for a Pivot", said);
+}
+
+section("relink: another tool's expression is never built over");
+{
+  const { item } = rigged([0, 1]);
+  item.prop.expression = "// another tool\nthisProperty.value";
+  item.prop.expressionEnabled = false;
+  const said = sayOf(() => V.actRelink([item], []));
+  ok(/another tool/.test(said), "it refuses, switched off or not", said);
+  ok(/another tool/.test(item.prop.expression),
+     "and leaves the expression exactly where it found it");
+}
+
+section("relink: a Pivot's points cannot be rebuilt, and it says so");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(5, 100), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  V.actPivot([{ item: V.state.items[0], idx: [0, 1, 2] }], []);
+  V.UI.refresh();
+  const item = V.state.items[0];
+  item.prop.expression = "";
+  const said = sayOf(() => V.actRelink([item], []));
+  ok(/Pivot/.test(said), "it says a Pivot's points are not recoverable", said);
+  ok(V.readManifest(item.prop) === null,
+     "and puts nothing back that it would be guessing at", said);
+}
+
+// A link effect names a control LAYER; nothing in it says which PATH that
+// control serves. A layer with two paths is where that bites.
+function addGroup(L, groupName, shape, gpos) {
+  const grp = L.property("ADBE Root Vectors Group").addProperty("ADBE Vector Group");
+  grp.name = groupName;
+  const vecs = grp.property("ADBE Vectors Group");
+  vecs.addProperty("ADBE Vector Shape - Group")
+      .property("ADBE Vector Shape").setValue(shape);
+  vecs.addProperty("ADBE Vector Graphic - Fill");
+  const tr = grp.property("ADBE Vector Transform Group");
+  tr.property("ADBE Vector Position").setValue(gpos || [0, 0]);
+  tr.property("ADBE Vector Rotation").setValue(0);
+  tr.property("ADBE Vector Scale").setValue([100, 100]);
+  return grp;
+}
+
+function twoPathLayer() {
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Line", star(5, 100), [0, 0]);
+  addGroup(L, "Fill", star(5, 100), [0, 0]);
+  L.selected = true;
+  V.UI.refresh();
+  return { c, L };
+}
+
+function rigCount() {
+  return V.state.items.filter(it => V.readManifest(it.prop) !== null).length;
+}
+
+section("relink: a bare path is never built out of its neighbour's controls");
+{
+  const { c, L } = twoPathLayer();
+  ok(V.state.items.length === 2, "the layer shows two paths", V.state.items.length);
+  V.actCreate(pickAll(V.state.items[0], [0, 1, 2]), false);
+  V.UI.refresh();
+  ok(rigCount() === 1, "one path is rigged, the other is not", rigCount());
+
+  // the user selects the layer, picks nothing, and presses Relink. Both paths
+  // are in scope, and every VXR link sits on the layer they share.
+  const said = sayOf(() => V.actRelink(V.state.items, []));
+  ok(rigCount() === 1,
+     "the bare path is left bare: those controls belong to its neighbour",
+     rigCount() + "  said: " + said);
+}
+
+section("relink: picked controls are not sprayed over every bare path in scope");
+{
+  const { c, L } = twoPathLayer();
+  V.actCreate(pickAll(V.state.items[0], [0, 1, 2]), false);
+  V.UI.refresh();
+  const rigItem = V.state.items.filter(it => V.readManifest(it.prop))[0];
+  const man = V.readManifest(rigItem.prop);
+  const ctrls = man.pts.map(e => V.linkedLayer(rigItem.layer, e.fx));
+  rigItem.prop.expression = "";
+  ok(rigCount() === 0, "neither path is rigged now", rigCount());
+
+  // exactly the gesture asked for: layer plus its controls, selected together
+  const said = sayOf(() => V.actRelink(V.state.items, ctrls));
+  ok(rigCount() <= 1,
+     "at most one path is built, never both from the same controls",
+     rigCount() + "  said: " + said);
+}
+
+section("relink: a rig that is only switched off still owns its links");
+{
+  const { c, L } = twoPathLayer();
+  V.actCreate(pickAll(V.state.items[0], [0, 1]), false);
+  V.UI.refresh();
+  V.actCreate(pickAll(V.state.items[1], [2, 3]), false);
+  V.UI.refresh();
+  const a = V.state.items[0], b = V.state.items[1];
+  const aFx = V.readManifest(a.prop).pts.map(e => e.fx);
+  const bMan = V.readManifest(b.prop);
+  ok(aFx.length === 2 && bMan.pts.length === 2, "both paths are rigged");
+
+  a.prop.expressionEnabled = false;          // the state Relink exists to repair
+  V.actDelete(pickAll(b, bMan.pts.map(e => e.i)), [], false);
+
+  ok(aFx.every(nm => V.findEffect(a.layer, nm) !== null),
+     "clearing one rig does not take the switched-off one's links with it",
+     aFx.map(nm => nm + "=" + (V.findEffect(a.layer, nm) ? "kept" : "GONE")).join(" "));
+}
+
+section("relink: a rigged vertex that was deleted is reported, not swapped");
+{
+  const { c, item, man } = rigged([2]);
+  const ctrl = V.linkedLayer(item.layer, man.pts[0].fx);
+  const was = ctrl.transform.position.value.slice();
+  const raw = rawOf(c, item.prop);
+  putRaw(c, item.prop, { v: raw.v.filter((_, n) => n !== 2),
+                         i: raw.i.filter((_, n) => n !== 2),
+                         o: raw.o.filter((_, n) => n !== 2),
+                         closed: raw.closed });
+
+  const said = sayOf(() => V.actRelink([item], []));
+  ok(/no vertex near enough/.test(said),
+     "the point it was given is gone, and it says so", said);
+  ok(Math.abs(ctrl.transform.position.value[0] - was[0]) < 1e-9 &&
+     Math.abs(ctrl.transform.position.value[1] - was[1]) < 1e-9,
+     "rather than dragging the control onto a vertex that was never its",
+     ctrl.transform.position.value.join(",") + " was " + was.join(","));
+}
+
+section("the preview: the turn arcs are drawn where a turn is taken hold of");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(4, 120), [0, 0]);
+  L.selected = true;
+  V.P.snap = false;
+  V.P.showBox = true;
+  V.UI.refresh();
+  V.state.view = { s: 1, tx: 0, ty: 0 };
+  V.state.viewManual = true;
+  const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
+  const item = V.state.items[0];
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.sel[item.key] = [0, 1, 2, 3];
+  const b = V.boundsOfPicks(V.currentPicks(), geomMapOf());
+
+  // The radius comes out of the panel's own source, so the drawing and the
+  // hit-testing cannot drift apart without this noticing.
+  const R = Number((raw.match(/ROT_ARC = (\d+)/) || [])[1]);
+  ok(R > 0, "the arc has a radius of its own", R);
+
+  const corners = [[b.minx, b.miny, -1, -1], [b.maxx, b.miny, 1, -1],
+                   [b.maxx, b.maxy, 1, 1], [b.minx, b.maxy, -1, 1]];
+  let armed = 0, tried = 0, missed = "";
+  for (const [cx, cy, ox, oy] of corners) {
+    for (let i = 0; i <= 8; i++) {
+      const a = (Math.PI / 2) * (i / 8);
+      const x = cx + ox * R * Math.cos(a), y = cy + oy * R * Math.sin(a);
+      tried++;
+      cv.fire("mousedown", { clientX: x, clientY: y, detail: 1 });
+      if (V.state.edit && V.state.edit.kind === "rotate") { armed++; }
+      else if (!missed) { missed = [x, y, V.state.edit ? V.state.edit.kind : "nothing"].join(" "); }
+      cv.fire("mouseup", { clientX: x, clientY: y });
+    }
+  }
+  ok(armed === tried, "every point along every arc takes hold of a turn",
+     armed + " of " + tried + (missed ? "  first miss: " + missed : ""));
+  ok(V.countSel() === 4, "and pressing there picks nothing new", V.countSel());
+
+  // A corner square still scales: the arc is clear of it.
+  cv.fire("mousedown", { clientX: b.minx, clientY: b.miny, detail: 1 });
+  ok(!!V.state.edit && V.state.edit.kind === "scale",
+     "the knob at the corner is still a scale",
+     V.state.edit ? V.state.edit.kind : "nothing");
+  cv.fire("mouseup", { clientX: b.minx, clientY: b.miny });
+
+  // And a drag that starts on the arc really turns the selection.
+  const was = V.state.geom[0].verts.map(p => p.slice());
+  const mid = [(b.minx + b.maxx) / 2, (b.miny + b.maxy) / 2];
+  const gx = b.minx - R * Math.SQRT1_2, gy = b.miny - R * Math.SQRT1_2;
+  const quarter = (p) => [mid[0] - (p[1] - mid[1]), mid[1] + (p[0] - mid[0])];
+  const to = quarter([gx, gy]);
+  cv.fire("mousedown", { clientX: gx, clientY: gy, detail: 1 });
+  cv.fire("mousemove", { clientX: to[0], clientY: to[1] });
+  cv.fire("mouseup", { clientX: to[0], clientY: to[1] });
+  V.UI.refresh();
+  const now = V.state.geom[0].verts;
+  const off = now.map((p, n) => {
+    const q = quarter(was[n]);
+    return Math.max(Math.abs(p[0] - q[0]), Math.abs(p[1] - q[1]));
+  });
+  ok(Math.max.apply(null, off) < 1e-5,
+     "a drag from the arc turns the selection a quarter of the way round",
+     Math.max.apply(null, off));
+}
+
+section("editing: with fewer than two points, a move carries the handles too");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", curvy(100), [0, 0]);
+  L.selected = true;
+  V.P.snap = false;
+  V.P.handleView = "all";
+  V.UI.refresh();
+  V.state.view = { s: 1, tx: 0, ty: 0 };
+  V.state.viewManual = true;
+  const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
+  const item = V.state.items[0];
+  const key = item.key;
+
+  // one point, and a handle belonging to a different point
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.sel[key] = [1];
+  V.state.selH[key] = ["0:out"];
+  let gm = V.state.geom[0];
+  const pt1Was = gm.verts[1].slice();
+  const pt0Was = gm.verts[0].slice();
+  const outWas = V.tipVec(gm, 0, "out").slice();
+
+  const grab = V.state.geom[0].verts[1];
+  cv.fire("mousedown", { clientX: grab[0], clientY: grab[1], detail: 1 });
+  cv.fire("mousemove", { clientX: grab[0] + 20, clientY: grab[1] });
+  cv.fire("mouseup", { clientX: grab[0] + 20, clientY: grab[1] });
+  V.UI.refresh();
+  gm = V.state.geom[0];
+
+  ok(Math.abs(gm.verts[1][0] - pt1Was[0] - 20) < 1e-6,
+     "the picked point moves", gm.verts[1][0] - pt1Was[0]);
+  ok(Math.abs(gm.verts[0][0] - pt0Was[0]) < 1e-9,
+     "the point whose handle was picked stays put", gm.verts[0][0] - pt0Was[0]);
+  const outNow = V.tipVec(gm, 0, "out");
+  ok(Math.abs(outNow[0] - outWas[0] - 20) < 1e-6 &&
+     Math.abs(outNow[1] - outWas[1]) < 1e-6,
+     "and its handle travels the same distance, bending the curve",
+     outNow.join(",") + " from " + outWas.join(","));
+
+  // a point and its OWN handle: both ends travel together, so the tangent
+  // between them is unchanged and the curve keeps its shape
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.sel[key] = [2];
+  V.state.selH[key] = ["2:in"];
+  gm = V.state.geom[0];
+  const inWas = V.tipVec(gm, 2, "in").slice();
+  const pt2Was = gm.verts[2].slice();
+  const grab2 = gm.verts[2];
+  cv.fire("mousedown", { clientX: grab2[0], clientY: grab2[1], detail: 1 });
+  cv.fire("mousemove", { clientX: grab2[0], clientY: grab2[1] + 15 });
+  cv.fire("mouseup", { clientX: grab2[0], clientY: grab2[1] + 15 });
+  V.UI.refresh();
+  gm = V.state.geom[0];
+  ok(Math.abs(gm.verts[2][1] - pt2Was[1] - 15) < 1e-6,
+     "the point moves", gm.verts[2][1] - pt2Was[1]);
+  const inNow = V.tipVec(gm, 2, "in");
+  ok(Math.abs(inNow[0] - inWas[0]) < 1e-6 && Math.abs(inNow[1] - inWas[1]) < 1e-6,
+     "and its own handle keeps its tangent: both ends went the same way",
+     inNow.join(",") + " from " + inWas.join(","));
+
+  // the arrows carry a handle on its own, with no point picked at all
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.selH[key] = ["3:out"];
+  V.P.nudge = 1;
+  gm = V.state.geom[0];
+  const o3Was = V.tipVec(gm, 3, "out");
+  const sink = M.NODES.filter(n => n.type === "edittext" && n._on && n._on.keydown)[0];
+  sink.fire("keydown", { keyName: "Right" });
+  V.UI.refresh();
+  const o3Now = V.tipVec(V.state.geom[0], 3, "out");
+  ok(o3Now && Math.abs(o3Now[0] - o3Was[0] - 1) < 1e-6,
+     "an arrow nudges a handle with no point picked",
+     o3Now ? (o3Now[0] - o3Was[0]) : "gone");
+
+  V.state.sel = {};
+  V.state.selH = {};
+  V.P.handleView = "selected";
+  V.UI.refresh();
+}
+
+section("undo: a failure that changed nothing must not reach past the panel");
+{
+  // Measured in After Effects 27: an undo group that changed nothing takes
+  // no undo step. Undoing anyway lands on whatever the user did before the
+  // panel ran, and takes their redo history with it.
+  const c = newComp();
+  addShapeLayer(c, "Art", "Group 1", star(4, 100), [0, 0]);
+
+  M.app._commands.length = 0;
+  const failed = V.run("Test nothing", function () { throw new Error("boom"); }, true);
+  ok(failed === false, "a throwing action reports failure");
+  ok(M.app._commands.indexOf(16) < 0,
+     "and issues no undo, because its group changed nothing",
+     M.app._commands.join(","));
+
+  M.app._commands.length = 0;
+  V.run("Test something", function () { V.touched(); throw new Error("boom"); }, true);
+  ok(M.app._commands.indexOf(16) >= 0,
+     "but one that did change something is rolled back",
+     M.app._commands.join(","));
+
+  // The actions written before this guard existed keep what they had
+  M.app._commands.length = 0;
+  V.run("Test unguarded", function () { throw new Error("boom"); });
+  ok(M.app._commands.indexOf(16) >= 0,
+     "an action that does not claim the guard is rolled back as before");
+
+  // and the flag does not leak from one action to the next
+  M.app._commands.length = 0;
+  V.run("Test clean slate", function () { throw new Error("boom"); }, true);
+  ok(M.app._commands.indexOf(16) < 0,
+     "the mark is cleared between actions", M.app._commands.join(","));
+}
+
+section("snapping: measured on screen, one axis at a time");
+{
+  // 6 screen pixels at 1:1 is 6 composition pixels of reach
+  let s = V.snapAxis([100], [104], 0, 1, 6);
+  ok(Math.abs(s.d - 4) < 1e-9 && s.at === 104, "inside the range it takes hold", s.d);
+  s = V.snapAxis([100], [120], 0, 1, 6);
+  ok(s.d === 0 && s.at === null, "outside it, nothing happens", s.d);
+
+  // the whole point: zoom in and the same screen range is a finer one in the
+  // artwork, so a close look is not a sticky one
+  s = V.snapAxis([100], [104], 0, 4, 6);
+  ok(s.d === 0 && s.at === null, "at 4x, four composition pixels is out of reach");
+  s = V.snapAxis([100], [101], 0, 4, 6);
+  ok(Math.abs(s.d - 1) < 1e-9, "but one is not", s.d);
+
+  // and out again
+  s = V.snapAxis([100], [110], 0, 0.25, 6);
+  ok(Math.abs(s.d - 10) < 1e-9, "zoomed out, ten reach the same six pixels", s.d);
+
+  s = V.snapAxis([100], [97, 103.5, 140], 0, 1, 6);
+  ok(Math.abs(s.d + 3) < 1e-9 && s.at === 97, "the nearest candidate wins", s.d);
+
+  s = V.snapAxis([100, 200], [203], 0, 1, 6);
+  ok(Math.abs(s.d - 3) < 1e-9 && s.at === 203,
+     "any of the probes may be the one that lines up", s.d);
+
+  s = V.snapAxis([100], [108], 5, 1, 6);
+  ok(Math.abs(s.d - 8) < 1e-9, "the delta asked for is what is measured from", s.d);
+
+  s = V.snapAxis([100], [], 7, 1, 6);
+  ok(s.d === 7 && s.at === null, "with nothing to line up with it passes through");
+}
+
+section("lasso: even-odd, so a shape that doubles back still reads right");
+{
+  const box = [[0, 0], [10, 0], [10, 10], [0, 10]];
+  ok(V.inPolygon(box, 5, 5) === true, "inside a square");
+  ok(V.inPolygon(box, 15, 5) === false, "outside it");
+  // a C, open to the right: the mouth is outside even though it is between
+  // the arms, which a bounding box would get wrong
+  const cShape = [[0, 0], [10, 0], [10, 3], [3, 3], [3, 7], [10, 7], [10, 10], [0, 10]];
+  ok(V.inPolygon(cShape, 1, 5) === true, "inside the back of a C");
+  ok(V.inPolygon(cShape, 8, 5) === false, "and not in its mouth");
+  ok(V.inPolygon(cShape, 8, 1) === true, "but inside its top arm");
+}
+
+section("the preview: dragging a point through the canvas's own events");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(4, 100), [0, 0]);
+  L.selected = true;
+  V.P.snap = false;
+  V.UI.refresh();
+  // one canvas pixel to one composition pixel, so the arithmetic is visible
+  V.state.view = { s: 1, tx: 0, ty: 0 };
+  V.state.viewManual = true;
+
+  const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
+  const item = V.state.items[0];
+  const was = V.state.geom[0].verts.map(p => p.slice());
+
+  cv.fire("mousedown", { clientX: was[0][0], clientY: was[0][1], detail: 1 });
+  ok((V.state.sel[item.key] || []).join(",") === "0",
+     "pressing on a point picks it there and then, ready to be dragged",
+     JSON.stringify(V.state.sel));
+  ok(!!V.state.edit && V.state.edit.kind === "move", "and arms a move");
+
+  cv.fire("mousemove", { clientX: was[0][0] + 30, clientY: was[0][1] + 12 });
+  ok(!!V.state.preview, "the canvas shows the move before it is written");
+  ok(V.state.geom[0].verts[0][0] === was[0][0],
+     "and the project is not touched while the button is down");
+
+  cv.fire("mouseup", { clientX: was[0][0] + 30, clientY: was[0][1] + 12 });
+  ok(V.state.edit === null && V.state.preview === null, "the edit is let go");
+  V.UI.refresh();
+  const now = V.state.geom[0].verts;
+  ok(Math.abs(now[0][0] - was[0][0] - 30) < 1e-6 &&
+     Math.abs(now[0][1] - was[0][1] - 12) < 1e-6,
+     "and the point is where it was dropped",
+     [now[0][0] - was[0][0], now[0][1] - was[0][1]].join(","));
+
+  // shift, read as the drag runs rather than when it began, holds one axis
+  V.state.view = { s: 1, tx: 0, ty: 0 };
+  const at = V.state.geom[0].verts[1].slice();
+  cv.fire("mousedown", { clientX: at[0], clientY: at[1], detail: 1 });
+  cv.fire("mousemove", { clientX: at[0] + 40, clientY: at[1] + 6, shiftKey: true });
+  cv.fire("mouseup", { clientX: at[0] + 40, clientY: at[1] + 6, shiftKey: true });
+  V.UI.refresh();
+  const held = V.state.geom[0].verts[1];
+  ok(Math.abs(held[0] - at[0] - 40) < 1e-6 && Math.abs(held[1] - at[1]) < 1e-6,
+     "the longer way wins and the other stays put",
+     [held[0] - at[0], held[1] - at[1]].join(","));
+
+  // a drag on empty canvas is still a marquee, and still only picks
+  const beforeMarquee = V.state.geom[0].verts.map(p => p.slice());
+  cv.fire("mousedown", { clientX: 2, clientY: 2, detail: 1 });
+  cv.fire("mousemove", { clientX: 300, clientY: 250 });
+  cv.fire("mouseup", { clientX: 300, clientY: 250 });
+  ok(V.state.geom[0].verts.every((p, n) =>
+       Math.abs(p[0] - beforeMarquee[n][0]) < 1e-9),
+     "a marquee moves nothing");
+}
+
+section("the preview: the lasso, the snap and the box are flicked on from the Edit tab");
+{
+  const tabs = M.NODES.filter(n => n.type === "tab");
+  const edit = tabs.filter(t => t.text === "Edit")[0];
+  ok(!!edit, "there is an Edit tab");
+  const rows = edit._kids;
+  ok(rows.length === 2, "two rows of it", rows.length);
+  const icons = rows[0]._kids.filter(k => k.type === "iconbutton");
+  ok(icons.length === 5, "five buttons on the first", icons.length);
+  ok(icons.filter(b => typeof b.on === "boolean").length === 3,
+     "three of them hold a setting rather than do a thing",
+     icons.filter(b => typeof b.on === "boolean").length);
+  const dd = rows[0]._kids.filter(k => k.type === "dropdownlist");
+  ok(dd.length === 1 && dd[0].items.length === 3,
+     "and the handle setting beside them, with three ways to go");
+  ok(rows[1]._kids.filter(k => k.type === "iconbutton").length === 6,
+     "six alignments on the second");
+
+  // a toggle has to look like what it is set to, or it is only a guess
+  const lassoBtn = icons.filter(b => /freehand|Lasso/.test(b.says || ""))[0];
+  ok(!!lassoBtn, "the lasso toggle is there");
+  const wasLasso = V.P.lasso;
+  lassoBtn.onClick.call(lassoBtn);
+  ok(V.P.lasso === !wasLasso, "clicking it turns the setting over");
+  ok(lassoBtn.on === V.P.lasso, "and the button goes on looking pressed while it is on");
+  lassoBtn.onClick.call(lassoBtn);
+  ok(V.P.lasso === wasLasso, "and back");
+
+  const rowW = rows[0]._kids.reduce((n, k) => n + k.preferredSize[0], 0) +
+               6 * (rows[0]._kids.length - 1);
+  ok(rowW <= 380, "the first row fits the panel", rowW + " of 380");
+  const rowW2 = rows[1]._kids.reduce((n, k) => n + k.preferredSize[0], 0) +
+                6 * (rows[1]._kids.length - 1);
+  ok(rowW2 <= 380, "and so does the second", rowW2 + " of 380");
+
+  // The Points tab gained Relink, and that row was already the full one.
+  const ptsRow = tabs[1]._kids.filter(k => k.type === "group")[0];
+  const ptsW = ptsRow._kids.reduce((n, k) => n + k.preferredSize[0], 0) +
+               6 * (ptsRow._kids.length - 1);
+  ok(ptsW <= 380, "the Points row still fits the panel too", ptsW + " of 380");
+  const relinkBtn = M.NODES.filter(b => /^Relink - /.test(b.says || ""))[0];
+  ok(!!relinkBtn && typeof relinkBtn.onClick === "function",
+     "and Relink is a button on it");
+}
+
+section("the preview: the keyboard has somewhere to live");
+{
+  const sinks = M.NODES.filter(n => n.type === "edittext" && n._on && n._on.keydown);
+  ok(sinks.length === 1,
+     "one field that can hold the focus listens for keys, since a group cannot",
+     sinks.length);
+  // Not a sliver: a control with no room to draw itself is not reliably
+  // given the focus, and a field without the focus is sent no keys.
+  ok(sinks[0].preferredSize[0] >= 12 && sinks[0].preferredSize[0] <= 24,
+     "small, but big enough to be given the focus", sinks[0].preferredSize[0]);
+  ok(/arrow/i.test(sinks[0].helpTip || ""), "and it says what it is for",
+     sinks[0].helpTip);
+
+
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Group 1", star(4, 100), [0, 0]);
+  L.selected = true;
+  V.P.snap = false;
+  V.P.nudge = 1;
+  V.P.nudgeBig = 8;
+  V.UI.refresh();
+  const item = V.state.items[0];
+  V.state.sel = {};
+  V.state.sel[item.key] = [0];
+  const was = V.state.geom[0].verts[0].slice();
+
+  sinks[0].fire("keydown", { keyName: "Right" });
+  V.UI.refresh();
+  ok(Math.abs(V.state.geom[0].verts[0][0] - was[0] - 1) < 1e-6,
+     "an arrow moves the picked point by one composition pixel",
+     V.state.geom[0].verts[0][0] - was[0]);
+
+  V.state.sel = {};
+  V.state.sel[item.key] = [0];
+  const was2 = V.state.geom[0].verts[0].slice();
+  sinks[0].fire("keydown", { keyName: "Up", shiftKey: true });
+  V.UI.refresh();
+  ok(Math.abs(V.state.geom[0].verts[0][1] - was2[1] + 8) < 1e-6,
+     "and with shift by the longer step", V.state.geom[0].verts[0][1] - was2[1]);
+
+  // Which of keyName and keyCode a host fills in for an arrow is not
+  // something the panel can count on, so both are read.
+  V.state.sel = {};
+  V.state.sel[item.key] = [0];
+  const wasCode = V.state.geom[0].verts[0].slice();
+  sinks[0].fire("keydown", { keyCode: 39 });
+  V.UI.refresh();
+  ok(Math.abs(V.state.geom[0].verts[0][0] - wasCode[0] - 1) < 1e-6,
+     "an arrow that arrives as a code and no name still nudges",
+     V.state.geom[0].verts[0][0] - wasCode[0]);
+
+  V.state.sel = {};
+  V.state.sel[item.key] = [0];
+  const was3 = V.state.geom[0].verts[0].slice();
+  sinks[0].fire("keydown", { keyName: "Enter" });
+  V.UI.refresh();
+  ok(Math.abs(V.state.geom[0].verts[0][0] - was3[0]) < 1e-9,
+     "a key that is not an arrow is left to the host");
+
+  // One press, one nudge: the handler is hung off the field alone. Listening
+  // on the window as well would double every press that bubbles.
+  const keyListeners = M.NODES.filter(n => n._on && n._on.keydown);
+  ok(keyListeners.length === 1,
+     "exactly one control listens for a key, so a press cannot count twice",
+     keyListeners.map(n => n.type).join(","));
+
+  // --- the undo shortcut --------------------------------------------------
+  // The panel keeps no stack of its own: its edits are already groups on
+  // After Effects' stack, so the key is only passed on.
+  M.app._commands.length = 0;
+  sinks[0].fire("keydown", { keyName: "Z", metaKey: true });
+  ok(M.app._commands.indexOf(16) >= 0,
+     "command-Z asks After Effects to undo", M.app._commands.join(","));
+  ok(M.app._commands.length === 1, "once, not twice", M.app._commands.join(","));
+
+  M.app._commands.length = 0;
+  sinks[0].fire("keydown", { keyCode: 90, ctrlKey: true });
+  ok(M.app._commands.indexOf(16) >= 0,
+     "and so does control-Z arriving as a code", M.app._commands.join(","));
+
+  // Shift-Z is left alone on purpose: After Effects publishes no Redo
+  // command id, and the id beside Undo's is Purge, so nothing is guessed.
+  M.app._commands.length = 0;
+  sinks[0].fire("keydown", { keyName: "Z", metaKey: true, shiftKey: true });
+  ok(M.app._commands.length === 0,
+     "shift-Z is not consumed, so After Effects can still have it",
+     M.app._commands.join(","));
+  ok(!/executeCommand\(\s*17\s*\)/.test(raw) && !/CMD_REDO/.test(raw),
+     "and no redo id is guessed at anywhere in the source");
+
+  M.app._commands.length = 0;
+  sinks[0].fire("keydown", { keyName: "Z" });
+  ok(M.app._commands.length === 0, "a bare Z does nothing");
+
+  // an undo must not also nudge
+  V.state.sel = {};
+  V.state.sel[item.key] = [0];
+  const wasZ = V.state.geom[0].verts[0].slice();
+  sinks[0].fire("keydown", { keyName: "Z", metaKey: true });
+  V.UI.refresh();
+  ok(Math.abs(V.state.geom[0].verts[0][0] - wasZ[0]) < 1e-9,
+     "and undo is not mistaken for an arrow");
+
+  // Hand the panel back the way it was found: the All/None button renames
+  // itself from the selection, and the checks below read what it says.
+  V.state.sel = {};
+  V.UI.refresh();
+}
+
 section("icons: four tabs, and hovering says what a picture does");
 {
   const tabs = M.NODES.filter(n => n.type === "tab");
-  ok(tabs.length === 3, "three tabs", tabs.length);
-  ok(tabs.map(t => t.text).join(" / ") === "Points / Pivot / Follow",
-     "named for what they hold", tabs.map(t => t.text).join(" / "));
+  ok(tabs.length === 4, "four tabs", tabs.length);
+  // Edit first: the preview is somewhere to work now, not only to pick in,
+  // and tabs.selection = 0 is what opens it.
+  ok(tabs.map(t => t.text).join(" / ") === "Edit / Points / Pivot / Follow",
+     "named for what they hold, Edit first",
+     tabs.map(t => t.text).join(" / "));
   ok(M.NODES.filter(n => n.type === "tabbedpanel").length === 1, "in one tabbed panel");
 
   // the first row: scope, then six icons, settings among them
@@ -2624,8 +4433,8 @@ section("the artwork guard compares tangents, not just points");
   const before = V.allPathSignature(c);
   // round a corner off without moving a single vertex
   const bent = star(5, 70);
-  bent.inTangents[0] = [-30, 0];
-  bent.outTangents[0] = [30, 0];
+  setIn(bent, 0, [-30, 0]);
+  setOut(bent, 0, [30, 0]);
   items[0].prop.setValue(bent);
   let threw = false;
   try { V.checkUnchanged(c, before, "Test"); } catch (e) { threw = true; }

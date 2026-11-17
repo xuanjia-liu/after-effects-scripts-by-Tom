@@ -12,14 +12,49 @@
  * controls without this script installed, as long as those effects stay put.
  *
  * HOW IT WORKS
- *   Pick vertices in the panel's preview (click, shift-click, or drag a
- *   marquee), then press a button. Everything else reads the After Effects
- *   selection: Follower attaches the selected layers, Merge folds the selected
- *   shape layers together, Delete understands a selected Pivot or follower.
+ *   Pick vertices in the panel's preview (click, shift-click, drag a marquee
+ *   or draw a lasso), then move them there, or press a button. Everything
+ *   else reads the After Effects selection: Follower attaches the selected
+ *   layers, Merge folds the selected shape layers together, Delete
+ *   understands a selected Pivot or follower.
+ *
+ *   Edit      drag a point and the path follows; drag a handle and the curve
+ *             does. Arrow keys nudge. Snapping lines a point up with the
+ *             others and with their bounds, measured on screen so the range
+ *             stays the same few pixels at any zoom. Two or more points get a
+ *             box to scale them together, with an arc outside each corner to
+ *             turn them by, and six buttons to line them up - points only,
+ *             never their handles.
+ *
+ *             Keyframe  a path keyframe here, so a move belongs to this
+ *                       moment rather than to the whole composition. It keys
+ *                       the picked points' paths, or - with nothing picked -
+ *                       whatever the timeline points at: one shape group if
+ *                       that is what is selected there, the whole layer's
+ *                       paths if the layer is. Then it opens them, the way
+ *                       pressing U does, so the new key is on screen
+ *             Reveal    open those same paths in the timeline without keying
+ *                       anything. After Effects has no command that opens one
+ *                       named property, so a path with keyframes opens on its
+ *                       own and one without brings the layer's other modified
+ *                       properties with it; the message says which happened
+ *
+ *             A point the rig already holds moves whatever holds it: its own
+ *             control layer, or its place in the Pivot that gathered it. A
+ *             point nothing holds is written into the path itself.
  *
  *   Points    Create      a control layer on each picked vertex
  *             + Handles   the same, plus both bezier handles
  *             Handles     add the missing handles to points already rigged
+ *             Relink      put a rig back. A path whose expression was switched
+ *                         off reads as unrigged everywhere, and this turns it
+ *                         on again. A vertex added or taken away in After
+ *                         Effects leaves every control past it driving its
+ *                         neighbour; a vertex dragged there leaves its own
+ *                         control behind. And a rig whose expression is gone
+ *                         altogether is built again from the controls that
+ *                         are left - the links still on the layer, or the
+ *                         control layers selected in the timeline
  *             Delete      remove the picked controls, or the whole rig
  *   Group     Pivot       one control that moves, turns and scales many points,
  *                         across layers; its Pivot Offset moves the pivot
@@ -35,11 +70,19 @@
  *             Merge       fold the selected shape layers into the topmost one
  *             To Bezier   rectangles, ellipses and stars become editable paths
  *
+ *   Help lists every gesture the preview knows, on one page.
+ *
  * KNOWN LIMITS
  *   Vertices are picked in the panel, not in the After Effects viewer; AE does
  *   not expose the viewer's vertex selection to scripts. Group Skew is the one
  *   shape-group transform the generated expression cannot undo, and Create
- *   warns when it finds one. Merge is 2D only and refuses 3D layers.
+ *   warns when it finds one; editing refuses such a group outright, rather
+ *   than putting a point somewhere it did not ask to go. A corner with no
+ *   tangent has no handle to take hold of in the preview - the Handles button
+ *   is what gives it one. Relink matches on where each point sat when it was
+ *   rigged, which the rig now writes down; a rig built before it did can only
+ *   be matched while its controls are still where they were put, and says so
+ *   rather than guessing. Merge is 2D only and refuses 3D layers.
  *
  * File must stay pure ASCII: After Effects reads .jsx as Latin-1.
  */
@@ -398,15 +441,35 @@
     //     om 1 when the out handle is a mask on the point control
     //     if / of  Layer Control effect naming a separate handle control
     //     tf linear map from an original path tangent to the control's bind frame
+    //     p  where this point sat in the path's own value when it was rigged,
+    //        which is what Relink matches on when the indices stop lining up
 
-    function readManifest(prop) {
-        if (!prop.expressionEnabled) { return null; }
-        var ex = String(prop.expression || "");
-        var m = ex.match(new RegExp("^//\\s*" + TAG + "\\s+(\\{[\\s\\S]*?\\})\\s*$", "m"));
+    function parseManifest(ex) {
+        var m = String(ex || "").match(
+            new RegExp("^//\\s*" + TAG + "\\s+(\\{[\\s\\S]*?\\})\\s*$", "m"));
         if (!m) { return null; }
         var obj = dec(m[1]);
         if (!obj || !obj.pts) { return null; }
         return obj;
+    }
+
+    function readManifest(prop) {
+        if (!prop.expressionEnabled) { return null; }
+        return parseManifest(prop.expression);
+    }
+
+    // The same question asked of a path whose expression may be switched off.
+    // Everywhere else "rigged" rightly means "something is driving this" and
+    // a switched-off expression drives nothing - but Relink has to tell a rig
+    // that was turned off from one that was never made, and both from another
+    // tool's expression, which must not be written over whether it is running
+    // or not.
+    function rigStateOf(prop) {
+        var on = false, ex = "";
+        try { on = !!prop.expressionEnabled; } catch (e0) {}
+        try { ex = trim(String(prop.expression || "")); } catch (e1) {}
+        var man = parseManifest(ex);
+        return { man: man, on: on, foreign: !man && ex !== "" };
     }
 
     function isForeignRig(prop) {
@@ -604,7 +667,18 @@
         colHandle: [1.00, 0.76, 0.24],
         colPivot: [0.47, 0.93, 0.45],
         colFollow: [1.00, 0.42, 0.78],
-        bakeWorkArea: true
+        bakeWorkArea: true,
+        // The preview's own editing settings. handleView, lasso and showBox
+        // are set from the panel rather than the dialog, the way handleMode
+        // and pivotMode already are; they are kept here to be remembered.
+        handleView: "selected",   // selected | all | none
+        lasso: false,
+        showBox: true,
+        nudge: 1,                 // composition pixels per arrow key
+        nudgeBig: 8,              // and with shift held
+        snap: true,
+        snapPx: 6,                // how near, on screen, before it takes hold
+        revealKeyed: true         // open the keyed path in the timeline after
     };
 
     function prefGet(key, def) {
@@ -877,7 +951,11 @@
         var used = {};
         var items = scanPaths(layer.containingComp, [layer]);
         for (var i = 0; i < items.length; i++) {
-            var man = readManifest(items[i].prop);
+            // rigStateOf, not readManifest: a rig whose expression is merely
+            // switched off still owns its controls, and pruning its links
+            // would cut it from them with no way back - the layers stay, the
+            // expression stays, and nothing joins them any more.
+            var man = rigStateOf(items[i].prop).man;
             if (!man) { continue; }
             for (var k = 0; k < man.pts.length; k++) {
                 var e = man.pts[k];
@@ -908,22 +986,39 @@
         try { app.executeCommand(app.findMenuCommandId("Undo")); } catch (e2) {}
     }
 
+    // True once something inside the current run() has actually changed the
+    // project. Measured in After Effects 27: an undo group that changed
+    // nothing takes no undo step at all, so undoing after a failure that
+    // never got as far as writing lands on whatever the USER did before the
+    // panel ran - and takes their redo history with it. A guarded action
+    // says when it has written something, and only then is there anything
+    // of ours to roll back.
+    var runTouched = false;
+
+    function touched() { runTouched = true; }
+
     // One undo per action: on any failure the whole action is rolled back.
-    function run(title, fn) {
+    function run(title, fn, guarded) {
         var comp = activeComp();
         if (!comp) { UI.say("Open a composition first."); return false; }
+        var outer = runTouched;
+        runTouched = false;
         app.beginUndoGroup(NAME + ": " + title);
         var out;
         try {
             out = fn(comp);
         } catch (e) {
             try { app.endUndoGroup(); } catch (e2) {}
-            undoLast();
-            UI.say("Rolled back - " + e.toString());
+            var mine = (!guarded || runTouched);
+            if (mine) { undoLast(); }
+            runTouched = outer;
+            UI.say((mine ? "Rolled back - " : "Stopped, nothing was changed - ") +
+                   e.toString());
             UI.refresh();
             return false;
         }
         app.endUndoGroup();
+        runTouched = outer;
         UI.refresh();
         if (typeof out === "string") { UI.say(out); }
         return true;
@@ -1332,8 +1427,8 @@
             // when there is nothing else to do, because a rig whose points are
             // already handled would otherwise never be rewritten, and would go
             // on pulling apart under a Pivot for ever.
-            var touched = (upgradeRests(comp, probe, item, man) > 0);
-            if (bindTangents(probe, item, man, comp.time)) { touched = true; }
+            var wrote = (upgradeRests(comp, probe, item, man) > 0);
+            if (bindTangents(probe, item, man, comp.time)) { wrote = true; }
             // Free any handle mask still carrying that expression, so a rig
             // made while it was there becomes draggable again.
             unpinMaskHandles(item, man);
@@ -1350,21 +1445,25 @@
                     if (full) { r.skipped++; continue; }
                     addHandlesTo(comp, probe, item, sh, entry, ctrl, upp);
                     r.handled++;
-                    touched = true;
+                    wrote = true;
                     continue;
                 }
-                var cp = probe.at(item, sh.vertices[i], comp.time);
+                var vtx = sh.vertices[i];
+                var cp = probe.at(item, vtx, comp.time);
                 var fresh = makeControl(comp, item.layer.name + " Pt " + (i + 1), K_POINT, cp);
                 entry = { i: i, fx: addLink(item.layer, fresh) };
-                entry.tf = tangentFrame(probe, item, fresh, sh.vertices[i], comp.time);
+                // Where this point sits in the path's own value, so Relink
+                // can find it again after a vertex is added or taken away.
+                entry.p = [vtx[0], vtx[1]];
+                entry.tf = tangentFrame(probe, item, fresh, vtx, comp.time);
                 man.pts.push(entry);
                 r.made++;
-                touched = true;
+                wrote = true;
                 if (withHandles) {
                     addHandlesTo(comp, probe, item, sh, entry, fresh, upp);
                 }
             }
-            if (touched) {
+            if (wrote) {
                 man.pts.sort(function (a, b) { return a.i - b.i; });
                 item.prop.expression = buildPathExpression(man, item.chain);
             }
@@ -1654,7 +1753,7 @@
                     var man = readManifest(item.prop);
                     if (!man) { continue; }
                     var sh = basePath(item, comp.time);
-                    var touched = false;
+                    var wrote = false;
                     for (var k = 0; k < idxs.length; k++) {
                         var entry = manEntry(man, idxs[k]);
                         if (!entry) { continue; }
@@ -1683,7 +1782,7 @@
                                 try { h.parent = ctrl; } catch (e9) {}
                                 entry[pr.mf] = addLink(item.layer, h);
                                 moved++;
-                                touched = true;
+                                wrote = true;
                             } else if (mode === "masks" && entry[pr.mf]) {
                                 var hl = linkedLayer(item.layer, entry[pr.mf]);
                                 if (!hl) { continue; }
@@ -1696,11 +1795,11 @@
                                 delete entry[pr.mf];
                                 entry[pr.mm] = 1;
                                 moved++;
-                                touched = true;
+                                wrote = true;
                             }
                         }
                     }
-                    if (touched) { item.prop.expression = buildPathExpression(man, item.chain); }
+                    if (wrote) { item.prop.expression = buildPathExpression(man, item.chain); }
                 }
             } finally {
                 probe.done();
@@ -1833,7 +1932,7 @@
                 var man = readManifest(it.prop) || { v: 1, pts: [] };
                 var base = basePath(it, comp.time);
                 var fx = addLink(it.layer, piv);
-                var touched = bindTangents(probe, it, man, comp.time) > 0;
+                var wrote = bindTangents(probe, it, man, comp.time) > 0;
                 var added = false;
                 for (i = 0; i < picks[n].idx.length; i++) {
                     var idx = picks[n].idx[i];
@@ -1850,16 +1949,18 @@
                         }
                         continue;
                     }
-                    var cp = probe.at(it, base.vertices[idx], comp.time);
+                    var bv = base.vertices[idx];
+                    var cp = probe.at(it, bv, comp.time);
                     var loc = probe.intoLayer(piv, cp, comp.time);
                     man.pts.push({ i: idx, fx: fx, pp: [loc[0], loc[1]],
-                                   tf: tangentFrame(probe, it, piv, base.vertices[idx], comp.time) });
+                                   p: [bv[0], bv[1]],
+                                   tf: tangentFrame(probe, it, piv, bv, comp.time) });
                     done++;
-                    touched = true;
+                    wrote = true;
                     added = true;
                 }
                 if (!added) { removeEffect(it.layer, fx); }
-                if (touched) {
+                if (wrote) {
                     man.pts.sort(function (a, b) { return a.i - b.i; });
                     it.prop.expression = buildPathExpression(man, it.chain);
                     paths++;
@@ -3147,6 +3248,1156 @@
         });
     }
 
+    // ----------------------------------------------------------- editing
+    // An edit names one vertex of one path and where it should end up, said
+    // in composition pixels: "pt" for the vertex, "ti" and "to" for its in
+    // and out tangents as vectors measured from it. (ES3 will not take "in"
+    // as a key, which is why they are not called that.)
+    //
+    //   { item: <path>, i: <vertex>, pt: [x,y], ti: [x,y], to: [x,y] }
+    //
+    // Every way of editing in the preview - a drag, an arrow key, an
+    // alignment, the transform box - says what it wants in these, and this is
+    // the one place that works out what has to move for it to happen. What
+    // that is depends on who owns the point: an unrigged one lives in the
+    // path's own value, a rigged one in its control layer, and one gathered
+    // into a Pivot in the manifest the Pivot reads itself through.
+
+    function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
+
+    function tfMat(tf) { return [tf[0], tf[1], tf[2], tf[3], 0, 0]; }
+
+    // The map a bound tangent passes through on its way out of the path: _tv
+    // in the generated expression is exactly this. Inverting it is how a
+    // curve dragged on screen is written into a path the rig already reads.
+    function bindMat(minv, ctrl, entry, t) {
+        return mMul(mMul(minv, layerMatrix(ctrl, t)), tfMat(entry.tf));
+    }
+
+    // A composition-space tangent in the units this path is written in.
+    function tangentToPath(item, minv, entry, side, vComp, t) {
+        if (entry && entry.tf && tipKind(entry, side) === "bound") {
+            var ctrl = linkedLayer(item.layer, entry.fx);
+            if (ctrl) {
+                return mVec(mInv(bindMat(minv, ctrl, entry, t)), mVec(minv, vComp));
+            }
+        }
+        return mVec(minv, vComp);
+    }
+
+    // After Effects hands back a fresh array every time a Shape's vertices,
+    // inTangents or outTangents are read, so writing into one writes into a
+    // copy and changes nothing: sh.vertices[2] = p is a silent no-op. Every
+    // edit here therefore pulls the three arrays out once, works on those,
+    // and builds a Shape at the end.
+    function shapeParts(sh) {
+        var v = [], a = [], b = [], k;
+        var vs = sh.vertices, is = sh.inTangents, os = sh.outTangents;
+        for (k = 0; k < vs.length; k++) {
+            v.push([vs[k][0], vs[k][1]]);
+            a.push([is[k][0], is[k][1]]);
+            b.push([os[k][0], os[k][1]]);
+        }
+        return { v: v, i: a, o: b, closed: sh.closed };
+    }
+
+    function partsToShape(p) {
+        var out = new Shape();
+        out.closed = p.closed;
+        out.vertices = p.v;
+        out.inTangents = p.i;
+        out.outTangents = p.o;
+        return out;
+    }
+
+    function cloneShape(sh) { return partsToShape(shapeParts(sh)); }
+
+    // The path's own shape, from under whatever the rig put on top. Reading
+    // it live would hand back the rig's answer, and writing that answer back
+    // would bake the rig into the value it is supposed to be reading.
+    function rawShape(comp, prop) {
+        var live = false, sh = null;
+        try { live = !!prop.expressionEnabled; } catch (e0) {}
+        try {
+            if (live) { prop.expressionEnabled = false; }
+            sh = prop.valueAtTime(comp.time, false);
+        } catch (e1) {
+            sh = null;
+        } finally {
+            if (live) { try { prop.expressionEnabled = true; } catch (e2) {} }
+        }
+        return sh;
+    }
+
+    // And the way back. After Effects will not take a setValue while an
+    // expression is live, so it comes off for the one write - the same thing
+    // Merge does when it copies a rigged path. A path that already carries
+    // keyframes gets one at the current time, which is what After Effects
+    // itself does when you drag a vertex in the viewer.
+    function putShape(comp, prop, sh) {
+        var live = false;
+        try { live = !!prop.expressionEnabled; } catch (e0) {}
+        try {
+            if (live) { prop.expressionEnabled = false; }
+            if (prop.numKeys > 0) { prop.setValueAtTime(comp.time, sh); }
+            else { prop.setValue(sh); }
+            touched();
+        } finally {
+            if (live) { try { prop.expressionEnabled = true; } catch (e1) {} }
+        }
+    }
+
+    // Move a control layer by a delta in composition pixels. Its position is
+    // written in whatever space its parent gives it, so the delta is taken
+    // there first - a point control hung off a Pivot is the usual case.
+    function nudgeLayer(comp, L, dComp) {
+        var pos = L.transform.position;
+        try {
+            if (pos.expressionEnabled && trim(String(pos.expression || "")) !== "") {
+                return false;
+            }
+        } catch (e0) {}
+        var d = dComp;
+        if (L.parent) { d = mVec(mInv(layerMatrix(L.parent, comp.time)), dComp); }
+        var v;
+        try { v = pos.valueAtTime(comp.time, false); } catch (e1) { return false; }
+        var want = [Number(v[0]) + d[0], Number(v[1]) + d[1]];
+        if (v.length > 2) { want.push(Number(v[2])); }
+        try {
+            if (pos.numKeys > 0) { pos.setValueAtTime(comp.time, want); }
+            else { pos.setValue(want); }
+        } catch (e2) { return false; }
+        touched();
+        return true;
+    }
+
+    // Where a layer's own origin lands in the composition. A control is built
+    // with its anchor at the origin, so for a point control this is the point.
+    function originOf(L, t) { return mPt(layerMatrix(L, t), [0, 0]); }
+
+    // Put a handle mask's far vertex somewhere else. The rig reads points()[1]
+    // and has never looked at the other end, so that is all that moves.
+    function setMaskHandle(comp, ctrl, name, compPt) {
+        var masks = null;
+        try { masks = ctrl.property(MN_MASKS); } catch (e0) { return false; }
+        for (var m = 1; masks && m <= masks.numProperties; m++) {
+            if (masks.property(m).name !== name) { continue; }
+            var sp = masks.property(m).property(MN_MASKSHAPE);
+            var sh;
+            try { sh = sp.valueAtTime(comp.time, false); } catch (e1) { return false; }
+            if (!sh || sh.vertices.length < 2) { return false; }
+            var loc = mPt(mInv(layerMatrix(ctrl, comp.time)), compPt);
+            var parts = shapeParts(sh);
+            parts.v[1] = [loc[0], loc[1]];
+            var out = partsToShape(parts);
+            try {
+                if (sp.expressionEnabled) { sp.expression = ""; }
+                if (sp.numKeys > 0) { sp.setValueAtTime(comp.time, out); }
+                else { sp.setValue(out); }
+            } catch (e2) { return false; }
+            touched();
+            return true;
+        }
+        return false;
+    }
+
+    // Where a vertex really is, in composition pixels. For a point the rig
+    // holds, the path's own value is only what the expression starts from.
+    function vertexAt(item, entry, parts, m, idx, t) {
+        if (entry) {
+            var ctrl = linkedLayer(item.layer, entry.fx);
+            if (ctrl) {
+                return entry.pp ? mPt(layerMatrix(ctrl, t), entry.pp)
+                                : originOf(ctrl, t);
+            }
+        }
+        return mPt(m, parts.v[idx]);
+    }
+
+    function tallyEdit() {
+        return { moved: 0, curved: 0, foreign: 0, skewed: 0, prim: 0, stuck: 0 };
+    }
+
+    // One path's worth of edits. Vertices first, then the path value, then
+    // the handles - a handle control is parented to the point control, so it
+    // has already come along with the point by the time it is read.
+    function applyOne(comp, item, list, r) {
+        var t = comp.time, i;
+        if (item.prim) { r.prim += list.length; return; }
+        if (isForeignRig(item.prop)) { r.foreign += list.length; return; }
+        if (chainSkewed(item, t)) { r.skewed += list.length; return; }
+
+        var m = itemMatrix(item, t), minv = mInv(m);
+        var man = readManifest(item.prop);
+        var sh = rawShape(comp, item.prop);
+        if (!sh) { r.stuck += list.length; return; }
+
+        var out = shapeParts(sh);
+        // Not "touched": that is the run guard, and a local of the same name
+        // would shadow it exactly where the manifest write needs to call it.
+        var wrote = false, manDirty = false, later = [];
+
+        for (i = 0; i < list.length; i++) {
+            var e = list[i], idx = e.i;
+            if (idx < 0 || idx >= out.v.length) { r.stuck++; continue; }
+            var entry = man ? manEntry(man, idx) : null;
+            var here = null, did = false;
+
+            if (e.pt) {
+                if (!entry) {
+                    var lp = mPt(minv, e.pt);
+                    out.v[idx] = [lp[0], lp[1]];
+                    wrote = true;
+                    did = true;
+                } else if (entry.pp) {
+                    // Held in a Pivot's own frame. The Pivot does not move,
+                    // so the other points riding on it stay where they are.
+                    var piv = linkedLayer(item.layer, entry.fx);
+                    if (piv) {
+                        var pl = mPt(mInv(layerMatrix(piv, t)), e.pt);
+                        entry.pp = [pl[0], pl[1]];
+                        manDirty = true;
+                        did = true;
+                    }
+                } else {
+                    var ctrl = linkedLayer(item.layer, entry.fx);
+                    if (ctrl) {
+                        here = originOf(ctrl, t);
+                        did = nudgeLayer(comp, ctrl,
+                                         [e.pt[0] - here[0], e.pt[1] - here[1]]);
+                    }
+                }
+                if (did) { r.moved++; } else { r.stuck++; }
+            }
+
+            // A tangent is stated as a vector from the vertex, so where the
+            // vertex is now is where it is measured from. For a rigged point
+            // that is not the path's own value - the rig overwrites it with
+            // whatever holds the point.
+            var at = e.pt || vertexAt(item, entry, out, m, idx, t);
+            if (e.ti) { wrote = tangentEdit(item, man, entry, out, idx, "in", at, e.ti, minv, t, later, r) || wrote; }
+            if (e.to) { wrote = tangentEdit(item, man, entry, out, idx, "out", at, e.to, minv, t, later, r) || wrote; }
+        }
+
+        if (wrote) { putShape(comp, item.prop, partsToShape(out)); }
+        if (manDirty) { writeBack(item, man); touched(); }
+
+        // The handles that live on layers of their own, read after the point
+        // has moved so the delta is only what the curve asked for.
+        for (i = 0; i < later.length; i++) {
+            var job = later[i];
+            if (job.kind === "mask") {
+                if (setMaskHandle(comp, job.ctrl, job.name, job.at)) { r.curved++; }
+                else { r.stuck++; }
+            } else {
+                var now = originOf(job.layer, t);
+                if (nudgeLayer(comp, job.layer, [job.at[0] - now[0], job.at[1] - now[1]])) {
+                    r.curved++;
+                } else {
+                    r.stuck++;
+                }
+            }
+        }
+    }
+
+    // One side of one point's curve. Returns true when the path's own value
+    // is what has to change; anything on a layer is queued for afterwards.
+    function tangentEdit(item, man, entry, out, idx, side, at, vComp, minv, t, later, r) {
+        var kind = tipKind(entry, side);
+        var tip = [at[0] + vComp[0], at[1] + vComp[1]];
+        if (kind === "mask") {
+            var ctrl = linkedLayer(item.layer, entry.fx);
+            if (ctrl) {
+                later.push({ kind: "mask", ctrl: ctrl, at: tip,
+                             name: (side === "in") ? MASK_IN : MASK_OUT });
+            } else { r.stuck++; }
+            return false;
+        }
+        if (kind === "layer") {
+            var nm = (side === "in") ? entry["if"] : entry.of;
+            var hl = nm ? linkedLayer(item.layer, nm) : null;
+            if (hl) { later.push({ kind: "layer", layer: hl, at: tip }); }
+            else { r.stuck++; }
+            return false;
+        }
+        var v = tangentToPath(item, minv, entry, side, vComp, t);
+        if (side === "in") { out.i[idx] = [v[0], v[1]]; }
+        else { out.o[idx] = [v[0], v[1]]; }
+        r.curved++;
+        return true;
+    }
+
+    function applyEdits(comp, edits) {
+        var r = tallyEdit(), keys = [], groups = {}, i, k;
+        for (i = 0; i < edits.length; i++) {
+            var e = edits[i];
+            if (!e || !e.item) { continue; }
+            k = e.item.key;
+            if (!groups[k]) { groups[k] = { item: e.item, list: [] }; keys.push(k); }
+            groups[k].list.push(e);
+        }
+        for (i = 0; i < keys.length; i++) {
+            applyOne(comp, groups[keys[i]].item, groups[keys[i]].list, r);
+        }
+        return r;
+    }
+
+    function editReport(r) {
+        var said = [];
+        if (r.moved) { said.push(plural(r.moved, "point") + " moved"); }
+        if (r.curved) { said.push(plural(r.curved, "handle") + " reshaped"); }
+        if (!said.length) {
+            if (r.prim) {
+                return "Those are still rectangles, ellipses or stars - press Create to make them paths first.";
+            }
+            if (r.foreign) {
+                return "Skipped - those paths already carry another tool's expression.";
+            }
+            if (r.skewed) {
+                return "Skipped - a shape group with Skew on it cannot be edited from here.";
+            }
+            return "Nothing moved.";
+        }
+        var msg = said.join(", ") + ".";
+        if (r.skewed) { msg += " " + plural(r.skewed, "point") + " left alone: Skew."; }
+        if (r.foreign) { msg += " " + plural(r.foreign, "point") + " left alone: another tool's expression."; }
+        if (r.stuck) { msg += " " + plural(r.stuck, "point") + " would not move."; }
+        return msg;
+    }
+
+    // --------------------------------------------------------------- relink
+    // A rig names its vertices by index, and an index is only as good as the
+    // path it was written for. Add or take away a vertex in After Effects and
+    // every control past it drives its neighbour, so the shape jumps. Drag a
+    // rigged vertex there instead and the expression puts it straight back,
+    // so the edit looks like it was ignored. Both are the same complaint -
+    // the point and the thing holding it have come apart - and Relink is the
+    // one button that puts either right.
+    //
+    // What makes it exact rather than a guess is "p": every entry writes down
+    // where its point sat in the path's own value when it was rigged, and an
+    // insertion does not disturb that - the other vertices are all still
+    // precisely where they were, so they match to the pixel. Whatever is left
+    // over has genuinely moved, which is the curve having been edited there,
+    // and that control goes to meet its point.
+
+    function relinkTally() {
+        return { looked: 0, linked: 0, seated: 0, noted: 0,
+                 lost: 0, blind: 0, stuck: 0,
+                 woke: 0, built: 0, byName: 0, byPlace: 0,
+                 unplaced: 0, pivots: 0, hands: 0, foreign: 0, bare: 0, many: 0 };
+    }
+
+    function dist2(a, b) {
+        var dx = a[0] - b[0], dy = a[1] - b[1];
+        return dx * dx + dy * dy;
+    }
+
+    // How far apart this path's vertices are, in composition pixels. It is
+    // the only scale on which "near enough" means anything: a point dragged
+    // less than one vertex apart can still be told from a vertex that was
+    // deleted, and more than that it cannot.
+    function medianSpan(W, closed) {
+        var d = [], i, n = W.length;
+        for (i = 1; i < n; i++) { d.push(Math.sqrt(dist2(W[i - 1], W[i]))); }
+        if (closed && n > 2) { d.push(Math.sqrt(dist2(W[n - 1], W[0]))); }
+        if (!d.length) { return 0; }
+        d.sort(function (a, b) { return a - b; });
+        return d[Math.floor(d.length / 2)];
+    }
+
+    // Where an entry's point is held now, in composition pixels: its own
+    // control layer, or its place in the frame of the Pivot that gathered it.
+    // Null when the control is gone, which is a different complaint.
+    function heldAt(item, entry, t) {
+        var ctrl = linkedLayer(item.layer, entry.fx);
+        if (!ctrl) { return null; }
+        return entry.pp ? mPt(layerMatrix(ctrl, t), entry.pp) : originOf(ctrl, t);
+    }
+
+    // The control layers that still say they belong to this path: the link
+    // effects the rig left on the layer, which outlive the expression, and
+    // any point controls picked in the timeline. Either is the user saying
+    // "these go with this path".
+    // A link effect records a control LAYER. Nothing in it says which PATH
+    // that control serves, so on a layer carrying two paths every link looks
+    // like it belongs to both. If another path still names one, it is spoken
+    // for: taking it here would weld the two paths to one set of controls,
+    // and the expression would drive the wrong one just as convincingly as
+    // the right one. A control the user picks in the timeline is a different
+    // matter - that is an instruction - and it comes in through selLayers
+    // below, where it gets a fresh link of its own rather than sharing.
+    function linksSpokenFor(item) {
+        var used = {}, items = [], i, k, man, e;
+        try { items = scanPaths(item.layer.containingComp, [item.layer]); }
+        catch (e0) { return used; }
+        for (i = 0; i < items.length; i++) {
+            if (!items[i] || items[i].key === item.key) { continue; }
+            man = rigStateOf(items[i].prop).man;
+            if (!man || !man.pts) { continue; }
+            for (k = 0; k < man.pts.length; k++) {
+                e = man.pts[k];
+                if (e.fx) { used[e.fx] = true; }
+                if (e["if"]) { used[e["if"]] = true; }
+                if (e.of) { used[e.of] = true; }
+            }
+        }
+        return used;
+    }
+
+    function orphanControls(item, selLayers) {
+        var pts = [], piv = 0, hands = 0, seen = {}, fx = null, i, L, nm;
+        var taken = linksSpokenFor(item);
+        try { fx = item.layer.property(MN_EFFECTS); } catch (e0) { fx = null; }
+        for (i = 1; fx && i <= fx.numProperties; i++) {
+            try { nm = String(fx.property(i).name); } catch (e1) { continue; }
+            if (nm.indexOf(TAG + " L") !== 0) { continue; }
+            if (taken[nm]) { continue; }
+            L = linkedLayer(item.layer, nm);
+            if (!L) { continue; }
+            // A Pivot drives many points at once and keeps each one's place
+            // in its own frame, none of which survives the expression. There
+            // is nothing left to work out which vertices were its, so say so
+            // rather than put them back somewhere they never were.
+            var kind = kindOf(L);
+            if (kind === K_HANDLE) { hands++; continue; }
+            if (kind !== K_POINT) { piv++; continue; }
+            if (seen[L.index]) { continue; }
+            seen[L.index] = true;
+            pts.push({ fx: nm, layer: L });
+        }
+        for (i = 0; selLayers && i < selLayers.length; i++) {
+            L = selLayers[i];
+            if (!L || seen[L.index]) { continue; }
+            if (kindOf(L) !== K_POINT) { continue; }
+            seen[L.index] = true;
+            pts.push({ fx: null, layer: L });
+        }
+        // A handle kept as a mask lives on the point control rather than on a
+        // link of its own, so the scan above never sees it. Count those too,
+        // or a rebuilt rig loses them without a word.
+        for (i = 0; i < pts.length; i++) {
+            if (maskNamed(pts[i].layer, MASK_IN)) { hands++; }
+            if (maskNamed(pts[i].layer, MASK_OUT)) { hands++; }
+        }
+        return { pts: pts, pivots: piv, hands: hands };
+    }
+
+    function maskNamed(layer, name) {
+        var masks = null;
+        try { masks = layer.property(MN_MASKS); } catch (e0) { return false; }
+        for (var m = 1; masks && m <= masks.numProperties; m++) {
+            try { if (masks.property(m).name === name) { return true; } } catch (e1) {}
+        }
+        return false;
+    }
+
+    function ptIndexFromName(nm) {
+        var m = String(nm || "").match(/\bPt\s*(\d+)\s*$/);
+        if (!m) { return -1; }
+        var n = Number(m[1]);
+        return (isFinite(n) && n >= 1) ? (n - 1) : -1;
+    }
+
+    // Put each control on a vertex, best evidence first. A control nobody has
+    // moved is still standing on its own point, and that is as good as a
+    // record gets. Otherwise the name the rig gave it carries the index it
+    // was made for, which is the only durable thing left once the expression
+    // has gone. Anything still unplaced takes the nearest vertex going.
+    function placeControls(cands, V, W, t) {
+        var claimed = {}, EPS = 0.25, k, c, j, at, best, bj, d;
+        for (k = 0; k < cands.length; k++) {
+            c = cands[k];
+            c.j = -1;
+            c.how = "";
+            c.at = originOf(c.layer, t);
+            var keyed = 0;
+            try { keyed = c.layer.transform.position.numKeys; } catch (e0) {}
+            if (keyed) { continue; }
+            bj = -1; best = EPS * EPS;
+            for (j = 0; j < W.length; j++) {
+                if (claimed[j]) { continue; }
+                d = dist2(c.at, W[j]);
+                if (d <= best) { best = d; bj = j; }
+            }
+            if (bj >= 0) { c.j = bj; c.how = "place"; claimed[bj] = true; }
+        }
+        for (k = 0; k < cands.length; k++) {
+            c = cands[k];
+            if (c.j >= 0) { continue; }
+            j = ptIndexFromName(c.layer.name);
+            if (j >= 0 && j < V.length && !claimed[j]) {
+                c.j = j; c.how = "name"; claimed[j] = true;
+            }
+        }
+        for (k = 0; k < cands.length; k++) {
+            c = cands[k];
+            if (c.j >= 0) { continue; }
+            at = c.at; bj = -1; best = -1;
+            for (j = 0; j < W.length; j++) {
+                if (claimed[j]) { continue; }
+                d = dist2(at, W[j]);
+                if (best < 0 || d < best) { best = d; bj = j; }
+            }
+            if (bj >= 0) { c.j = bj; c.how = "place"; claimed[bj] = true; }
+        }
+        return cands;
+    }
+
+    // A manifest made again out of the controls that are left. The entries
+    // come out the same shape Create makes, bind frame and all, so what
+    // follows cannot tell a rebuilt rig from one that was never broken.
+    function rebuildFrom(comp, getProbe, item, selLayers, V, W, r) {
+        var found = orphanControls(item, selLayers);
+        r.pivots += found.pivots;
+        r.hands += found.hands;
+        var cands = found.pts;
+        if (!cands.length) { return null; }
+        placeControls(cands, V, W, comp.time);
+        var man = { v: 1, pts: [] }, probe = null, k, c;
+        for (k = 0; k < cands.length; k++) {
+            c = cands[k];
+            if (c.j < 0) { r.unplaced++; continue; }
+            if (!probe) { probe = getProbe(); }
+            man.pts.push({ i: c.j,
+                           fx: c.fx || addLink(item.layer, c.layer),
+                           p: [V[c.j][0], V[c.j][1]],
+                           tf: tangentFrame(probe, item, c.layer, V[c.j], comp.time) });
+            if (c.how === "name") { r.byName++; } else { r.byPlace++; }
+        }
+        if (!man.pts.length) { return null; }
+        man.pts.sort(function (a, b) { return a.i - b.i; });
+        r.built += man.pts.length;
+        return man;
+    }
+
+    // One path. Puts the manifest right and hands back the control moves that
+    // are still owed, for the caller to make through the ordinary edit path.
+    function relinkOne(comp, getProbe, item, selLayers, r, mayBuild) {
+        if (item.prim) { return []; }
+        var t = comp.time;
+        var st = rigStateOf(item.prop);
+        if (st.foreign) { r.foreign++; return []; }
+        var sh = rawShape(comp, item.prop);
+        if (!sh) { return []; }
+
+        // Everything is measured in composition pixels, so a tolerance means
+        // the same thing whatever units the group this path sits in uses.
+        var m = itemMatrix(item, t);
+        var V = shapeParts(sh).v, n = V.length, W = [], i, k;
+        if (!n) { return []; }
+        for (i = 0; i < n; i++) { W.push(mPt(m, V[i])); }
+
+        var man = st.man, fresh = false;
+        if (!man) {
+            if (!mayBuild) { r.many++; return []; }
+            man = rebuildFrom(comp, getProbe, item, selLayers, V, W, r);
+            if (!man) { r.bare++; return []; }
+            fresh = true;
+        } else if (!man.pts.length) {
+            return [];
+        }
+        r.looked++;
+
+        var EPS = 0.25, CAP = medianSpan(W, sh.closed) * 0.75;
+        var probes = [], e, pr, held;
+        for (k = 0; k < man.pts.length; k++) {
+            e = man.pts[k];
+            held = heldAt(item, e, t);
+            // With no control layer the entry drives nothing, whatever index
+            // it names. Putting that right is Delete's work or Create's, so
+            // it is reported rather than quietly relinked to something dead.
+            // Otherwise: the place written down, or - for a rig made before
+            // places were written down - where the point is being held, which
+            // is right for as long as nobody has moved the control.
+            pr = (held === null) ? null : (e.p ? mPt(m, e.p) : held);
+            probes.push({ e: e, at: pr, blind: !e.p, j: -1 });
+        }
+
+        var claimed = {}, best, bj, d, q;
+
+        // Everything that has not moved, matched to the pixel. An insertion
+        // or a deletion is wholly resolved here.
+        for (k = 0; k < probes.length; k++) {
+            q = probes[k];
+            if (!q.at) { continue; }
+            bj = -1; best = EPS * EPS;
+            for (i = 0; i < n; i++) {
+                if (claimed[i]) { continue; }
+                d = dist2(q.at, W[i]);
+                if (d <= best) { best = d; bj = i; }
+            }
+            if (bj >= 0) { q.j = bj; claimed[bj] = true; }
+        }
+
+        // What is left has moved. It still has to fall in path order between
+        // the points that did match, and that window is what stops a guess
+        // from wandering onto a neighbour. A rig with no place written down
+        // is not guessed at at all: there would be no telling a point that
+        // moved from a control that did.
+        for (k = 0; k < probes.length; k++) {
+            q = probes[k];
+            if (q.j >= 0 || !q.at || q.blind) { continue; }
+            var lo = -1, hi = n;
+            for (i = k - 1; i >= 0; i--) { if (probes[i].j >= 0) { lo = probes[i].j; break; } }
+            for (i = k + 1; i < probes.length; i++) { if (probes[i].j >= 0) { hi = probes[i].j; break; } }
+            bj = -1; best = -1;
+            for (i = lo + 1; i < hi; i++) {
+                if (claimed[i]) { continue; }
+                d = dist2(q.at, W[i]);
+                if (best < 0 || d < best) { best = d; bj = i; }
+            }
+            // Within a vertex of where it was, this is the point having moved.
+            // Further off, the point it was given has most likely been deleted
+            // and the nearest thing going is a neighbour that was never
+            // rigged - so say nothing was found rather than take it.
+            if (bj >= 0 && best <= CAP * CAP) { q.j = bj; claimed[bj] = true; }
+        }
+
+        var edits = [], dirty = false;
+        for (k = 0; k < probes.length; k++) {
+            q = probes[k];
+            e = q.e;
+            if (!q.at) { r.lost++; continue; }
+            if (q.j < 0) { if (q.blind) { r.blind++; } else { r.stuck++; } continue; }
+            if (e.i !== q.j) { e.i = q.j; dirty = true; r.linked++; }
+            if (!e.p) {
+                // Note where it sits now, so the next time this path is
+                // edited there is something exact to match on. Move nothing:
+                // without a record there is nothing to say it is wrong.
+                e.p = [V[q.j][0], V[q.j][1]];
+                dirty = true;
+                r.noted++;
+            } else if (dist2(mPt(m, e.p), W[q.j]) > EPS * EPS) {
+                // The point has moved out from under its control: the curve
+                // was edited here. Send the control after it.
+                edits.push({ item: item, i: q.j, pt: [W[q.j][0], W[q.j][1]] });
+                e.p = [V[q.j][0], V[q.j][1]];
+                dirty = true;
+                r.seated++;
+            }
+        }
+
+        if (dirty || fresh) {
+            man.pts.sort(function (a, b) { return a.i - b.i; });
+            writeBack(item, man);
+            touched();
+        }
+        // Writing an expression turns it on, so this only has work to do when
+        // nothing else was written - which is the whole repair for a rig that
+        // was only ever switched off. A rebuilt one had no expression to be
+        // switched off in the first place, so it is not reported as woken.
+        if (st.man && !st.on) {
+            try { item.prop.expressionEnabled = true; r.woke++; touched(); }
+            catch (eOn) {}
+        } else if (fresh) {
+            try { item.prop.expressionEnabled = true; } catch (eOn2) {}
+        }
+        return edits;
+    }
+
+    function relinkReport(r, moves) {
+        if (!r.looked) {
+            var why = "Nothing to relink - none of those paths is rigged.";
+            if (r.foreign) {
+                why = "Skipped - those paths already carry another tool's expression.";
+            } else if (r.pivots) {
+                why = "Nothing to rebuild from: those controls belong to a Pivot, " +
+                      "and which points were its is not written anywhere but the " +
+                      "expression that has gone.";
+            } else if (r.many > 1) {
+                why = "More than one path here carries no rig, and a control does " +
+                      "not say which path it belongs to. Choose the one shape group " +
+                      "in the timeline, or pick its points, and press Relink again.";
+            } else if (r.bare) {
+                why += " Select the point controls too and it can rebuild from those.";
+            }
+            return why;
+        }
+        var said = [];
+        if (r.woke) {
+            said.push("the expression on " + plural(r.woke, "path") +
+                      " was switched off, and is on again");
+        }
+        if (r.built) {
+            said.push("rebuilt the rig on " + plural(r.built, "point") + " from the controls left behind");
+        }
+        if (r.linked) { said.push(plural(r.linked, "point") + " put back on its own vertex"); }
+        if (r.seated) { said.push(plural(r.seated, "control") + " brought to its point"); }
+        var msg;
+        if (said.length) {
+            msg = said.join(", ") + ".";
+            if (r.built) {
+                msg += " " + r.byName + " placed by name, " + r.byPlace +
+                       " by where they stand - look over the shape before going on.";
+            }
+            if (moves && moves.stuck) {
+                msg += " " + plural(moves.stuck, "control") + " would not move.";
+            }
+        } else if (r.noted) {
+            msg = "Everything was already in place. Noted where " +
+                  plural(r.noted, "point") + " sits, so a later edit can be put right exactly.";
+        } else {
+            msg = "Everything was already in place.";
+        }
+        if (r.unplaced) {
+            msg += " " + plural(r.unplaced, "control") + " had no vertex left to go on.";
+        }
+        if (r.many) {
+            msg += " " + plural(r.many, "path") + " here carries no rig and was left " +
+                   "alone: choose one on its own to build it again.";
+        }
+        if (r.pivots) {
+            msg += " A Pivot's points cannot be rebuilt: which were its is not written down.";
+        }
+        if (r.hands) {
+            msg += " " + plural(r.hands, "handle") +
+                   " could not be taken up again: the points have their own tangents back. " +
+                   "Press Handles to give them handles once more.";
+        }
+        if (r.foreign) {
+            msg += " " + plural(r.foreign, "path") + " left alone: another tool's expression.";
+        }
+        if (r.stuck) {
+            msg += " " + plural(r.stuck, "point") + " left alone: no vertex near enough.";
+        }
+        if (r.blind) {
+            // Not a failure, and it should not read like one: there was
+            // nothing to put right, only nothing to put right WITH.
+            msg += " " + plural(r.blind, "point") +
+                   " was rigged before places were written down, so a vertex added or removed later cannot be matched exactly.";
+        }
+        if (r.lost) {
+            msg += " " + plural(r.lost, "point") + " left alone: its control layer is gone.";
+        }
+        return msg;
+    }
+
+    function actRelink(items, selLayers) {
+        if (!items || !items.length) {
+            UI.say("Select a shape layer, or pick the points to put right.");
+            return false;
+        }
+        return run("Relink points", function (comp) {
+            var r = relinkTally(), edits = [], i, seen = {}, st;
+            // Building a rig again has nothing to go on but the controls, and
+            // a control names a layer, never a path. Handed several paths that
+            // carry no rig it would pin every one of them to the same
+            // controls, and a wrong pairing drives the shape every bit as
+            // convincingly as a right one. So it only builds when the aim
+            // comes down to a single path - which picking the points, or
+            // choosing the shape group in the timeline, is enough to do.
+            var bare = 0, counted = {};
+            for (i = 0; i < items.length; i++) {
+                if (!items[i] || items[i].prim || counted[items[i].key]) { continue; }
+                counted[items[i].key] = true;
+                st = rigStateOf(items[i].prop);
+                if (!st.man && !st.foreign) { bare++; }
+            }
+            var mayBuild = (bare === 1);
+            // The probe is a layer, and adding one is a change. Only a rebuild
+            // needs it, so a Relink that finds nothing to do costs nothing.
+            var probe = null;
+            function getProbe() {
+                if (!probe) { probe = new Probe(comp); }
+                return probe;
+            }
+            try {
+                for (i = 0; i < items.length; i++) {
+                    var item = items[i];
+                    if (!item || seen[item.key]) { continue; }
+                    seen[item.key] = true;
+                    edits = edits.concat(
+                        relinkOne(comp, getProbe, item, selLayers, r, mayBuild));
+                }
+            } finally {
+                if (probe) { probe.done(); }
+            }
+            // The manifests are written before this runs, so every move finds
+            // the entry at the index it has just been given.
+            var moves = edits.length ? applyEdits(comp, edits) : null;
+            return relinkReport(r, moves);
+        }, true);
+    }
+
+    // ------------------------------------------------- stating what to move
+
+    // Picks come from the panel; geom is what it has drawn, keyed the same
+    // way, so the editing layer can be driven without a panel to drive it.
+    function editsFor(picks, geom, fn) {
+        var out = [], i, k;
+        for (i = 0; i < picks.length; i++) {
+            var item = picks[i].item, idx = picks[i].idx;
+            var gm = geom[item.key];
+            if (!gm) { continue; }
+            for (k = 0; k < idx.length; k++) {
+                var at = gm.verts[idx[k]];
+                if (!at) { continue; }
+                var e = fn(at, gm, idx[k], item);
+                if (!e) { continue; }
+                e.item = item;
+                e.i = idx[k];
+                out.push(e);
+            }
+        }
+        return out;
+    }
+
+    function boundsOfPicks(picks, geom) {
+        var b = null, i, k;
+        for (i = 0; i < picks.length; i++) {
+            var gm = geom[picks[i].item.key];
+            if (!gm) { continue; }
+            for (k = 0; k < picks[i].idx.length; k++) {
+                var p = gm.verts[picks[i].idx[k]];
+                if (!p) { continue; }
+                if (!b) { b = { minx: p[0], miny: p[1], maxx: p[0], maxy: p[1], n: 0 }; }
+                if (p[0] < b.minx) { b.minx = p[0]; }
+                if (p[1] < b.miny) { b.miny = p[1]; }
+                if (p[0] > b.maxx) { b.maxx = p[0]; }
+                if (p[1] > b.maxy) { b.maxy = p[1]; }
+                b.n++;
+            }
+        }
+        return b;
+    }
+
+    function tipVec(gm, idx, side) {
+        for (var i = 0; i < gm.tips.length; i++) {
+            var tp = gm.tips[i];
+            if (tp.i === idx && tp.side === side) {
+                return [tp.b[0] - tp.a[0], tp.b[1] - tp.a[1]];
+            }
+        }
+        return null;
+    }
+
+    function xformPt(mat, c, p) {
+        var v = mVec(mat, [p[0] - c[0], p[1] - c[1]]);
+        return [c[0] + v[0], c[1] + v[1]];
+    }
+
+    // A parametric shape has no vertices to write, so it becomes a path
+    // first - the same thing Create does - and the edits follow it over.
+    function overPrimitives(comp, picks, edits) {
+        var any = false, i;
+        for (i = 0; i < picks.length && !any; i++) {
+            if (picks[i].item && picks[i].item.prim) { any = true; }
+        }
+        if (!any) { return { edits: edits, made: 0 }; }
+        var turned = resolvePrimitives(comp, picks);
+        if (!turned.made) { return { edits: edits, made: 0 }; }
+        touched();
+        var byOld = {}, n;
+        for (i = 0; i < picks.length; i++) {
+            var was = picks[i].item;
+            for (n = 0; n < turned.picks.length; n++) {
+                var now = turned.picks[n].item;
+                if (!sameLayer(was.layer, now.layer)) { continue; }
+                if (was.sname !== now.sname) { continue; }
+                if (was.chain.join("/") !== now.chain.join("/")) { continue; }
+                byOld[was.key] = now;
+                break;
+            }
+        }
+        for (i = 0; i < edits.length; i++) {
+            var fresh = byOld[edits[i].item.key];
+            if (fresh) { edits[i].item = fresh; }
+        }
+        return { edits: edits, made: turned.made };
+    }
+
+    function runEdits(title, picks, edits) {
+        if (!edits || !edits.length) { UI.say("Pick some points first."); return false; }
+        return run(title, function (comp) {
+            var over = overPrimitives(comp, picks, edits);
+            var r = applyEdits(comp, over.edits);
+            var msg = editReport(r);
+            if (over.made) {
+                msg += " " + plural(over.made, "shape") + " became a path.";
+            }
+            return msg;
+        }, true);
+    }
+
+    function editRun(title, picks, geom, fn) {
+        return runEdits(title, picks, editsFor(picks, geom, fn));
+    }
+
+    function actMovePoints(picks, geom, d, title) {
+        return editRun(title || "Move points", picks, geom, function (at) {
+            return { pt: [at[0] + d[0], at[1] + d[1]] };
+        });
+    }
+
+    // Alignment moves the points and nothing else. A tangent is stored as a
+    // vector from its vertex, so the curve rides along without being told to.
+    function actAlign(picks, geom, mode) {
+        var b = boundsOfPicks(picks, geom);
+        if (!b || b.n < 2) { UI.say("Pick two or more points to align."); return false; }
+        return editRun("Align points", picks, geom, function (at) {
+            var x = at[0], y = at[1];
+            if (mode === "l") { x = b.minx; }
+            else if (mode === "cx") { x = (b.minx + b.maxx) / 2; }
+            else if (mode === "r") { x = b.maxx; }
+            else if (mode === "t") { y = b.miny; }
+            else if (mode === "cy") { y = (b.miny + b.maxy) / 2; }
+            else if (mode === "b") { y = b.maxy; }
+            else { return null; }
+            if (Math.abs(x - at[0]) < 1e-9 && Math.abs(y - at[1]) < 1e-9) { return null; }
+            return { pt: [x, y] };
+        });
+    }
+
+    // The transform box. Handles are carried through the same map as their
+    // points, so a turned selection keeps the shape of its curve.
+    function actTransform(picks, geom, mat, centre, title) {
+        return editRun(title || "Transform points", picks, geom, function (at, gm, idx) {
+            var e = { pt: xformPt(mat, centre, at) };
+            var ti = tipVec(gm, idx, "in"), to = tipVec(gm, idx, "out");
+            if (ti) { e.ti = mVec(mat, ti); }
+            if (to) { e.to = mVec(mat, to); }
+            return e;
+        });
+    }
+
+    // ---------------------------------------------------------- keyframing
+    // Somewhere to edit from. Without a keyframe already down, moving a point
+    // changes the path for the whole composition; with one at this moment,
+    // the move belongs to this moment.
+
+    function hasKeyAt(prop, t) {
+        for (var k = 1; k <= prop.numKeys; k++) {
+            if (Math.abs(prop.keyTime(k) - t) < 1e-6) { return true; }
+        }
+        return false;
+    }
+
+    function putKey(comp, prop, sh) {
+        var live = false;
+        try { live = !!prop.expressionEnabled; } catch (e0) {}
+        try {
+            if (live) { prop.expressionEnabled = false; }
+            prop.setValueAtTime(comp.time, sh);
+            touched();
+        } finally {
+            if (live) { try { prop.expressionEnabled = true; } catch (e1) {} }
+        }
+    }
+
+    // Is this path, or a group it sits inside, picked out in the timeline?
+    // Selecting a shape group is how you say "this shape and not the others
+    // on the layer", and After Effects cannot report that through the layer:
+    // selecting a property selects its layer too, so the layer says only
+    // that something on it was chosen. The climb stops below the layer for
+    // that reason - going one step further would make every path on it match.
+    function isPointedAt(prop) {
+        var p = prop, guard = 0, mn;
+        while (p && guard++ < 24) {
+            try { if (p.selected) { return true; } } catch (e) {}
+            try { mn = String(p.matchName || ""); } catch (e1) { return false; }
+            if (mn === MN_CONTENTS || mn === MN_MASKS) { return false; }
+            var up = null;
+            try { up = p.propertyGroup(1); } catch (e2) { up = null; }
+            if (!up || up === p) { return false; }
+            p = up;
+        }
+        return false;
+    }
+
+    // Whichever of these the timeline is pointing at; all of them if it is
+    // pointing at none, which is what selecting the bare layer means.
+    function pointedPaths(items) {
+        var out = [], i;
+        for (i = 0; i < items.length; i++) {
+            if (items[i] && isPointedAt(items[i].prop)) { out.push(items[i]); }
+        }
+        return out.length ? out : items;
+    }
+
+    // After Effects has no way to twirl a property open from a script, and
+    // the menu command scripts reach for - "Reveal Selected Properties" -
+    // is not one: the lookup returns 0 and executing 0 does nothing quietly.
+    // What does work is the U key, which opens the keyframed properties of
+    // whatever layers are selected. A path that was just keyed is exactly
+    // that, so this shows the key that was made and little else.
+    var CMD_REVEAL_KEYED = 2387;
+
+    function revealKeyed(items) {
+        var comp = activeComp();
+        if (!comp || !items || !items.length) { return false; }
+        var seen = {}, any = false, i;
+        for (i = 0; i < items.length; i++) {
+            var L = items[i] ? items[i].layer : null;
+            if (!L) { continue; }
+            try {
+                if (seen[L.id]) { continue; }
+                seen[L.id] = true;
+                // Added to the selection, never swapped in for it: what else
+                // is selected is the user's, and a reveal only opens rows.
+                if (!L.selected) { L.selected = true; }
+                any = true;
+            } catch (e) {}
+        }
+        if (!any) { return false; }
+        try { app.executeCommand(CMD_REVEAL_KEYED); } catch (e2) { return false; }
+        return true;
+    }
+
+    // A keyframe on each path, at the current time, holding what it already
+    // shows. The rig reads the path's own value, so a rigged path keys that
+    // value - which is what its unrigged points are drawn from.
+    function actKeyPaths(items) {
+        if (!items || !items.length) {
+            UI.say("Select a shape layer or a shape group first.");
+            return false;
+        }
+        return run("Keyframe paths", function (comp) {
+            var made = 0, again = 0, prim = 0, foreign = 0, rigged = 0, i;
+            for (i = 0; i < items.length; i++) {
+                var item = items[i];
+                if (!item) { continue; }
+                if (item.prim) { prim++; continue; }
+                if (isForeignRig(item.prop)) { foreign++; continue; }
+                var sh = rawShape(comp, item.prop);
+                if (!sh) { continue; }
+                if (readManifest(item.prop)) { rigged++; }
+                if (hasKeyAt(item.prop, comp.time)) { again++; } else { made++; }
+                putKey(comp, item.prop, sh);
+            }
+            if (!made && !again) {
+                if (prim) {
+                    return "A rectangle, ellipse or star has no path to key - press Create to make one.";
+                }
+                if (foreign) {
+                    return "Skipped - those paths already carry another tool's expression.";
+                }
+                return "Nothing to key.";
+            }
+            var msg = made
+                ? ("A keyframe on " + plural(made, "path") + ".")
+                : (plural(again, "path") + " already had one here; it holds what they show now.");
+            if (made && again) { msg += " " + plural(again, "path") + " already had one."; }
+            if (rigged) {
+                msg += " " + plural(rigged, "path") +
+                       " is rigged: that keys the value the rig reads.";
+            }
+            if (prim) { msg += " " + plural(prim, "shape") + " has no path to key."; }
+            if (foreign) { msg += " " + plural(foreign, "path") + " belongs to another tool."; }
+            return msg;
+        }, true);
+    }
+
+    // Open the paths in the timeline, without keying anything. After Effects
+    // has no command that opens one named property, so the nearest fit is
+    // chosen: U when every path asked for has keyframes of its own, and UU
+    // otherwise - which opens whatever else on the layer is modified. That
+    // is a good deal more than was asked for, so the message says so rather
+    // than leaving a timeline full of unexplained rows.
+    var CMD_REVEAL_MODIFIED = 2771;
+
+    function actRevealPaths(items) {
+        if (!items || !items.length) {
+            UI.say("Select a shape layer or a shape group first.");
+            return false;
+        }
+        var comp = activeComp();
+        if (!comp) { UI.say("Open a composition first."); return false; }
+
+        var paths = 0, keyed = 0, layers = 0, seen = {}, prim = 0, i;
+        for (i = 0; i < items.length; i++) {
+            var it = items[i];
+            if (!it) { continue; }
+            if (it.prim) { prim++; continue; }
+            paths++;
+            try { if (it.prop.numKeys > 0) { keyed++; } } catch (e) {}
+            try {
+                if (!seen[it.layer.id]) {
+                    seen[it.layer.id] = true;
+                    layers++;
+                    // Added to the selection rather than swapped in for it:
+                    // the reveal acts on selected layers, and what else is
+                    // selected is the user's business.
+                    if (!it.layer.selected) { it.layer.selected = true; }
+                }
+            } catch (e1) {}
+        }
+        if (!paths) {
+            UI.say(prim
+                ? "A rectangle, ellipse or star has no path to open - press Create to make one."
+                : "Nothing to open.");
+            return false;
+        }
+
+        var clean = (keyed === paths);
+        try {
+            app.executeCommand(clean ? CMD_REVEAL_KEYED : CMD_REVEAL_MODIFIED);
+        } catch (e2) {
+            UI.say("After Effects would not run the reveal.");
+            return false;
+        }
+        var msg = clean
+            ? ("Opened " + plural(paths, "path") + " in the timeline.")
+            : ("Opened " + plural(paths, "path") + ", and everything else modified on " +
+               plural(layers, "layer") +
+               ": only a keyframed property can be opened on its own. Press Keyframe first for just the path.");
+        if (prim) { msg += " " + plural(prim, "shape") + " has no path to open."; }
+        UI.say(msg);
+        return true;
+    }
+
+    // ------------------------------------------------------------ snapping
+    // Figma's trick, and the reason its snap never feels grabby: the range is
+    // measured on screen rather than in the artwork, so it stays the same few
+    // pixels however far in the view is zoomed, and the closer you look the
+    // finer it lets you place a point. Each axis answers for itself, so a
+    // point can line up across while it runs free down the way.
+    //
+    //   probes  where the moving thing would land on this axis, before snapping
+    //   cands   what it could line up with
+    //   d       the delta asked for
+    //   s       canvas pixels to one composition pixel
+    //   px      how near, on screen, before it takes hold
+    function snapAxis(probes, cands, d, s, px) {
+        var best = null, near = px / Math.max(1e-9, s), i, k;
+        for (i = 0; i < probes.length; i++) {
+            var want = probes[i] + d;
+            for (k = 0; k < cands.length; k++) {
+                var off = cands[k] - want;
+                if (off < 0) { off = -off; }
+                if (off > near) { continue; }
+                near = off;
+                best = { d: d + (cands[k] - want), at: cands[k] };
+            }
+        }
+        return best || { d: d, at: null };
+    }
+
+    // Even-odd, so a lasso that doubles back on itself still selects what it
+    // drew round rather than everything it touched.
+    function inPolygon(poly, x, y) {
+        var inside = false, n = poly.length, i, j;
+        for (i = 0, j = n - 1; i < n; j = i++) {
+            var xi = poly[i][0], yi = poly[i][1];
+            var xj = poly[j][0], yj = poly[j][1];
+            if ((yi > y) === (yj > y)) { continue; }
+            if (x < (xj - xi) * (y - yi) / (yj - yi) + xi) { inside = !inside; }
+        }
+        return inside;
+    }
+
+    // A single handle, dragged. The point it belongs to does not move.
+    function actCurve(item, geom, idx, sides) {
+        var picks = [{ item: item, idx: [idx] }];
+        return editRun("Reshape the curve", picks, geom, function (at, gm, i2) {
+            if (i2 !== idx) { return null; }
+            var e = {};
+            if (sides["in"]) { e.ti = sides["in"]; }
+            if (sides.out) { e.to = sides.out; }
+            return e;
+        });
+    }
+
     // =====================================================================
     //  Panel
     // =====================================================================
@@ -3192,7 +4443,21 @@
         "none": [["r",1.98,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",1.98,19,19,3.6]],
         "invert": [["r",0,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",0,19,19,3.6]],
         "zoomout": [["p",2.2,[17,8,10,14,17,20]]],
-        "zoomin": [["p",2.2,[11,8,18,14,11,20]]]
+        "zoomin": [["p",2.2,[11,8,18,14,11,20]]],
+        "marquee": [["x",1.76,4,7,24,21],["r",0,9,12,2.4],["r",0,15,17,2.4],["r",0,20,11,2.4]],
+        "lasso": [["b",1.98,[14,5,24,5,24,19,14,19]],["b",1.98,[14,19,5,19,5,5,14,5]],["p",1.98,[11.5,18.2,9,25]]],
+        "snap": [["p",1.54,[14,2.5,14,25.5]],["r",0,14,9,3.2],["r",0,14,19,3.2],["r",1.98,23,14,3.0],["p",2.2,[21,11,17,14,21,17]]],
+        "box": [["x",1.76,7,7,21,21],["r",0,7,7,2.6],["r",0,21,7,2.6],["r",0,7,21,2.6],["r",0,21,21,2.6]],
+        "alignleft": [["p",1.76,[4,3,4,25]],["p",3.6,[4,10,22,10]],["p",3.6,[4,18,16,18]]],
+        "aligncx": [["p",1.76,[14,3,14,25]],["p",3.6,[5,10,23,10]],["p",3.6,[8,18,20,18]]],
+        "alignright": [["p",1.76,[24,3,24,25]],["p",3.6,[6,10,24,10]],["p",3.6,[12,18,24,18]]],
+        "aligntop": [["p",1.76,[3,4,25,4]],["p",3.6,[10,4,10,22]],["p",3.6,[18,4,18,16]]],
+        "aligncy": [["p",1.76,[3,14,25,14]],["p",3.6,[10,5,10,23]],["p",3.6,[18,8,18,20]]],
+        "alignbottom": [["p",1.76,[3,24,25,24]],["p",3.6,[10,6,10,24]],["p",3.6,[18,12,18,24]]],
+        "help": [["c",1.76,14,14,10.5],["b",1.98,[10,10.5,10.5,6.3,18.2,6.6,17.6,11.0]],["p",1.98,[17.6,11.0,14,13.6,14,16.4]],["c",0,14,20.4,1.5]],
+        "key": [["b",1.65,[2.5,16,8,17,14,8,20,8.5]],["d",0,11.1,12.4,3.1],["p",2.2,[20,19,20,27]],["p",2.2,[16,23,24,23]]],
+        "reveal": [["p",1.98,[3.5,8.5,11,8.5,7.2,14.5,3.5,8.5]],["p",1.98,[14.5,8.5,25,8.5]],["p",3.6,[14.5,15,25,15]],["p",1.98,[14.5,21.5,21.5,21.5]]],
+        "relink": [["b",1.65,[3,20,10,23,18,7,25,10]],["r",1.98,14,15,2.9],["r",0,14,3.8,2.6],["p",1.98,[11.4,8.2,14,11.2,16.6,8.2]]]
     };
 
     // After Effects' own buttons: a flat dark fill, a lighter hairline and a
@@ -3290,7 +4555,10 @@
     function paintIconButton(ctrl, ops, st) {
         var g = ctrl.graphics;
         var w = ctrl.size.width, h = ctrl.size.height;
-        var hot = (ctrl.hot === true), down = (ctrl.down === true);
+        var hot = (ctrl.hot === true);
+        // "on" is for the buttons that hold a setting rather than do a thing:
+        // they go on looking pressed for as long as the setting is on.
+        var down = (ctrl.down === true || ctrl.on === true);
         var fill = down ? BTN_FILL_DOWN : (hot ? BTN_FILL_HOT : BTN_FILL);
         var edge = hot ? BTN_LINE_HOT : BTN_LINE;
         roundRectPath(g, 0.5, 0.5, w - 1, h - 1, BTN_RADIUS);
@@ -3307,7 +4575,12 @@
         geom: [],
         prims: [],
         status: "",
+        // Points, and separately the bezier handle tips. A tip is named
+        // "<vertex>:in" or "<vertex>:out". They are kept apart because the
+        // transform box is drawn round the points and nothing else: a handle
+        // sticking out of the selection must not stretch the box it is in.
         sel: {},
+        selH: {},
         view: { s: 1, tx: 0, ty: 0 },
         // Set the moment the view is panned or zoomed by hand. A fit would
         // throw that away, so from then on only a change of what is on show -
@@ -3319,7 +4592,12 @@
         // refresh can tell a new statement from After Effects apart from the
         // one the panel itself just made.
         ctrlSig: null,
-        drag: null
+        drag: null,
+        // An edit in hand - a point being dragged, a curve reshaped, the
+        // transform box pulled - and the geometry it would leave behind.
+        // Nothing reaches the project until the button comes up.
+        edit: null,
+        preview: null
     };
 
     var FLATTEN = 12;
@@ -3339,6 +4617,44 @@
         return poly;
     }
 
+    // Which thing drives one side's tangent, and so what has to move for the
+    // curve to change. A handle the rig drives is not editable by writing the
+    // path: the expression would put it straight back.
+    //   free   the path's own value, nothing rigged
+    //   bound  the path's value, read through the control's bind frame
+    //   mask   a VXR In / VXR Out mask on the point control
+    //   layer  a handle control layer of its own
+    function tipKind(entry, side) {
+        if (!entry) { return "free"; }
+        if (side === "in") {
+            if (entry.im) { return "mask"; }
+            if (entry["if"]) { return "layer"; }
+        } else {
+            if (entry.om) { return "mask"; }
+            if (entry.of) { return "layer"; }
+        }
+        return entry.tf ? "bound" : "free";
+    }
+
+    function tangentOf(sh, i, side) {
+        return (side === "in") ? sh.inTangents[i] : sh.outTangents[i];
+    }
+
+    // A tangent of no length has no tip to draw and nothing to take hold of.
+    // Pulling a handle out of a corner is the Handles button's job.
+    function addTip(out, verts, sh, m, i, side, entry) {
+        var v = tangentOf(sh, i, side);
+        if (!v) { return; }
+        if (Math.abs(v[0]) < 1e-6 && Math.abs(v[1]) < 1e-6) { return; }
+        out.push({ i: i, side: side, a: verts[i],
+                   b: mPt(m, [sh.vertices[i][0] + v[0], sh.vertices[i][1] + v[1]]),
+                   ctl: tipKind(entry, side) });
+    }
+
+    // Everything the preview draws for one path, and everything an edit of it
+    // needs to find its way back into the project: the matrix it was drawn
+    // through, its inverse, the shape as read, and the manifest that says
+    // which points the rig already holds.
     function geomFor(item, t) {
         var sh;
         if (item.prim) {
@@ -3358,26 +4674,37 @@
 
         var poly = flattenPath(sh, m);
 
-        var man = readManifest(item.prop);
-        var rigged = {}, hands = [];
+        var man = item.prim ? null : readManifest(item.prop);
+        var rigged = {}, tips = [];
         if (man) {
-            for (i = 0; i < man.pts.length; i++) {
-                var e = man.pts[i];
-                rigged[e.i] = true;
-                if (e.i >= n) { continue; }
-                if (e.im || e["if"]) {
-                    hands.push([verts[e.i], mPt(m, [sh.vertices[e.i][0] + sh.inTangents[e.i][0],
-                                                    sh.vertices[e.i][1] + sh.inTangents[e.i][1]])]);
-                }
-                if (e.om || e.of) {
-                    hands.push([verts[e.i], mPt(m, [sh.vertices[e.i][0] + sh.outTangents[e.i][0],
-                                                    sh.vertices[e.i][1] + sh.outTangents[e.i][1]])]);
-                }
-            }
+            for (i = 0; i < man.pts.length; i++) { rigged[man.pts[i].i] = true; }
         }
-        return { verts: verts, poly: poly, rigged: rigged, hands: hands,
+        for (i = 0; i < n; i++) {
+            var e = man ? manEntry(man, i) : null;
+            addTip(tips, verts, sh, m, i, "in", e);
+            addTip(tips, verts, sh, m, i, "out", e);
+        }
+        return { verts: verts, poly: poly, rigged: rigged, tips: tips,
                  closed: sh.closed, prim: !!item.prim,
-                 foreign: !item.prim && isForeignRig(item.prop) };
+                 foreign: !item.prim && isForeignRig(item.prop),
+                 m: m, minv: mInv(m), raw: sh, man: man,
+                 skew: chainSkewed(item, t) };
+    }
+
+    // The same thing again for a shape held in hand during a drag: no project
+    // reads at all, so a move costs nothing but arithmetic.
+    function geomFrom(gm, sh) {
+        var verts = [], i, n = sh.vertices.length;
+        for (i = 0; i < n; i++) { verts.push(mPt(gm.m, sh.vertices[i])); }
+        var tips = [];
+        for (i = 0; i < n; i++) {
+            var e = gm.man ? manEntry(gm.man, i) : null;
+            addTip(tips, verts, sh, gm.m, i, "in", e);
+            addTip(tips, verts, sh, gm.m, i, "out", e);
+        }
+        return { verts: verts, poly: flattenPath(sh, gm.m), rigged: gm.rigged,
+                 tips: tips, closed: gm.closed, prim: gm.prim, foreign: gm.foreign,
+                 m: gm.m, minv: gm.minv, raw: sh, man: gm.man, skew: gm.skew };
     }
 
     function toCanvas(p) {
@@ -3411,7 +4738,10 @@
         var pad = 22;
         var s = Math.min((w - pad * 2) / bw, (h - pad * 2) / bh);
         if (!isFinite(s) || s <= 0) { s = 1; }
-        s = Math.min(s, 8);
+        // Back off from the tightest fit. The padding alone put the outermost
+        // points right under the edge of the canvas, where a handle sticking
+        // out of one of them had nowhere to be drawn and nowhere to be grabbed.
+        s = Math.min(s, 8) * FIT_FILL;
         state.view.s = s;
         state.view.tx = w / 2 - ((minx + maxx) / 2) * s;
         state.view.ty = h / 2 - ((miny + maxy) / 2) * s;
@@ -3419,6 +4749,9 @@
     }
 
     var ZOOM_MIN = 0.02, ZOOM_MAX = 64, ZOOM_STEPS = 1000;
+
+    // How much of the room a fit is allowed to take, beyond the padding.
+    var FIT_FILL = 0.85;
 
     // The strip runs left to right, wider to closer, the way a horizontal
     // zoom reads. Evenly in powers rather than in pixels, so a notch is the
@@ -3482,7 +4815,7 @@
         if (at >= 0) {
             if (additive) { a.splice(at, 1); }
         } else {
-            if (!additive) { state.sel = {}; a = selOf(key); }
+            if (!additive) { clearSel(); a = selOf(key); }
             a.push(idx);
         }
     }
@@ -3493,6 +4826,51 @@
             if (state.sel.hasOwnProperty(k)) { n += state.sel[k].length; }
         }
         return n;
+    }
+
+    function tipName(idx, side) { return idx + ":" + side; }
+
+    function selHOf(key) {
+        if (!state.selH[key]) { state.selH[key] = []; }
+        return state.selH[key];
+    }
+
+    function toggleSelH(key, idx, side, additive) {
+        var nm = tipName(idx, side);
+        var a = selHOf(key);
+        var at = indexOf(a, nm);
+        if (at >= 0) {
+            if (additive) { a.splice(at, 1); }
+        } else {
+            if (!additive) { clearSel(); a = selHOf(key); }
+            a.push(nm);
+        }
+    }
+
+    function tipPicked(key, idx, side) {
+        var a = state.selH[key];
+        return !!a && has(a, tipName(idx, side));
+    }
+
+    // Does this vertex have either of its handles picked?
+    function anyTipPicked(key, idx) {
+        return tipPicked(key, idx, "in") || tipPicked(key, idx, "out");
+    }
+
+    function countSelH() {
+        var n = 0;
+        for (var k in state.selH) {
+            if (state.selH.hasOwnProperty(k)) { n += state.selH[k].length; }
+        }
+        return n;
+    }
+
+    // Points and handles go together: there is one selection, shown in two
+    // parts, and clearing it has to clear both or a handle stays picked with
+    // nothing on screen to say so.
+    function clearSel() {
+        state.sel = {};
+        state.selH = {};
     }
 
     function currentPicks() {
@@ -3545,7 +4923,8 @@
         // once something is, so the picture always shows what pressing it does.
         var bPick = act(head, "all", "All", "Pick every point in view", 40, HEAD_PX);
         bPick.onDraw = function (st) {
-            paintIconButton(this, countSel() ? ICON_ART.none : ICON_ART.all, st);
+            paintIconButton(this,
+                (countSel() + countSelH()) ? ICON_ART.none : ICON_ART.all, st);
         };
         var bInv = act(head, "invert", "Invert",
                        "Pick what is not picked, and let the rest go", 52, HEAD_PX);
@@ -3557,6 +4936,8 @@
         var bMerge = act(head, "merge", "Merge",
                          "Fold the selected shape layers into the topmost one", 58, HEAD_PX);
         headRule();
+        var bHelp = act(head, "help", "Help",
+                        "Every gesture the preview knows, on one page", 44, HEAD_PX);
         var bPrefs = act(head, "prefs", "Prefs",
                          "Colours, sizes and shapes of the controls", 54, HEAD_PX);
         // Delete takes off whatever the rig put on, whichever tab made it, so
@@ -3568,14 +4949,17 @@
 
         var cv = win.add("group");
         cv.alignment = ["fill", "fill"];
-        cv.minimumSize = [260, 180];
-        cv.preferredSize = [320, 248];
+        // Points are dragged here now, not only picked, so the preview opens
+        // at a size you can aim in. A docked panel keeps whatever size it was
+        // last given; this is the floating palette and the first dock.
+        cv.minimumSize = [300, 220];
+        cv.preferredSize = [460, 360];
         // A modifier nobody is told about is a modifier nobody uses, and the
         // canvas has no room to label itself.
-        cv.helpTip = "Click or drag to pick points, shift to add.\n" +
-                     "Alt-drag to pan. Command or Control drag up and down to zoom,\n" +
-                     "or scroll the wheel over the strip underneath.\n" +
-                     "Double-click an empty spot to frame everything again.";
+        // One line. There are a dozen gestures here now, and a tooltip that
+        // listed them all covered the artwork it was explaining; Help holds
+        // them instead, laid out and readable.
+        cv.helpTip = "Click to pick, drag to move. Help lists every gesture.";
 
         // ScriptUI has no wheel event - a listener for one never fires in
         // After Effects, on this canvas or on anything else. What a wheel
@@ -3605,6 +4989,25 @@
         var bZoomIn = act(zoomRow, "zoomin", "", "Zoom in - one step closer",
                           0, ZOOM_PX);
         bZoomIn.alignment = ["right", "center"];
+
+        // Somewhere for the keyboard to be. A ScriptUI group cannot hold the
+        // focus, so the canvas can never be sent a key; a field that can
+        // holds it on the canvas's behalf, and a click on the canvas parks
+        // the focus here.
+        //
+        // It was a sliver wide at first, on the grounds that there is nothing
+        // to type into it. That is exactly why the arrows did nothing: a
+        // control with no room to draw itself is not reliably given the
+        // focus, and a field without the focus is sent no keys. It is small
+        // now rather than invisible, and it can be clicked directly.
+        var keySink = zoomRow.add("edittext", undefined, "");
+        keySink.alignment = ["right", "center"];
+        keySink.minimumSize = [16, ZOOM_PX];
+        keySink.preferredSize = [16, ZOOM_PX];
+        keySink.maximumSize = [16, ZOOM_PX];
+        keySink.helpTip = "Where the preview's arrow keys are heard.\n" +
+                          "Click the canvas, or this box, then use the arrows\n" +
+                          "to nudge the picked points. Shift goes further.";
 
         // One line, right under the preview, and the only one. It used to
         // take three labels to say less: a fixed hint here, a second line of
@@ -3693,11 +5096,61 @@
         // hole between the actions and the two buttons under them.
         tabs.alignment = ["fill", "top"];
 
+        // The preview is somewhere to work now, not only somewhere to pick,
+        // so what it is worked with comes first and opens first.
+        var tEdit = tabPage("Edit");
+        var er1 = tabRow(tEdit);
+        var bLasso = act(er1, "marquee", "Lasso",
+                         "Drag a box round points, or draw freehand round them");
+        bLasso.onDraw = function (st) {
+            paintIconButton(this, P.lasso ? ICON_ART.lasso : ICON_ART.marquee, st);
+        };
+        var bSnap = act(er1, "snap", "Snap",
+                        "Line a dragged point up with the others, and with their bounds");
+        var bBox = act(er1, "box", "Transform box",
+                       "Turn and scale two or more picked points together");
+        var handDd = er1.add("dropdownlist", undefined,
+                             ["Handles: picked", "Handles: all", "Handles: none"]);
+        handDd.preferredSize = [150, UI_H];
+        handDd.selection = (P.handleView === "all") ? 1
+                         : ((P.handleView === "none") ? 2 : 0);
+        handDd.helpTip = "Which bezier handles the preview draws. " +
+                         "A handle on show can be dragged.";
+        var bKey = act(er1, "key", "Keyframe",
+                       "A path keyframe here, on the picked paths or on every one in view");
+        var bReveal = act(er1, "reveal", "Reveal",
+                          "Open those paths in the timeline, without keying anything");
+
+        bLasso.on = !!P.lasso;
+        bSnap.on = !!P.snap;
+        bBox.on = !!P.showBox;
+
+        // Points only. A tangent is kept as a vector from its vertex, so a
+        // handle rides along with the point it belongs to and no alignment
+        // ever straightens a curve by accident.
+        var er2 = tabRow(tEdit);
+        var bAlnL = act(er2, "alignleft", "Align left",
+                        "Bring the picked points to their left edge");
+        var bAlnCX = act(er2, "aligncx", "Align centre",
+                         "Bring the picked points to their middle, across");
+        var bAlnR = act(er2, "alignright", "Align right",
+                        "Bring the picked points to their right edge");
+        var bAlnT = act(er2, "aligntop", "Align top",
+                        "Bring the picked points to their top edge");
+        var bAlnCY = act(er2, "aligncy", "Align middle",
+                         "Bring the picked points to their middle, down");
+        var bAlnB = act(er2, "alignbottom", "Align bottom",
+                        "Bring the picked points to their bottom edge");
+
         var tPts = tabPage("Points");
         var pr1 = tabRow(tPts);
         var bCreate = act(pr1, "create", "Create", "Put a control on every picked point");
         var bHand = act(pr1, "handles", "Handles",
                         "Give the picked points bezier handles, rigging any that are not yet");
+        // Repair rather than rigging, but it belongs with the buttons that
+        // made the rig: this is where you come when one stops lining up.
+        var bRelink = act(pr1, "relink", "Relink",
+                          "Put a rig back: an expression switched off, controls on the wrong points, or a lost rig rebuilt from the controls you select");
         // Bake is Delete that keeps the animation, so it belongs beside it.
         var bBake = act(pr1, "bake", "Bake", "Keep the animation as path keyframes, drop the rig");
         // All on one row: four icons, the handle style and the button that
@@ -3807,6 +5260,10 @@
             var pathPen = g.newPen(g.PenType.SOLID_COLOR, [0.62, 0.62, 0.62, 1], 1);
             var leashPen = g.newPen(g.PenType.SOLID_COLOR,
                 [P.colHandle[0], P.colHandle[1], P.colHandle[2], 1], 1);
+            var handBrush = g.newBrush(g.BrushType.SOLID_COLOR,
+                [P.colHandle[0], P.colHandle[1], P.colHandle[2], 1]);
+            var handRing = g.newPen(g.PenType.SOLID_COLOR,
+                [P.colHandle[0], P.colHandle[1], P.colHandle[2], 1], 1.5);
             var foreignPen = g.newPen(g.PenType.SOLID_COLOR, [0.85, 0.45, 0.3, 1], 1);
             var dotFree = g.newBrush(g.BrushType.SOLID_COLOR, [0.78, 0.78, 0.78, 1]);
             var dotRig = g.newBrush(g.BrushType.SOLID_COLOR,
@@ -3823,7 +5280,7 @@
             var dotPrim = g.newBrush(g.BrushType.SOLID_COLOR, [0.52, 0.57, 0.68, 1]);
 
             for (i = 0; i < state.geom.length; i++) {
-                var gm = state.geom[i];
+                var gm = dispGeom(i);
                 if (!gm) { continue; }
                 var pen = gm.prim ? ghostPen : (gm.foreign ? foreignPen : pathPen);
                 var per = FLATTEN + 1;
@@ -3837,20 +5294,41 @@
                     }
                     g.strokePath(pen);
                 }
-                for (k = 0; k < gm.hands.length; k++) {
-                    p = toCanvas(gm.hands[k][0]);
-                    q = toCanvas(gm.hands[k][1]);
-                    g.newPath();
-                    g.moveTo(p[0], p[1]);
-                    g.lineTo(q[0], q[1]);
-                    g.strokePath(leashPen);
-                    g.newPath();
-                    g.ellipsePath(q[0] - 2.5, q[1] - 2.5, 5, 5);
-                    g.fillPath(g.newBrush(g.BrushType.SOLID_COLOR,
-                        [P.colHandle[0], P.colHandle[1], P.colHandle[2], 1]));
-                }
+                var ikey = state.items[i].key;
+                var sel = state.sel[ikey] || [];
 
-                var sel = state.sel[state.items[i].key] || [];
+                // Handles: every one, only the picked points', or none at
+                // all. A tip the rig drives is drawn hollow, so a handle that
+                // answers to a control layer still reads as one. A handle
+                // that has been picked itself is drawn like a picked point,
+                // and stays on show even when its own point is let go - or
+                // it would be picked with nothing to say so.
+                if (P.handleView !== "none" && !gm.prim) {
+                    for (k = 0; k < gm.tips.length; k++) {
+                        var tp = gm.tips[k];
+                        var tipOn = tipPicked(ikey, tp.i, tp.side);
+                        if (!tipShown(ikey, sel, tp)) { continue; }
+                        p = toCanvas(tp.a);
+                        q = toCanvas(tp.b);
+                        g.newPath();
+                        g.moveTo(p[0], p[1]);
+                        g.lineTo(q[0], q[1]);
+                        g.strokePath(leashPen);
+                        var tr = tipOn ? 4 : 2.5;
+                        g.newPath();
+                        g.ellipsePath(q[0] - tr, q[1] - tr, tr * 2, tr * 2);
+                        if (tipOn) {
+                            g.fillPath(dotSel);
+                            g.newPath();
+                            g.ellipsePath(q[0] - tr, q[1] - tr, tr * 2, tr * 2);
+                            g.strokePath(edge);
+                        } else if (tp.ctl === "free" || tp.ctl === "bound") {
+                            g.fillPath(handBrush);
+                        } else {
+                            g.strokePath(handRing);
+                        }
+                    }
+                }
                 for (k = 0; k < gm.verts.length; k++) {
                     p = toCanvas(gm.verts[k]);
                     var r = 3.5;
@@ -3867,11 +5345,87 @@
 
             if (state.drag && state.drag.marquee) {
                 var d = state.drag;
-                var x0 = Math.min(d.x0, d.x1), y0 = Math.min(d.y0, d.y1);
                 var mp = g.newPen(g.PenType.SOLID_COLOR, [1, 0.92, 0.25, 1], 1);
+                if (d.lasso && d.lasso.length > 1) {
+                    g.newPath();
+                    g.moveTo(d.lasso[0][0], d.lasso[0][1]);
+                    for (k = 1; k < d.lasso.length; k++) {
+                        g.lineTo(d.lasso[k][0], d.lasso[k][1]);
+                    }
+                    // Closed on screen as well as in the test, so what it
+                    // will take in is what it looks like it will take in.
+                    g.lineTo(d.lasso[0][0], d.lasso[0][1]);
+                    g.strokePath(mp);
+                } else {
+                    var x0 = Math.min(d.x0, d.x1), y0 = Math.min(d.y0, d.y1);
+                    g.newPath();
+                    g.rectPath(x0, y0, Math.abs(d.x1 - d.x0), Math.abs(d.y1 - d.y0));
+                    g.strokePath(mp);
+                }
+            }
+
+            // A line all the way across, through whatever the drag lined up
+            // with: without it a snap is a mystery jump of a pixel or two.
+            if (state.edit && (state.edit.snapX !== null || state.edit.snapY !== null)) {
+                var gp = g.newPen(g.PenType.SOLID_COLOR, [0.95, 0.35, 0.45, 1], 1);
+                if (state.edit.snapX !== null) {
+                    var gx = toCanvas([state.edit.snapX, 0])[0];
+                    g.newPath();
+                    g.moveTo(gx, 0);
+                    g.lineTo(gx, h);
+                    g.strokePath(gp);
+                }
+                if (state.edit.snapY !== null) {
+                    var gy = toCanvas([0, state.edit.snapY])[1];
+                    g.newPath();
+                    g.moveTo(0, gy);
+                    g.lineTo(w, gy);
+                    g.strokePath(gp);
+                }
+            }
+
+            // The transform box, round the picked points and not their
+            // handles - the bounds of what would turn, which is what the
+            // reference it is modelled on draws too.
+            var boxPen = g.newPen(g.PenType.SOLID_COLOR, [0.35, 0.62, 1, 1], 1);
+            var turning = state.edit && state.edit.kind === "rotate" && state.edit.box;
+            if (turning) {
+                // Mid-turn the box goes round with the points. Its own
+                // upright bounds would swell and shrink as they swing, which
+                // reads as the selection changing size when it is only
+                // turning.
+                var tb = state.edit.box, tm = state.edit.mat, tc = state.edit.centre;
+                var corner = [[tb.minx, tb.miny], [tb.maxx, tb.miny],
+                              [tb.maxx, tb.maxy], [tb.minx, tb.maxy]];
                 g.newPath();
-                g.rectPath(x0, y0, Math.abs(d.x1 - d.x0), Math.abs(d.y1 - d.y0));
-                g.strokePath(mp);
+                for (k = 0; k <= 4; k++) {
+                    var cp = toCanvas(xformPt(tm, tc, corner[k % 4]));
+                    if (k === 0) { g.moveTo(cp[0], cp[1]); } else { g.lineTo(cp[0], cp[1]); }
+                }
+                g.strokePath(boxPen);
+            }
+            var bx = turning ? null : boxOn();
+            if (bx) {
+                var turnPen = g.newPen(g.PenType.SOLID_COLOR, [0.3, 0.52, 0.86, 1], 1);
+                var turnFill = g.newBrush(g.BrushType.SOLID_COLOR, [0.3, 0.52, 0.86, 1]);
+                var cor = [[bx.x0, bx.y0, -1, -1], [bx.x1, bx.y0, 1, -1],
+                           [bx.x1, bx.y1, 1, 1], [bx.x0, bx.y1, -1, 1]];
+                for (k = 0; k < cor.length; k++) {
+                    turnArc(g, turnPen, turnFill, cor[k][0], cor[k][1], cor[k][2], cor[k][3]);
+                }
+                g.newPath();
+                g.rectPath(bx.x0, bx.y0, bx.x1 - bx.x0, bx.y1 - bx.y0);
+                g.strokePath(boxPen);
+                var knobs = boxKnobs(bx);
+                var knobFill = g.newBrush(g.BrushType.SOLID_COLOR, [0.98, 0.98, 1, 1]);
+                for (k = 0; k < knobs.length; k++) {
+                    g.newPath();
+                    g.rectPath(knobs[k].x - KNOB, knobs[k].y - KNOB, KNOB * 2, KNOB * 2);
+                    g.fillPath(knobFill);
+                    g.newPath();
+                    g.rectPath(knobs[k].x - KNOB, knobs[k].y - KNOB, KNOB * 2, KNOB * 2);
+                    g.strokePath(boxPen);
+                }
             }
 
         };
@@ -3880,7 +5434,7 @@
         function nearestVertex(cx, cy, maxDist) {
             var best = null, bestD = maxDist * maxDist;
             for (var i = 0; i < state.geom.length; i++) {
-                var gm = state.geom[i];
+                var gm = dispGeom(i);
                 if (!gm) { continue; }
                 for (var k = 0; k < gm.verts.length; k++) {
                     var p = toCanvas(gm.verts[k]);
@@ -3891,12 +5445,231 @@
             return best;
         }
 
-        // After Effects does not deliver a wheel to a custom-drawn canvas, so
-        // zoom is a drag like the pan is: hold Command (or Control) and drag
-        // up to go in, down to come out. Both are read because the modifier
-        // that is free differs by platform - and on macOS a Control-drag also
-        // arrives as the right button, so zoom is asked about first or that
-        // drag would pan instead.
+        // What is on screen: the preview while a drag is in hand, otherwise
+        // what was read from the composition.
+        function dispGeom(i) {
+            var it = state.items[i];
+            if (it && state.preview && state.preview[it.key]) { return state.preview[it.key]; }
+            return state.geom[i];
+        }
+
+        function geomMap() {
+            var out = {}, i;
+            for (i = 0; i < state.items.length; i++) {
+                if (state.geom[i]) { out[state.items[i].key] = state.geom[i]; }
+            }
+            return out;
+        }
+
+        function dispMap() {
+            var out = {}, i;
+            for (i = 0; i < state.items.length; i++) {
+                var gm = dispGeom(i);
+                if (gm) { out[state.items[i].key] = gm; }
+            }
+            return out;
+        }
+
+        function itemByKey(key) {
+            for (var i = 0; i < state.items.length; i++) {
+                if (state.items[i].key === key) { return state.items[i]; }
+            }
+            return null;
+        }
+
+        // Whether a tip is on screen, and so whether it can be clicked or
+        // swept up: what the Handles setting hides cannot be picked. Drawing,
+        // hit-testing and the marquee all ask this one question, or they
+        // would disagree about what is there.
+        function tipWasShown(selPts, selTips, tp) {
+            if (P.handleView === "none") { return false; }
+            if (P.handleView === "all") { return true; }
+            return has(selTips || [], tipName(tp.i, tp.side)) ||
+                   has(selPts || [], tp.i);
+        }
+
+        function tipShown(key, sel, tp) {
+            return tipWasShown(sel, state.selH[key], tp);
+        }
+
+        // A handle tip, if the setting has it on show. Tips are tried before
+        // points: a tip sits further from the curve, so it is the one the
+        // pointer meant when both are under it.
+        function nearestTip(cx, cy, maxDist) {
+            if (P.handleView === "none") { return null; }
+            var best = null, bestD = maxDist * maxDist, i, k;
+            for (i = 0; i < state.geom.length; i++) {
+                var gm = dispGeom(i);
+                if (!gm || gm.prim || gm.foreign) { continue; }
+                var key = state.items[i].key;
+                var sel = state.sel[key] || [];
+                for (k = 0; k < gm.tips.length; k++) {
+                    var tp = gm.tips[k];
+                    if (!tipShown(key, sel, tp)) { continue; }
+                    var p = toCanvas(tp.b);
+                    var d = (p[0] - cx) * (p[0] - cx) + (p[1] - cy) * (p[1] - cy);
+                    if (d <= bestD) { bestD = d; best = { key: key, gi: i, tip: tp }; }
+                }
+            }
+            return best;
+        }
+
+        // ------------------------------------------------- the transform box
+        var KNOB = 3.5, KNOB_HIT = 7, ROT_RING = 18, ROT_ARC = 14;
+
+        function selBounds() { return boundsOfPicks(currentPicks(), dispMap()); }
+
+        function boxOn() {
+            if (!P.showBox) { return null; }
+            var b = selBounds();
+            if (!b || b.n < 2) { return null; }
+            var a = toCanvas([b.minx, b.miny]), c = toCanvas([b.maxx, b.maxy]);
+            b.x0 = Math.min(a[0], c[0]); b.y0 = Math.min(a[1], c[1]);
+            b.x1 = Math.max(a[0], c[0]); b.y1 = Math.max(a[1], c[1]);
+            // A selection on one line has no width or height to pull on, so
+            // the knobs along that side are not offered.
+            b.flatX = (b.x1 - b.x0) < 1.5;
+            b.flatY = (b.y1 - b.y0) < 1.5;
+            return b;
+        }
+
+        function boxKnobs(b) {
+            var mx = (b.x0 + b.x1) / 2, my = (b.y0 + b.y1) / 2, out = [];
+            function put(k, x, y) {
+                if ((k === "n" || k === "s") && b.flatY) { return; }
+                if ((k === "e" || k === "w") && b.flatX) { return; }
+                if (k.length === 2 && (b.flatX || b.flatY)) { return; }
+                out.push({ k: k, x: x, y: y });
+            }
+            put("nw", b.x0, b.y0); put("n", mx, b.y0); put("ne", b.x1, b.y0);
+            put("e", b.x1, my); put("se", b.x1, b.y1); put("s", mx, b.y1);
+            put("sw", b.x0, b.y1); put("w", b.x0, my);
+            return out;
+        }
+
+        // The band that turns the box had nothing to show for itself, so each
+        // corner wears a quarter arc drawn inside it: far enough out to clear
+        // the rectangle knobAt refuses, well within the ring it accepts, so
+        // what is drawn is what can be taken hold of. ox and oy point away
+        // from the box; the head goes on whichever end makes all four read
+        // the same way round.
+        function turnArc(g, pen, brush, cx, cy, ox, oy) {
+            var n = 8, i, a, px, py;
+            g.newPath();
+            for (i = 0; i <= n; i++) {
+                a = (Math.PI / 2) * (i / n);
+                px = cx + ox * ROT_ARC * Math.cos(a);
+                py = cy + oy * ROT_ARC * Math.sin(a);
+                if (i === 0) { g.moveTo(px, py); } else { g.lineTo(px, py); }
+            }
+            g.strokePath(pen);
+            var hx, hy, dx, dy;
+            if (ox * oy > 0) { hx = cx; hy = cy + oy * ROT_ARC; dx = -ox; dy = 0; }
+            else { hx = cx + ox * ROT_ARC; hy = cy; dx = 0; dy = -oy; }
+            var nx = -dy, ny = dx;
+            g.newPath();
+            g.moveTo(hx + dx * 4.5, hy + dy * 4.5);
+            g.lineTo(hx - dx * 1.5 + nx * 3, hy - dy * 1.5 + ny * 3);
+            g.lineTo(hx - dx * 1.5 - nx * 3, hy - dy * 1.5 - ny * 3);
+            g.closePath();
+            g.fillPath(brush);
+        }
+
+        // A knob under the pointer, or the ring just outside a corner, which
+        // is where a turn is taken hold of.
+        function knobAt(b, cx, cy) {
+            var ks = boxKnobs(b), i, k, d;
+            for (i = 0; i < ks.length; i++) {
+                k = ks[i];
+                if (Math.abs(k.x - cx) <= KNOB_HIT && Math.abs(k.y - cy) <= KNOB_HIT) {
+                    return { k: k.k, turn: false };
+                }
+            }
+            var pad = KNOB_HIT + 1;
+            if (cx >= b.x0 - pad && cx <= b.x1 + pad && cy >= b.y0 - pad && cy <= b.y1 + pad) {
+                return null;
+            }
+            var corners = [["nw", b.x0, b.y0], ["ne", b.x1, b.y0],
+                           ["se", b.x1, b.y1], ["sw", b.x0, b.y1]];
+            for (i = 0; i < corners.length; i++) {
+                d = Math.sqrt((corners[i][1] - cx) * (corners[i][1] - cx) +
+                              (corners[i][2] - cy) * (corners[i][2] - cy));
+                if (d <= ROT_RING) { return { k: corners[i][0], turn: true }; }
+            }
+            return null;
+        }
+
+        // Which corner stays put while a knob is pulled, and which way each
+        // axis is free to go.
+        function scaleFrame(knob, b, fromCentre) {
+            var east = knob.indexOf("e") >= 0, west = knob.indexOf("w") >= 0;
+            var north = knob.indexOf("n") >= 0, south = knob.indexOf("s") >= 0;
+            var f = { ax: (b.minx + b.maxx) / 2, ay: (b.miny + b.maxy) / 2,
+                      gx: 0, gy: 0, doX: east || west, doY: north || south };
+            f.gx = east ? b.maxx : (west ? b.minx : f.ax);
+            f.gy = south ? b.maxy : (north ? b.miny : f.ay);
+            if (!fromCentre) {
+                f.ax = east ? b.minx : (west ? b.maxx : f.ax);
+                f.ay = south ? b.miny : (north ? b.maxy : f.ay);
+            }
+            return f;
+        }
+
+        function scaleMat(f, cur, uniform) {
+            var sx = 1, sy = 1, dx = f.gx - f.ax, dy = f.gy - f.ay;
+            if (f.doX && Math.abs(dx) > 1e-6) { sx = (cur[0] - f.ax) / dx; }
+            if (f.doY && Math.abs(dy) > 1e-6) { sy = (cur[1] - f.ay) / dy; }
+            if (uniform && f.doX && f.doY) {
+                var s = (Math.abs(sx) > Math.abs(sy)) ? sx : sy;
+                sx = (sx < 0 ? -1 : 1) * Math.abs(s);
+                sy = (sy < 0 ? -1 : 1) * Math.abs(s);
+            }
+            return [sx, 0, 0, sy, 0, 0];
+        }
+
+        function rotMat(a) {
+            var c = Math.cos(a), s = Math.sin(a);
+            return [c, s, -s, c, 0, 0];
+        }
+
+        // ------------------------------------------------------- snapping
+        // Gathered once, from what is not moving. A path whose every point is
+        // picked offers nothing: its bounds are going with the drag.
+        function snapCands() {
+            var xs = [], ys = [], i, k;
+            for (i = 0; i < state.geom.length; i++) {
+                var gm = state.geom[i];
+                if (!gm) { continue; }
+                var sel = state.sel[state.items[i].key] || [];
+                var b = null, free = 0;
+                for (k = 0; k < gm.verts.length; k++) {
+                    var p = gm.verts[k];
+                    if (!b) { b = [p[0], p[1], p[0], p[1]]; }
+                    if (p[0] < b[0]) { b[0] = p[0]; }
+                    if (p[1] < b[1]) { b[1] = p[1]; }
+                    if (p[0] > b[2]) { b[2] = p[0]; }
+                    if (p[1] > b[3]) { b[3] = p[1]; }
+                    if (has(sel, k)) { continue; }
+                    free++;
+                    xs.push(p[0]);
+                    ys.push(p[1]);
+                }
+                if (b && free) {
+                    xs.push(b[0], (b[0] + b[2]) / 2, b[2]);
+                    ys.push(b[1], (b[1] + b[3]) / 2, b[3]);
+                }
+            }
+            return { xs: xs, ys: ys };
+        }
+
+        function snapProbes(b) {
+            if (!b) { return { xs: [], ys: [] }; }
+            if (b.n === 1) { return { xs: [b.minx], ys: [b.miny] }; }
+            return { xs: [b.minx, (b.minx + b.maxx) / 2, b.maxx],
+                     ys: [b.miny, (b.miny + b.maxy) / 2, b.maxy] };
+        }
+
+        // -------------------------------------------------------- dragging
         function wantsZoom(ev) { return !!ev.ctrlKey || !!ev.metaKey; }
 
         // Alt and the middle or right button all pan, because which of them
@@ -3905,12 +5678,279 @@
             return !!ev.altKey || ev.button === 1 || ev.button === 2;
         }
 
+        // Where the curve of one point sits now, as vectors in composition
+        // pixels, and whether the two sides are in line - a point whose
+        // handles are collinear is a smooth one, and dragging one side turns
+        // the other with it the way every vector editor does.
+        function tipPair(gm, idx) {
+            var a = tipVec(gm, idx, "in"), b = tipVec(gm, idx, "out");
+            var smooth = false;
+            if (a && b) {
+                var la = Math.sqrt(a[0] * a[0] + a[1] * a[1]);
+                var lb = Math.sqrt(b[0] * b[0] + b[1] * b[1]);
+                if (la > 1e-6 && lb > 1e-6) {
+                    var cross = (a[0] * b[1] - a[1] * b[0]) / (la * lb);
+                    var dot = (a[0] * b[0] + a[1] * b[1]) / (la * lb);
+                    smooth = (Math.abs(cross) < 0.035 && dot < 0);
+                }
+            }
+            return { "in": a, out: b, smooth: smooth };
+        }
+
+        function snapTo45(v) {
+            var a = Math.atan2(v[1], v[0]);
+            var step = Math.PI / 4;
+            a = Math.round(a / step) * step;
+            var len = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
+            return [Math.cos(a) * len, Math.sin(a) * len];
+        }
+
+        // The per-vertex edit a drag in hand is asking for. The preview and
+        // the commit both read it, so what is seen is what is written.
+        // Everything picked, carried by one composition-space delta: the
+        // points, and any handle tip picked in its own right.
+        //
+        // A tip whose own point is moving too needs no edit of its own. Both
+        // ends travel the same distance, so the tangent between them is
+        // unchanged - and saying nothing about it means a rigged handle's
+        // control layer is left alone rather than written with the value it
+        // already has. Only a tip left behind by its point bends the curve.
+        function moveEdits(base, d) {
+            var out = [], i, k;
+            for (i = 0; i < state.items.length; i++) {
+                var item = state.items[i];
+                var gm = base[item.key];
+                if (!gm) { continue; }
+                var pts = state.sel[item.key] || [];
+                var tips = state.selH[item.key] || [];
+                var byIdx = {}, order = [];
+                for (k = 0; k < pts.length; k++) {
+                    var at = gm.verts[pts[k]];
+                    if (!at) { continue; }
+                    byIdx[pts[k]] = { item: item, i: pts[k],
+                                      pt: [at[0] + d[0], at[1] + d[1]] };
+                    order.push(pts[k]);
+                }
+                for (k = 0; k < tips.length; k++) {
+                    var bits = String(tips[k]).split(":");
+                    var ix = Number(bits[0]), side = bits[1];
+                    if (has(pts, ix)) { continue; }
+                    var v = tipVec(gm, ix, side);
+                    if (!v) { continue; }
+                    if (!byIdx[ix]) { byIdx[ix] = { item: item, i: ix }; order.push(ix); }
+                    if (side === "in") { byIdx[ix].ti = [v[0] + d[0], v[1] + d[1]]; }
+                    else { byIdx[ix].to = [v[0] + d[0], v[1] + d[1]]; }
+                }
+                for (k = 0; k < order.length; k++) { out.push(byIdx[order[k]]); }
+            }
+            return out;
+        }
+
+        // The transform box takes the points and brings their handles along
+        // through the same map, so a turned selection keeps its curve. Which
+        // handles happen to be picked makes no difference here, and nor does
+        // a picked handle stretch the box: the bounds are the points'.
+        function boxEdits(ed) {
+            var m = ed.mat, c = ed.centre;
+            return editsFor(ed.picks, ed.base, function (at, gm, i) {
+                var e = { pt: xformPt(m, c, at) };
+                var a = tipVec(gm, i, "in"), b = tipVec(gm, i, "out");
+                if (a) { e.ti = mVec(m, a); }
+                if (b) { e.to = mVec(m, b); }
+                return e;
+            });
+        }
+
+        function tipEdits(ed) {
+            var e = { item: ed.tip.item, i: ed.tip.idx };
+            if (ed.sides["in"]) { e.ti = ed.sides["in"]; }
+            if (ed.sides.out) { e.to = ed.sides.out; }
+            return [e];
+        }
+
+        function editsOf(ed) {
+            if (ed.kind === "move") { return moveEdits(ed.base, ed.d); }
+            if (ed.kind === "tip") { return tipEdits(ed); }
+            if (ed.mat) { return boxEdits(ed); }
+            return [];
+        }
+
+        function partsWith(gm, list) {
+            var p = shapeParts(gm.raw), n, e, v;
+            for (n = 0; n < list.length; n++) {
+                e = list[n];
+                if (e.i < 0 || e.i >= p.v.length) { continue; }
+                if (e.pt) { v = mPt(gm.minv, e.pt); p.v[e.i] = [v[0], v[1]]; }
+                if (e.ti) { v = mVec(gm.minv, e.ti); p.i[e.i] = [v[0], v[1]]; }
+                if (e.to) { v = mVec(gm.minv, e.to); p.o[e.i] = [v[0], v[1]]; }
+            }
+            return partsToShape(p);
+        }
+
+        // Rebuild what the canvas shows from the shapes read at the press,
+        // with the pending edit applied. Nothing is written to the project
+        // until the button comes up, and the preview is built from the very
+        // same edit list that will be written - so what is seen is what lands.
+        function buildPreview(ed) {
+            ed.edits = editsOf(ed);
+            var byKey = {}, out = {}, i, k;
+            for (i = 0; i < ed.edits.length; i++) {
+                k = ed.edits[i].item.key;
+                if (!byKey[k]) { byKey[k] = []; }
+                byKey[k].push(ed.edits[i]);
+            }
+            for (i = 0; i < state.items.length; i++) {
+                var item = state.items[i];
+                var gm = ed.base[item.key];
+                if (!gm || !byKey[item.key]) { continue; }
+                out[item.key] = geomFrom(gm, partsWith(gm, byKey[item.key]));
+            }
+            state.preview = out;
+        }
+
+        function startEdit(kind, ev) {
+            var picks = currentPicks();
+            var base = geomMap();
+            var ed = { kind: kind, x0: ev.clientX, y0: ev.clientY,
+                       at: toComp([ev.clientX, ev.clientY]),
+                       picks: picks, base: base, d: [0, 0], mat: null,
+                       snapX: null, snapY: null, moved: false };
+            if (kind !== "tip") {
+                ed.box = boundsOfPicks(picks, base);
+                ed.cands = P.snap ? snapCands() : { xs: [], ys: [] };
+                ed.probes = snapProbes(ed.box);
+            }
+            return ed;
+        }
+
+        function dragMove(ed, ev) {
+            var dx = (ev.clientX - ed.x0) / state.view.s;
+            var dy = (ev.clientY - ed.y0) / state.view.s;
+            // Shift is read as the drag runs, not when it began: at the
+            // press it still means "add to the selection".
+            if (ev.shiftKey) {
+                if (Math.abs(dx) >= Math.abs(dy)) { dy = 0; } else { dx = 0; }
+            }
+            ed.snapX = null;
+            ed.snapY = null;
+            if (P.snap && !wantsZoom(ev)) {
+                var sx = snapAxis(ed.probes.xs, ed.cands.xs, dx, state.view.s, P.snapPx);
+                var sy = snapAxis(ed.probes.ys, ed.cands.ys, dy, state.view.s, P.snapPx);
+                if (!ev.shiftKey || dx !== 0) { dx = sx.d; ed.snapX = sx.at; }
+                if (!ev.shiftKey || dy !== 0) { dy = sy.d; ed.snapY = sy.at; }
+            }
+            ed.d = [dx, dy];
+            ed.moved = true;
+        }
+
+        function dragBox(ed, ev) {
+            var cur = toComp([ev.clientX, ev.clientY]);
+            ed.snapX = null;
+            ed.snapY = null;
+            if (ed.kind === "rotate") {
+                var a0 = Math.atan2(ed.at[1] - ed.centre[1], ed.at[0] - ed.centre[0]);
+                var a1 = Math.atan2(cur[1] - ed.centre[1], cur[0] - ed.centre[0]);
+                var da = a1 - a0;
+                if (ev.shiftKey) {
+                    var step = Math.PI / 12;
+                    da = Math.round(da / step) * step;
+                }
+                ed.angle = da;
+                ed.mat = rotMat(da);
+            } else {
+                var f = scaleFrame(ed.knob, ed.box, !!ev.altKey);
+                // The edge being pulled lines up with the same things a
+                // dragged point would, and on the axes it is free to move on.
+                if (P.snap && !wantsZoom(ev)) {
+                    var sx, sy;
+                    if (f.doX) {
+                        sx = snapAxis([cur[0]], ed.cands.xs, 0, state.view.s, P.snapPx);
+                        cur[0] += sx.d;
+                        ed.snapX = sx.at;
+                    }
+                    if (f.doY) {
+                        sy = snapAxis([cur[1]], ed.cands.ys, 0, state.view.s, P.snapPx);
+                        cur[1] += sy.d;
+                        ed.snapY = sy.at;
+                    }
+                }
+                ed.centre = [f.ax, f.ay];
+                ed.mat = scaleMat(f, cur, !!ev.shiftKey);
+            }
+            ed.moved = true;
+        }
+
+        function dragTip(ed, ev) {
+            var cur = toComp([ev.clientX, ev.clientY]);
+            var t = ed.tip;
+            var v = [cur[0] - t.at[0], cur[1] - t.at[1]];
+            if (ev.shiftKey) { v = snapTo45(v); }
+            var sides = {};
+            sides[t.side] = v;
+            // A smooth point keeps its sides opposite unless the drag says
+            // otherwise. Command or Control, held as it runs, breaks them.
+            var other = (t.side === "in") ? "out" : "in";
+            if (ed.pair.smooth && ed.pair[other] && !wantsZoom(ev)) {
+                var o = ed.pair[other];
+                var lo = Math.sqrt(o[0] * o[0] + o[1] * o[1]);
+                var lv = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
+                if (lv > 1e-6) { sides[other] = [-v[0] / lv * lo, -v[1] / lv * lo]; }
+            }
+            ed.sides = sides;
+            ed.moved = true;
+        }
+
+        function sayDrag(ed) {
+            if (ed.kind === "rotate") {
+                setStatus("Turn " + (Math.round(ed.angle * 1800 / Math.PI) / 10) +
+                          " degrees. Shift steps by 15.");
+                return;
+            }
+            if (ed.kind === "scale") {
+                setStatus("Scale " + Math.round(ed.mat[0] * 100) + "% by " +
+                          Math.round(ed.mat[3] * 100) + "%. Shift keeps it even, Alt works from the centre.");
+                return;
+            }
+            if (ed.kind === "tip") {
+                setStatus("Reshaping the curve. Shift holds the angle, Command or Control breaks the pair.");
+                return;
+            }
+            var bits = "Move " + (Math.round(ed.d[0] * 10) / 10) + ", " +
+                       (Math.round(ed.d[1] * 10) / 10) + " px";
+            if (ed.snapX !== null || ed.snapY !== null) { bits += " - snapped"; }
+            setStatus(bits + ". Shift holds one axis.");
+        }
+
+        function commitEdit(ed) {
+            if (!ed.moved) {
+                // A press on one of several picked points, let go without
+                // moving, means that one and no longer the rest.
+                if (ed.hit && countSel() + countSelH() > 1) {
+                    clearSel();
+                    selOf(ed.hit.key).push(ed.hit.idx);
+                    pushPicks();
+                    reportSel();
+                }
+                return;
+            }
+            if (ed.kind === "move" && !ed.d[0] && !ed.d[1]) { return; }
+            var edits = ed.edits || editsOf(ed);
+            if (!edits.length) { return; }
+            runEdits(ed.title || "Move points", ed.picks, edits);
+        }
+
         cv.addEventListener("mousedown", function (ev) {
+            // Bring the keyboard with the pointer, so an arrow key nudges the
+            // points that were just picked.
+            try { keySink.active = true; } catch (eFocus) {}
             // A double click on empty canvas is the way back to a fit, now
             // that the view can be moved by hand. On a vertex it is left
             // alone, so two clicks there still just pick and unpick.
-            if (ev.detail >= 2 && !nearestVertex(ev.clientX, ev.clientY, 10)) {
+            if (ev.detail >= 2 && !nearestVertex(ev.clientX, ev.clientY, 10) &&
+                !nearestTip(ev.clientX, ev.clientY, 8)) {
                 state.drag = null;
+                state.edit = null;
+                state.preview = null;
                 fitView(Math.max(60, cv.size.width), Math.max(60, cv.size.height));
                 syncZoomBar();
                 redraw();
@@ -3918,9 +5958,100 @@
                 return;
             }
             var zoom = wantsZoom(ev);
+            var pan = !zoom && wantsPan(ev);
+            state.edit = null;
+            state.preview = null;
+
+            // Moving the view wins over everything, or Alt-dragging near
+            // artwork would drag the artwork instead of the canvas.
+            if (!zoom && !pan) {
+                var ed = null;
+
+                // Shift on a handle adds it or lets it go, and starts no
+                // drag; that is settled on the way up, the way a point is.
+                var hitTip = ev.shiftKey ? null : nearestTip(ev.clientX, ev.clientY, 8);
+                if (hitTip) {
+                    var tgm = state.geom[hitTip.gi];
+                    var tI = hitTip.tip.i, tS = hitTip.tip.side;
+                    if (!tipPicked(hitTip.key, tI, tS)) {
+                        clearSel();
+                        selHOf(hitTip.key).push(tipName(tI, tS));
+                        reportSel();
+                    }
+                    // On its own, a handle is dragged for its own sake, with
+                    // the pair kept opposite and the angle holdable. Picked
+                    // alongside anything else, it travels with the rest
+                    // instead - one delta, rigidly, points and handles alike.
+                    if (countSel() + countSelH() > 1) {
+                        ed = startEdit("move", ev);
+                        ed.title = "Move points";
+                    } else {
+                        ed = startEdit("tip", ev);
+                        ed.title = "Reshape the curve";
+                        ed.tip = { key: hitTip.key, item: itemByKey(hitTip.key), gm: tgm,
+                                   idx: tI, side: tS, at: tgm.verts[tI] };
+                        ed.pair = tipPair(tgm, tI);
+                        ed.sides = {};
+                    }
+                }
+
+                var b = null;
+                if (!ed) {
+                    b = boxOn();
+                    var kn = b ? knobAt(b, ev.clientX, ev.clientY) : null;
+                    if (kn) {
+                        ed = startEdit(kn.turn ? "rotate" : "scale", ev);
+                        ed.title = kn.turn ? "Turn points" : "Scale points";
+                        ed.knob = kn.k;
+                        ed.centre = [(b.minx + b.maxx) / 2, (b.miny + b.maxy) / 2];
+                        ed.mat = mId();
+                        ed.angle = 0;
+                    }
+                }
+
+                if (!ed) {
+                    var hit = nearestVertex(ev.clientX, ev.clientY, 10);
+                    // Shift on a point still means pick-and-unpick, and
+                    // starts no drag; that is settled on the way up.
+                    if (hit && !ev.shiftKey) {
+                        var already = has(state.sel[hit.key] || [], hit.idx);
+                        if (!already) {
+                            clearSel();
+                            selOf(hit.key).push(hit.idx);
+                            pushPicks();
+                            reportSel();
+                        }
+                        ed = startEdit("move", ev);
+                        ed.title = "Move points";
+                        ed.hit = hit;
+                    }
+                }
+
+                // Inside the box, on nothing in particular: that is a press
+                // on the selection itself, and it moves it. The knobs round
+                // the edge scale and turn; the middle had been doing nothing
+                // but starting a new marquee over the top of what was
+                // already picked. Shift still draws a marquee, so there is
+                // a way to add to a selection from inside its own box.
+                if (!ed && b && !ev.shiftKey &&
+                    ev.clientX > b.x0 && ev.clientX < b.x1 &&
+                    ev.clientY > b.y0 && ev.clientY < b.y1) {
+                    ed = startEdit("move", ev);
+                    ed.title = "Move points";
+                }
+
+                if (ed) {
+                    state.edit = ed;
+                    state.drag = null;
+                    redraw();
+                    return;
+                }
+            }
+
             state.drag = { x0: ev.clientX, y0: ev.clientY, x1: ev.clientX, y1: ev.clientY,
                            marquee: false, shift: ev.shiftKey,
-                           zoom: zoom, pan: !zoom && wantsPan(ev),
+                           zoom: zoom, pan: pan,
+                           lasso: (!zoom && !pan && P.lasso) ? [[ev.clientX, ev.clientY]] : null,
                            tx: state.view.tx, ty: state.view.ty,
                            // Where the press landed, in comp space, and the
                            // scale it landed at. Every move is worked out from
@@ -3931,6 +6062,16 @@
         });
 
         cv.addEventListener("mousemove", function (ev) {
+            var ed = state.edit;
+            if (ed) {
+                if (ed.kind === "move") { dragMove(ed, ev); }
+                else if (ed.kind === "tip") { dragTip(ed, ev); }
+                else { dragBox(ed, ev); }
+                buildPreview(ed);
+                sayDrag(ed);
+                redraw();
+                return;
+            }
             if (!state.drag) { return; }
             state.drag.x1 = ev.clientX;
             state.drag.y1 = ev.clientY;
@@ -3960,6 +6101,13 @@
             if (Math.abs(state.drag.x1 - state.drag.x0) > 3 ||
                 Math.abs(state.drag.y1 - state.drag.y0) > 3) {
                 state.drag.marquee = true;
+                if (state.drag.lasso) {
+                    var L = state.drag.lasso, last = L[L.length - 1];
+                    if (Math.abs(last[0] - ev.clientX) > 1.5 ||
+                        Math.abs(last[1] - ev.clientY) > 1.5) {
+                        L.push([ev.clientX, ev.clientY]);
+                    }
+                }
                 redraw();
             }
         });
@@ -3976,6 +6124,14 @@
         });
 
         cv.addEventListener("mouseup", function (ev) {
+            var ed = state.edit;
+            if (ed) {
+                state.edit = null;
+                state.preview = null;
+                commitEdit(ed);
+                redraw();
+                return;
+            }
             var d = state.drag;
             state.drag = null;
             if (!d) { return; }
@@ -3986,32 +6142,155 @@
             if (d.pan || d.zoom) { redraw(); return; }
 
             if (d.marquee) {
+                var poly = d.lasso;
                 var x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1);
                 var y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
-                if (!d.shift) { state.sel = {}; }
+                var inBox = function (p) {
+                    return poly
+                        ? inPolygon(poly, p[0], p[1])
+                        : (p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1);
+                };
+                // A marquee takes in what it was drawn round: every point,
+                // and every handle that was on screen at the time. What the
+                // Handles setting was hiding was not there to be swept up,
+                // so the selection as it stood is read first - clearing it
+                // is itself what would hide them.
+                var shownP = {}, shownH = {}, si, sk;
+                for (si = 0; si < state.items.length; si++) {
+                    sk = state.items[si].key;
+                    shownP[sk] = state.sel[sk] || [];
+                    shownH[sk] = state.selH[sk] || [];
+                }
+                if (!d.shift) { clearSel(); }
                 for (var i = 0; i < state.geom.length; i++) {
                     var gm = state.geom[i];
                     if (!gm) { continue; }
+                    var mk = state.items[i].key;
                     for (var k = 0; k < gm.verts.length; k++) {
-                        var p = toCanvas(gm.verts[k]);
-                        if (p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1) {
-                            var a = selOf(state.items[i].key);
-                            if (!has(a, k)) { a.push(k); }
-                        }
+                        if (!inBox(toCanvas(gm.verts[k]))) { continue; }
+                        var a = selOf(mk);
+                        if (!has(a, k)) { a.push(k); }
+                    }
+                    if (gm.prim) { continue; }
+                    for (k = 0; k < gm.tips.length; k++) {
+                        var tp = gm.tips[k];
+                        if (!tipWasShown(shownP[mk], shownH[mk], tp)) { continue; }
+                        if (!inBox(toCanvas(tp.b))) { continue; }
+                        var ah = selHOf(mk);
+                        var nm = tipName(tp.i, tp.side);
+                        if (!has(ah, nm)) { ah.push(nm); }
                     }
                 }
             } else {
-                var hit = nearestVertex(d.x1, d.y1, 10);
-                if (hit) {
-                    toggleSel(hit.key, hit.idx, d.shift);
-                } else if (!d.shift) {
-                    state.sel = {};
+                // A handle tip sits further from the curve than its point,
+                // so when both are under the pointer the tip is the one that
+                // was meant.
+                var hitT = nearestTip(d.x1, d.y1, 8);
+                if (hitT) {
+                    toggleSelH(hitT.key, hitT.tip.i, hitT.tip.side, d.shift);
+                } else {
+                    var hit = nearestVertex(d.x1, d.y1, 10);
+                    if (hit) {
+                        toggleSel(hit.key, hit.idx, d.shift);
+                    } else if (!d.shift) {
+                        clearSel();
+                    }
                 }
             }
             pushPicks();
             reportSel();
             redraw();
         });
+
+        // ------------------------------------------------------- keyboard
+        // The arrows move whatever is picked, by whole composition pixels,
+        // and with Shift by the longer step - both set in Preferences. The
+        // window is listened to as well as the field, because which of them
+        // has the focus depends on what was touched last; the event is marked
+        // so the two listeners cannot act on the same press twice.
+        function nudgeBy(kx, ky, big) {
+            if (!countSel() && !countSelH()) {
+                setStatus("Pick some points first.");
+                return false;
+            }
+            var n = big ? (Number(P.nudgeBig) || 8) : (Number(P.nudge) || 1);
+            if (!(n > 0)) { n = 1; }
+            var base = geomMap();
+            return runEdits("Nudge points", currentPicks(),
+                            moveEdits(base, [kx * n, ky * n]));
+        }
+
+        // Read by name and by code both: which of the two a host fills in
+        // for an arrow is not something the panel can count on.
+        function arrowOf(ev) {
+            var k = "";
+            try { k = String(ev.keyName || ""); } catch (eN) {}
+            if (k === "Left") { return [-1, 0]; }
+            if (k === "Right") { return [1, 0]; }
+            if (k === "Up") { return [0, -1]; }
+            if (k === "Down") { return [0, 1]; }
+            var c = 0;
+            try { c = Number(ev.keyCode || 0); } catch (eC) {}
+            if (c === 37) { return [-1, 0]; }
+            if (c === 39) { return [1, 0]; }
+            if (c === 38) { return [0, -1]; }
+            if (c === 40) { return [0, 1]; }
+            return null;
+        }
+
+        // Command or Control with Z, the way After Effects takes it. The
+        // panel keeps no undo stack of its own and should not: its edits are
+        // already groups on After Effects' stack, so this only passes the key
+        // on. Without it the field holding the focus swallows Z as "undo
+        // typing", and nothing happens at all.
+        //
+        // Shift-Z is deliberately left alone rather than handled. After
+        // Effects publishes no menu command id for Redo - its Edit item is
+        // named after the action it would put back, and a name lookup finds
+        // nothing - and guessing an id is not on: the id next to Undo's 2371
+        // is Purge. Leaving the key unconsumed at least gives After Effects
+        // its chance at it.
+        function wantsUndo(ev) {
+            if (!ev.ctrlKey && !ev.metaKey) { return false; }
+            if (ev.shiftKey) { return false; }
+            var k = "";
+            try { k = String(ev.keyName || ""); } catch (eN) {}
+            if (k && k.toUpperCase() === "Z") { return true; }
+            var c = 0;
+            try { c = Number(ev.keyCode || 0); } catch (eC) {}
+            return c === 90;
+        }
+
+        function onKey(ev) {
+            if (ev.__vxrSeen) { return; }
+            if (wantsUndo(ev)) {
+                try { ev.__vxrSeen = true; } catch (eU) {}
+                undoLast();
+                // The project has changed underneath the preview, and the
+                // watcher would not notice: an undo need not change which
+                // layers are selected.
+                try { refresh(); } catch (eR) {}
+                setStatus("Undone. Redo is After Effects' own - its Edit menu, " +
+                          "or the composition window.");
+                try { ev.preventDefault(); } catch (eP) {}
+                try { ev.stopPropagation(); } catch (eS) {}
+                return;
+            }
+            var d = arrowOf(ev);
+            if (!d) { return; }
+            try { ev.__vxrSeen = true; } catch (e0) {}
+            nudgeBy(d[0], d[1], !!ev.shiftKey);
+            try { ev.preventDefault(); } catch (e1) {}
+            try { ev.stopPropagation(); } catch (e2) {}
+        }
+
+        // One listener, on the one control whose whole job is to receive
+        // these keys. Listening on the window as well looks like belt and
+        // braces and is not: a key that bubbles arrives at both, and the
+        // points move twice as far as the press asked for. Whether ScriptUI
+        // bubbles, and whether it bubbles the same event object or a copy of
+        // it, differs by host - so the panel does not rely on either.
+        keySink.addEventListener("keydown", onKey);
 
         // Say in the timeline what was just picked here. The signature is
         // written back at the same time, so the watcher reads this as the
@@ -4065,20 +6344,31 @@
         // there to pick and how, or why there is nothing to pick. Only one
         // line is on screen, so it never says two of those at once.
         function reportSel() {
-            var n = countSel();
+            var n = countSel(), nh = countSelH();
             if (bPick) {
-                bPick.says = n ? "None - Let every picked point go"
-                               : "All - Pick every point in view";
+                bPick.says = (n + nh) ? "None - Let every picked point go"
+                                      : "All - Pick every point in view";
                 bPick.helpTip = bPick.says;
                 repaint(bPick);
             }
             if (!activeComp()) { setStatus("Open a composition to start."); return; }
             var note = primNote();
+            // Handles on their own are worth saying out loud: with no point
+            // picked there is nothing on screen to explain what an arrow key
+            // or a drag is about to move.
+            if (!n && nh) {
+                setStatus(countOf(nh, "handle") + " picked. " +
+                          "Drag one, or nudge it with the arrows.");
+                return;
+            }
             if (n) {
                 var list = currentPicks();
                 var np = pickedPrims(list);
                 var msg = countOf(n, "point") + " picked on " +
                           countOf(list.length, "path") + ".";
+                if (nh) { msg = countOf(n, "point") + " and " +
+                                countOf(nh, "handle") + " picked on " +
+                                countOf(list.length, "path") + "."; }
                 if (np) {
                     // The point is on a rectangle, ellipse or star, which has
                     // no vertices of its own to rig. Say so before they press
@@ -4107,13 +6397,16 @@
 
         // -------------------------------------------------------- refresh
         function refresh() {
+            // Never while something is in hand: a rebuild would swap the
+            // geometry out from under the pointer, and a refit would move it.
+            if (state.edit || state.drag) { return; }
             var comp = activeComp();
             var keep = state.sel;
             state.items = [];
             state.geom = [];
             state.prims = [];
             if (!comp) {
-                state.sel = {};
+                clearSel();
                 setStatus("Open a composition to start.");
                 redraw();
                 return;
@@ -4160,7 +6453,8 @@
                 }
             }
 
-            state.sel = {};
+            var keepH = state.selH;
+            clearSel();
             for (i = 0; i < state.items.length; i++) {
                 var k = state.items[i].key;
                 if (keep[k]) {
@@ -4169,6 +6463,14 @@
                         if (keep[k][n] < state.geom[i].verts.length) { kept.push(keep[k][n]); }
                     }
                     if (kept.length) { state.sel[k] = kept; }
+                }
+                if (keepH[k]) {
+                    var keptH = [];
+                    for (n = 0; n < keepH[k].length; n++) {
+                        var at = Number(String(keepH[k][n]).split(":")[0]);
+                        if (at < state.geom[i].verts.length) { keptH.push(keepH[k][n]); }
+                    }
+                    if (keptH.length) { state.selH[k] = keptH; }
                 }
             }
             // Refit whenever the preview is showing something else. Picking
@@ -4220,8 +6522,11 @@
             actShowPoints(list);
         };
         bPick.onClick = function () {
-            var had = countSel();
-            state.sel = {};
+            // All picks every point; None lets go of the handles too, since
+            // one button saying "none" that leaves some of it picked is a
+            // button that lies.
+            var had = countSel() + countSelH();
+            clearSel();
             if (!had) {
                 for (var i = 0; i < state.items.length; i++) {
                     var a = [];
@@ -4234,6 +6539,9 @@
             redraw();
         };
         bInv.onClick = function () {
+            // Points only, and the handles are let go: there is no sensible
+            // opposite of a picked handle while its point changes hands.
+            state.selH = {};
             for (var i = 0; i < state.items.length; i++) {
                 var key = state.items[i].key;
                 var cur = state.sel[key] || [], a = [];
@@ -4270,6 +6578,83 @@
         bSwap.onClick = function () { actSwitchHandleMode(picks(), P.handleMode); };
 
         // ----------------------------------------------------- preferences
+        bLasso.onClick = function () {
+            P.lasso = !P.lasso;
+            this.on = P.lasso;
+            this.says = P.lasso
+                ? "Lasso - draw freehand round the points you want"
+                : "Marquee - drag a box round the points you want";
+            this.helpTip = this.says;
+            savePrefs();
+            repaint(this);
+            setStatus(this.says);
+        };
+
+        bSnap.onClick = function () {
+            P.snap = !P.snap;
+            this.on = P.snap;
+            savePrefs();
+            repaint(this);
+            setStatus(P.snap
+                ? "Snapping on - a dragged point lines up with the others."
+                : "Snapping off.");
+        };
+
+        bBox.onClick = function () {
+            P.showBox = !P.showBox;
+            this.on = P.showBox;
+            savePrefs();
+            repaint(this);
+            redraw();
+            setStatus(P.showBox
+                ? "Transform box on - pick two or more points to turn or scale them."
+                : "Transform box off.");
+        };
+
+        handDd.onChange = function () {
+            var at = this.selection ? this.selection.index : 0;
+            P.handleView = (at === 1) ? "all" : ((at === 2) ? "none" : "selected");
+            savePrefs();
+            redraw();
+            setStatus(P.handleView === "none"
+                ? "Handles hidden."
+                : (P.handleView === "all"
+                    ? "Every handle on show, and every one of them draggable."
+                    : "The picked points' handles are on show."));
+        };
+
+        // Picked points name the paths. With nothing picked it is whatever
+        // the timeline is pointing at - one shape group inside a layer if
+        // that is what is selected there, every path on the layer if the
+        // layer itself is. Keyframe and Reveal both read it this way.
+        function aimedPaths() {
+            var list = [], i, picked = currentPicks();
+            if (!picked.length) { return pointedPaths(state.items); }
+            for (i = 0; i < picked.length; i++) { list.push(picked[i].item); }
+            return list;
+        }
+
+        bKey.onClick = function () {
+            var list = aimedPaths();
+            if (actKeyPaths(list) && P.revealKeyed) { revealKeyed(list); }
+        };
+
+        bReveal.onClick = function () { actRevealPaths(aimedPaths()); };
+
+        bRelink.onClick = function () { actRelink(aimedPaths(), sel()); };
+
+        function wireAlign(b, mode) {
+            b.onClick = function () { actAlign(currentPicks(), geomMap(), mode); };
+        }
+        wireAlign(bAlnL, "l");
+        wireAlign(bAlnCX, "cx");
+        wireAlign(bAlnR, "r");
+        wireAlign(bAlnT, "t");
+        wireAlign(bAlnCY, "cy");
+        wireAlign(bAlnB, "b");
+
+        bHelp.onClick = function () { helpDialog(win); };
+
         bPrefs.onClick = function () {
             prefsWantRepair = false;
             if (!prefsDialog(win)) { return; }
@@ -4310,6 +6695,7 @@
         }
 
         function watchSelection() {
+            if (state.edit || state.drag) { return; }
             try {
                 var sig = selectionSignature();
                 if (sig === lastSeen) { return; }
@@ -4338,6 +6724,7 @@
         // ignore anything that follows hard on the heels of the last one.
         var lastAuto = 0;
         function autoRefresh() {
+            if (state.edit || state.drag) { return; }
             var now = (new Date()).getTime();
             if (now - lastAuto < 350) { return; }
             lastAuto = now;
@@ -4388,10 +6775,96 @@
         return g;
     }
 
+    // -------------------------------------------------------- help dialog
+    // Every gesture, in two columns and five short groups. This used to be a
+    // tooltip, which grew until it covered the artwork it was explaining.
+    //
+    // A row is [gesture, what it does]; a lone string is a heading.
+    var HELP = [
+        "Pick",
+        ["Click, or drag a box", "Pick a point, or several"],
+        ["Shift-click", "Add one, or let it go"],
+        ["Lasso", "Draw freehand round them instead"],
+        ["Double-click empty", "Frame everything again"],
+        "Move",
+        ["Drag a picked point", "Takes every picked point with it"],
+        ["Arrow keys", "Nudge; shift-arrow goes further"],
+        ["Command or Control Z", "Undo, the same step After Effects would"],
+        ["Shift while dragging", "Hold one axis"],
+        ["Command or Control", "Drop the snap for that drag"],
+        "Curve",
+        ["Click a handle", "Picks it; a marquee takes the ones on show"],
+        ["Drag a handle", "Alone it reshapes; with more picked it moves"],
+        ["Shift while dragging", "Hold the angle"],
+        ["Command or Control", "Break the pair on a smooth point"],
+        "Two or more points",
+        ["Drag inside the box", "Moves everything picked"],
+        ["Pull a knob", "Scale; Shift even, Alt from the centre"],
+        ["The arc at a corner", "Turn; Shift steps by 15 degrees"],
+        ["The six align buttons", "Line the points up - never their handles"],
+        "Timeline",
+        ["Keyframe", "A path keyframe here, before you move anything"],
+        ["Reveal", "Open those paths in the timeline, keying nothing"],
+        ["What they act on", "Picked points, or the group chosen in the timeline"],
+        "Repair",
+        ["Relink", "Puts a rig back after AE edits the path, or switches it on"],
+        ["Relink, controls picked", "Builds a lost rig again from those controls"],
+        "View",
+        ["Alt-drag", "Pan"],
+        ["Command or Control drag", "Up to zoom in, down to zoom out"],
+        ["Wheel over the strip", "Zoom"]
+    ];
+
+    function helpDialog(parent) {
+        var d = new Window("dialog", NAME + " " + VERSION);
+        d.alignChildren = ["fill", "top"];
+        d.spacing = 2;
+        d.margins = 14;
+
+        var head = ScriptUI.newFont("dialog", "BOLD", 12);
+        var dim = [0.62, 0.62, 0.62, 1];
+
+        for (var i = 0; i < HELP.length; i++) {
+            var row = HELP[i];
+            if (typeof row === "string") {
+                var sp = d.add("statictext", undefined, " ");
+                sp.preferredSize.height = (i ? 8 : 2);
+                var h = d.add("statictext", undefined, row);
+                try { h.graphics.font = head; } catch (eF) {}
+                continue;
+            }
+            var g = d.add("group");
+            g.alignChildren = ["left", "center"];
+            g.spacing = 10;
+            g.margins = 0;
+            var a = g.add("statictext", undefined, row[0]);
+            a.preferredSize.width = 150;
+            var b = g.add("statictext", undefined, row[1]);
+            b.preferredSize.width = 250;
+            try {
+                b.graphics.foregroundColor =
+                    b.graphics.newPen(b.graphics.PenType.SOLID_COLOR, dim, 1);
+            } catch (eC) {}
+        }
+
+        var foot = d.add("group");
+        foot.alignment = ["right", "top"];
+        foot.add("button", undefined, "Close", { name: "ok" });
+        d.center(parent);
+        d.show();
+    }
+
     // Set by the maintenance button in Preferences, read by its caller once
     // the dialog has closed: a bulk rewrite of the comp does not belong inside
     // a modal window.
     var prefsWantRepair = false;
+
+    // A typed number, or what was there before it was typed over.
+    function numIn(txt, was, lo, hi) {
+        var v = parseFloat(txt);
+        if (isNaN(v) || !isFinite(v)) { return was; }
+        return Math.max(lo, Math.min(hi, v));
+    }
 
     function prefsDialog(parent) {
         var d = new Window("dialog", NAME + " preferences");
@@ -4444,6 +6917,34 @@
         cbGuide.value = !!P.guide;
         cbGuide.helpTip = "Controls stay out of the render";
 
+        // What the preview's own editing runs on. The rest of its settings
+        // are on the Edit tab, where they are flicked on and off mid-task.
+        var gNudge = line("Nudge");
+        var nTxt = gNudge.add("edittext", undefined, String(P.nudge));
+        nTxt.characters = 4;
+        gNudge.add("statictext", undefined, "px per arrow key, and with Shift");
+        var nBigTxt = gNudge.add("edittext", undefined, String(P.nudgeBig));
+        nBigTxt.characters = 4;
+
+        var gSnap = line("Snapping");
+        var cbSnap = gSnap.add("checkbox", undefined, "Snap to points and bounds");
+        cbSnap.value = !!P.snap;
+        cbSnap.helpTip = "Measured on screen, so it stays the same few pixels " +
+                         "however far the preview is zoomed in.";
+        var snapTxt = gSnap.add("edittext", undefined, String(P.snapPx));
+        snapTxt.characters = 3;
+        gSnap.add("statictext", undefined, "px");
+
+        var gKey = line("Keyframe");
+        var cbReveal = gKey.add("checkbox", undefined, "Open the path in the timeline after");
+        cbReveal.value = !!P.revealKeyed;
+        cbReveal.helpTip = "Reveals the keyframed properties of the layers that " +
+                           "were keyed, the way pressing U does.";
+
+        var gBox = line("Transform box");
+        var cbBox = gBox.add("checkbox", undefined, "Show round two or more points");
+        cbBox.value = !!P.showBox;
+
         var gBake = line("Bake range");
         var ddBake = gBake.add("dropdownlist", undefined, ["Work area", "Whole composition"]);
         ddBake.preferredSize.width = 160;
@@ -4472,6 +6973,12 @@
             P.outline = cbOutline.value;
             P.guide = cbGuide.value;
             P.bakeWorkArea = (ddBake.selection.index === 0);
+            P.nudge = numIn(nTxt.text, P.nudge, 0.01, 1000);
+            P.nudgeBig = numIn(nBigTxt.text, P.nudgeBig, 0.01, 1000);
+            P.snap = cbSnap.value;
+            P.snapPx = numIn(snapTxt.text, P.snapPx, 1, 40);
+            P.showBox = cbBox.value;
+            P.revealKeyed = cbReveal.value;
             savePrefs();
             saved = true;
             d.close();

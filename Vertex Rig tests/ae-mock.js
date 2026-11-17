@@ -8,8 +8,19 @@ const PropertyValueType = { NO_VALUE: 6613, TwoD: 6614, ThreeD: 6615, COLOR: 661
 const KeyframeInterpolationType = { LINEAR: 6612, BEZIER: 6613, HOLD: 6614 };
 const MaskMode = { NONE: 6612, ADD: 6613 };
 
+// After Effects hands back a FRESH ARRAY every time a Shape's vertices,
+// inTangents or outTangents are read. So `sh.vertices[0] = p` writes into a
+// copy and changes nothing - you have to read the array out, edit it, and
+// assign it back. The mock copies too, or that bug passes here and only
+// bites inside After Effects, which is exactly what happened once.
 class Shape {
-  constructor() { this.vertices = []; this.inTangents = []; this.outTangents = []; this.closed = true; }
+  constructor() { this._v = []; this._i = []; this._o = []; this.closed = true; }
+  get vertices() { return this._v.map(p => [p[0], p[1]]); }
+  set vertices(a) { this._v = a.map(p => [p[0], p[1]]); }
+  get inTangents() { return this._i.map(p => [p[0], p[1]]); }
+  set inTangents(a) { this._i = a.map(p => [p[0], p[1]]); }
+  get outTangents() { return this._o.map(p => [p[0], p[1]]); }
+  set outTangents(a) { this._o = a.map(p => [p[0], p[1]]); }
   clone() {
     const s = new Shape();
     s.vertices = this.vertices.map(p => [p[0], p[1]]);
@@ -95,11 +106,18 @@ class Prop {
     return this._value;
   }
   get numKeys() { return this._keys.length; }
-  get expressionEnabled() { return this._expr !== ""; }
+  // In After Effects "has an expression" and "is running it" are two
+  // different things: the toggle in the timeline leaves the text alone. A
+  // mock that derives one from the other cannot represent a rig that was
+  // only switched off, which is the state Relink exists to tell apart.
+  // Assigning expression text turns it on, the way AE does.
+  get expressionEnabled() { return this._expr !== "" && this._on !== false; }
+  set expressionEnabled(v) { this._on = !!v; }
   get expression() { return this._expr; }
   set expression(s) {
     if (s) { EXPRS.push({ where: this.name, src: s }); }
     this._expr = s || "";
+    this._on = true;
     if (this._noEval && s) { throw new Error("mock cannot evaluate expressions"); }
   }
   setValue(v) {
@@ -294,7 +312,10 @@ const app = {
     saveSetting: (s, k, v) => { settings[s + "/" + k] = String(v); }
   },
   beginUndoGroup() {}, endUndoGroup() {},
-  executeCommand() {}, findMenuCommandId() { return 16; }
+  // Recorded rather than run, so a test can ask what the panel asked for
+  _commands: [],
+  executeCommand(id) { app._commands.push(id); },
+  findMenuCommandId() { return 16; }
 };
 
 // ---- ScriptUI stubs -------------------------------------------------------

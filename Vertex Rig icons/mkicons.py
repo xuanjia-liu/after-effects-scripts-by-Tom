@@ -105,12 +105,86 @@ def prefs(i):
         i.p([(4,y),(24,y)], W*0.7)
         i.s(kx,y, 2.9, 0)
 
+
+# ---- the preview's own editing row ---------------------------------------
+# A bar is a thick polyline rather than a filled box: the panel's "x" op only
+# ever strokes, and an icon has to draw the same here as it does there.
+BAR = 3.6
+
+def marquee(i):
+    i.box(4,7,24,21, W*0.8)
+    for (x,y) in ((9,12),(15,17),(20,11)): i.s(x,y, 2.4, 0)
+def lasso(i):
+    i.b((14,5),(24,5),(24,19),(14,19), W*0.9)
+    i.b((14,19),(5,19),(5,5),(14,5), W*0.9)
+    i.p([(11.5,18.2),(9,25)], W*0.9)
+def snap(i):
+    i.p([(14,2.5),(14,25.5)], W*0.7)
+    i.s(14,9, 3.2, 0); i.s(14,19, 3.2, 0)
+    i.s(23,14, 3.0, W*0.9)
+    i.chev(17,14,-4,3)
+def boundbox(i):
+    i.box(7,7,21,21, W*0.8)
+    for (x,y) in ((7,7),(21,7),(7,21),(21,21)): i.s(x,y, 2.6, 0)
+
+def _rule(i, a, b_): i.p([a,b_], W*0.8)
+def alignleft(i):
+    _rule(i, (4,3), (4,25))
+    i.p([(4,10),(22,10)], BAR); i.p([(4,18),(16,18)], BAR)
+def aligncx(i):
+    _rule(i, (14,3), (14,25))
+    i.p([(5,10),(23,10)], BAR); i.p([(8,18),(20,18)], BAR)
+def alignright(i):
+    _rule(i, (24,3), (24,25))
+    i.p([(6,10),(24,10)], BAR); i.p([(12,18),(24,18)], BAR)
+def aligntop(i):
+    _rule(i, (3,4), (25,4))
+    i.p([(10,4),(10,22)], BAR); i.p([(18,4),(18,16)], BAR)
+def aligncy(i):
+    _rule(i, (3,14), (25,14))
+    i.p([(10,5),(10,23)], BAR); i.p([(18,8),(18,20)], BAR)
+def alignbottom(i):
+    _rule(i, (3,24), (25,24))
+    i.p([(10,6),(10,24)], BAR); i.p([(18,12),(18,24)], BAR)
+
+def helpmark(i):
+    i.c(14,14, 10.5, W*0.8)
+    i.b((10,10.5),(10.5,6.3),(18.2,6.6),(17.6,11.0), W*0.9)
+    i.p([(17.6,11.0),(14,13.6),(14,16.4)], W*0.9)
+    i.c(14,20.4, 1.5, 0)
+
+def keypath(i):
+    i.b((2.5,16),(8,17),(14,8),(20,8.5), W*0.75)
+    i.d(11.1,12.4, 3.1, 0)
+    i.p([(20,19),(20,27)]); i.p([(16,23),(24,23)])
+
+def reveal(i):
+    # a twirl-down, open, and the rows it opened - the middle one the point
+    i.p([(3.5,8.5),(11,8.5),(7.2,14.5),(3.5,8.5)], W*0.9)
+    i.p([(14.5,8.5),(25,8.5)], W*0.9)
+    i.p([(14.5,15),(25,15)], BAR)
+    i.p([(14.5,21.5),(21.5,21.5)], W*0.9)
+
+# A control that has come away from the point it was given, going back on.
+# The hollow square is the vertex waiting on the path; the solid one is the
+# control adrift above it.
+def relink(i):
+    i.b((3,20),(10,23),(18,7),(25,10), W*0.75)
+    i.s(14,15, 2.9, W*0.9)
+    i.s(14,3.8, 2.6, 0)
+    i.p([(11.4,8.2),(14,11.2),(16.6,8.2)], W*0.9)
+
 ORDER = [("create",create),("handles",handles),("delete",delete),("bake",bake),
          ("apply",apply),("pivot",pivot),("addpivot",addpivot),("release",release),
          ("follower",follower),("average",average),("extract",extract),("merge",merge),
          ("prefs",prefs),("points",points),
          ("all",allpts),("none",nonepts),("invert",invert),
-         ("zoomout",zoomout),("zoomin",zoomin)]
+         ("zoomout",zoomout),("zoomin",zoomin),
+         ("marquee",marquee),("lasso",lasso),("snap",snap),("box",boundbox),
+         ("alignleft",alignleft),("aligncx",aligncx),("alignright",alignright),
+         ("aligntop",aligntop),("aligncy",aligncy),("alignbottom",alignbottom),
+         ("help",helpmark),("key",keypath),("reveal",reveal),
+         ("relink",relink)]
 
 art = {}
 for name, fn in ORDER:
