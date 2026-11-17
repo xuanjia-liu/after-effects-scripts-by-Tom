@@ -1,3 +1,9 @@
 # Claude Code keeps its git worktrees here - whole checkouts of this repo,
 # a quarter of a gigabyte of them. Never commit it.
 .claude/
+
+# What the After Effects regression suites write when they run. Every run
+# rewrites them with a fresh timestamp, so tracking them puts a diff in front
+# of you for work you did not do. The suites that produce them sit beside
+# them, and the numbers that matter go in the commit message.
+Vertex Rig tests/*-results.txt
