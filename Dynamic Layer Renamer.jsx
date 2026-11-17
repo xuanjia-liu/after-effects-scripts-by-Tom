@@ -44,7 +44,7 @@
   rightColumn.alignment = ["fill", "top"];
 
   // Quick Rename operations (Row 1)
-  var specialPanel = rightColumn.add("panel", undefined, "Quick Layer Rename");
+  var specialPanel = rightColumn.add("panel", undefined, "Quick Rename");
   specialPanel.orientation = "row";
   specialPanel.alignChildren = ["left", "center"];
   specialPanel.margins = [8, 12, 8, 8];
@@ -70,6 +70,12 @@
   var updateMarkerBtn = specialPanel.add("button", undefined, "Marker");
   updateMarkerBtn.preferredSize.width = 48;
   updateMarkerBtn.preferredSize.height = 22;
+  
+  var translateBtn = specialPanel.add("button", undefined, "Translate");
+  translateBtn.preferredSize.width = 64;
+  translateBtn.preferredSize.height = 22;
+  translateBtn.helpTip = "Rename Japanese or Chinese property names to English.\n" +
+                         "Works on the Selected Properties and Shape Properties targets.";
 
   
   // Main controls group (Rows 2-6)
@@ -869,6 +875,195 @@
     return useRegex ? String(s) : escRepl(s);
   }
 
+  // Source terms for Translate, written as \u escapes so this file stays
+  // pure ASCII - After Effects reads a .jsx without a BOM as Latin-1.
+  // A readable table of these lives in "Dynamic Layer Renamer tests/README.md".
+  var TRANSLATION_TERMS = [
+    // Japanese
+    ["\u30b0\u30eb\u30fc\u30d7", "Group"],
+    ["\u30b3\u30f3\u30c6\u30f3\u30c4", "Contents"],
+    ["\u9577\u65b9\u5f62\u30d1\u30b9", "Rectangle Path"],
+    ["\u9577\u65b9\u5f62", "Rectangle"],
+    ["\u6955\u5186\u5f62\u30d1\u30b9", "Ellipse Path"],
+    ["\u6955\u5186", "Ellipse"],
+    ["\u591a\u89d2\u5f62\u30d1\u30b9", "Polystar Path"],
+    ["\u591a\u89d2\u5f62", "Polystar"],
+    ["\u30d1\u30b9\u306e\u7d50\u5408", "Merge Paths"],
+    ["\u30d1\u30b9\u306e\u30c8\u30ea\u30df\u30f3\u30b0", "Trim Paths"],
+    ["\u30aa\u30d5\u30bb\u30c3\u30c8\u30d1\u30b9", "Offset Paths"],
+    ["\u30d1\u30b9", "Path"],
+    ["\u30b0\u30e9\u30c7\u30fc\u30b7\u30e7\u30f3\u306e\u5857\u308a", "Gradient Fill"],
+    ["\u30b0\u30e9\u30c7\u30fc\u30b7\u30e7\u30f3\u306e\u7dda", "Gradient Stroke"],
+    ["\u5857\u308a\u306e\u898f\u5247", "Fill Rule"],
+    ["\u5857\u308a", "Fill"],
+    ["\u7dda\u5e45", "Stroke Width"],
+    ["\u7dda\u306e\u7d50\u5408", "Line Join"],
+    ["\u7dda\u7aef", "Line Cap"],
+    ["\u7dda", "Stroke"],
+    ["\u30de\u30a4\u30bf\u30fc\u5236\u9650", "Miter Limit"],
+    ["\u30d1\u30f3\u30af\u30fb\u81a8\u5f35", "Pucker & Bloat"],
+    ["\u30ea\u30d4\u30fc\u30bf\u30fc", "Repeater"],
+    ["\u89d2\u3092\u4e38\u304f\u3059\u308b", "Round Corners"],
+    ["\u30a6\u30a3\u30b0\u30eb\u30d1\u30b9", "Wiggle Paths"],
+    ["\u30a6\u30a3\u30b0\u30eb\u30c8\u30e9\u30f3\u30b9\u30d5\u30a9\u30fc\u30e0", "Wiggle Transform"],
+    ["\u30b8\u30b0\u30b6\u30b0", "Zig Zag"],
+    ["\u30c4\u30a4\u30b9\u30c8", "Twist"],
+    ["\u30c8\u30e9\u30f3\u30b9\u30d5\u30a9\u30fc\u30e0", "Transform"],
+    ["\u30de\u30b9\u30af", "Mask"],
+    ["\u30a8\u30d5\u30a7\u30af\u30c8", "Effects"],
+    ["\u30de\u30fc\u30ab\u30fc", "Marker"],
+    ["\u30bd\u30fc\u30b9\u30c6\u30ad\u30b9\u30c8", "Source Text"],
+    ["\u30c6\u30ad\u30b9\u30c8", "Text"],
+    ["\u30de\u30c6\u30ea\u30a2\u30eb\u30aa\u30d7\u30b7\u30e7\u30f3", "Material Options"],
+    ["\u30a2\u30f3\u30ab\u30fc\u30dd\u30a4\u30f3\u30c8", "Anchor Point"],
+    ["\u4f4d\u7f6e", "Position"],
+    ["\u30b9\u30b1\u30fc\u30eb", "Scale"],
+    ["\u56de\u8ee2", "Rotation"],
+    ["\u4e0d\u900f\u660e\u5ea6", "Opacity"],
+    ["\u50be\u659c\u8ef8", "Skew Axis"],
+    ["\u50be\u659c", "Skew"],
+    ["\u30ab\u30e9\u30fc", "Color"],
+    ["\u63cf\u753b\u30e2\u30fc\u30c9", "Blend Mode"],
+    ["\u5408\u6210", "Composite"],
+    ["\u30b5\u30a4\u30ba", "Size"],
+    ["\u4e38\u307f", "Roundness"],
+    ["\u9802\u70b9\u306e\u6570", "Points"],
+    ["\u5185\u534a\u5f84", "Inner Radius"],
+    ["\u5916\u534a\u5f84", "Outer Radius"],
+    ["\u958b\u59cb\u70b9", "Start Point"],
+    ["\u7d42\u4e86\u70b9", "End Point"],
+    ["\u30b3\u30d4\u30fc\u6570", "Copies"],
+    ["\u30aa\u30d5\u30bb\u30c3\u30c8", "Offset"],
+    ["\u7a2e\u985e", "Type"],
+    ["\u65b9\u5411", "Direction"],
+
+    // Chinese (Simplified)
+    ["\u7ec4", "Group"],
+    ["\u5185\u5bb9", "Contents"],
+    ["\u77e9\u5f62\u8def\u5f84", "Rectangle Path"],
+    ["\u77e9\u5f62", "Rectangle"],
+    ["\u692d\u5706\u8def\u5f84", "Ellipse Path"],
+    ["\u692d\u5706", "Ellipse"],
+    ["\u591a\u8fb9\u661f\u5f62\u8def\u5f84", "Polystar Path"],
+    ["\u591a\u8fb9\u661f\u5f62", "Polystar"],
+    ["\u5408\u5e76\u8def\u5f84", "Merge Paths"],
+    ["\u4fee\u526a\u8def\u5f84", "Trim Paths"],
+    ["\u4f4d\u79fb\u8def\u5f84", "Offset Paths"],
+    ["\u56fe\u5f62\u65b9\u5411", "Shape Direction"],
+    ["\u8def\u5f84", "Path"],
+    ["\u6e10\u53d8\u586b\u5145", "Gradient Fill"],
+    ["\u6e10\u53d8\u63cf\u8fb9", "Gradient Stroke"],
+    ["\u586b\u5145\u89c4\u5219", "Fill Rule"],
+    ["\u586b\u5145", "Fill"],
+    ["\u63cf\u8fb9\u5bbd\u5ea6", "Stroke Width"],
+    ["\u63cf\u8fb9", "Stroke"],
+    ["\u7ebf\u6bb5\u7aef\u70b9", "Line Cap"],
+    ["\u7ebf\u6bb5\u8fde\u63a5", "Line Join"],
+    ["\u5c16\u89d2\u9650\u5236", "Miter Limit"],
+    ["\u6536\u7f29\u548c\u81a8\u80c0", "Pucker & Bloat"],
+    ["\u4e2d\u7ee7\u5668", "Repeater"],
+    ["\u5706\u89d2", "Round Corners"],
+    ["\u6446\u52a8\u8def\u5f84", "Wiggle Paths"],
+    ["\u6446\u52a8\u53d8\u6362", "Wiggle Transform"],
+    ["\u952f\u9f7f", "Zig Zag"],
+    ["\u626d\u8f6c", "Twist"],
+    ["\u53d8\u6362", "Transform"],
+    ["\u8499\u7248", "Mask"],
+    ["\u6548\u679c", "Effects"],
+    ["\u6807\u8bb0", "Marker"],
+    ["\u6e90\u6587\u672c", "Source Text"],
+    ["\u6587\u672c", "Text"],
+    ["\u6750\u8d28\u9009\u9879", "Material Options"],
+    ["\u951a\u70b9", "Anchor Point"],
+    ["\u4f4d\u7f6e", "Position"],
+    ["\u7f29\u653e", "Scale"],
+    ["\u65cb\u8f6c", "Rotation"],
+    ["\u4e0d\u900f\u660e\u5ea6", "Opacity"],
+    ["\u503e\u659c\u8f74", "Skew Axis"],
+    ["\u503e\u659c", "Skew"],
+    ["\u989c\u8272", "Color"],
+    ["\u6df7\u5408\u6a21\u5f0f", "Blend Mode"],
+    ["\u5408\u6210", "Composite"],
+    ["\u5927\u5c0f", "Size"],
+    ["\u5706\u5ea6", "Roundness"],
+    ["\u5185\u5f84", "Inner Radius"],
+    ["\u5916\u5f84", "Outer Radius"],
+    ["\u8d77\u59cb\u70b9", "Start Point"],
+    ["\u7ed3\u675f\u70b9", "End Point"],
+    ["\u526f\u672c", "Copies"],
+    ["\u504f\u79fb", "Offset"],
+    ["\u7c7b\u578b", "Type"],
+    ["\u65b9\u5411", "Direction"],
+    ["\u70b9", "Points"],
+
+    // Chinese (Traditional)
+    ["\u7fa4\u7d44", "Group"],
+    ["\u5167\u5bb9", "Contents"],
+    ["\u8def\u5f91", "Path"],
+    ["\u586b\u6eff", "Fill"],
+    ["\u7b46\u756b", "Stroke"],
+    ["\u6f38\u5c64\u586b\u6eff", "Gradient Fill"],
+    ["\u6f38\u5c64\u7b46\u756b", "Gradient Stroke"],
+    ["\u906e\u8272\u7247", "Mask"],
+    ["\u8b8a\u5f62", "Transform"],
+    ["\u932f\u9ede", "Anchor Point"],
+    ["\u7e2e\u653e", "Scale"],
+    ["\u65cb\u8f49", "Rotation"],
+    ["\u984f\u8272", "Color"],
+    ["\u6a62\u5713", "Ellipse"],
+  ];
+  
+  var TRANSLATION_SORTED = null;
+  
+  // Longest source term first, so a compound name beats the parts inside it:
+  // "Gradient Fill" has to win over "Fill" or it never matches.
+  function translationTable() {
+    if (TRANSLATION_SORTED) return TRANSLATION_SORTED;
+    
+    var sorted = [];
+    for (var i = 0; i < TRANSLATION_TERMS.length; i++) {
+      sorted.push(TRANSLATION_TERMS[i]);
+    }
+    sorted.sort(function(a, b) { return b[0].length - a[0].length; });
+    
+    TRANSLATION_SORTED = sorted;
+    return sorted;
+  }
+  
+  // "<group> 1" becomes "Group 1". Returns null when nothing was recognised,
+  // so the caller can leave that property alone and count it as untouched.
+  function translateName(name) {
+    var s = String(name);
+    var suffix = "";
+    
+    // Hold a trailing index aside, so "<path> 2" keeps its 2
+    var m = s.match(/^([\s\S]*?)\s*(\d+)\s*$/);
+    if (m && m[1].length > 0) {
+      s = m[1];
+      suffix = " " + m[2];
+    }
+    
+    var table = translationTable();
+    var i;
+    
+    // Whole name first: the common case, and it cannot mangle anything
+    for (i = 0; i < table.length; i++) {
+      if (s === table[i][0]) return table[i][1] + suffix;
+    }
+    
+    // Otherwise swap out any term found inside a name the user has customised
+    var out = s;
+    var changed = false;
+    for (i = 0; i < table.length; i++) {
+      if (out.indexOf(table[i][0]) !== -1) {
+        out = replaceToken(out, table[i][0], table[i][1]);
+        changed = true;
+      }
+    }
+    
+    return changed ? out + suffix : null;
+  }
+  
   // The one place a Match pattern becomes a RegExp, so Case / Word / Regex
   // apply to every target. Returns null only for an empty pattern; a pattern
   // that cannot compile as a regex is treated as plain text rather than
@@ -1661,6 +1856,11 @@
   
   updateMarkerBtn.onClick = function() {
     renameSelectedLayersFromFirstMarker();
+  };
+  
+  translateBtn.onClick = function() {
+    translateProperties();
+    updatePreview();
   };
   
   // No preset functions
@@ -2824,6 +3024,78 @@
     } finally {
       app.endUndoGroup();
     }
+    return count;
+  }
+  
+  // Quick Translate: Japanese or Chinese property names to English, on whichever
+  // of the two property targets is selected. Anything it does not recognise is
+  // left exactly as it was, so it is safe to run twice.
+  function translateProperties() {
+    if (!checkCompAndSelection()) return 0;
+    
+    var target = targetDropdown.selection ? targetDropdown.selection.text : "";
+    if (target !== "Selected Properties" && target !== "Shape Properties") {
+      showError("Pick a Property Target",
+                "Translate works on the Selected Properties and Shape Properties targets.",
+                "Target is currently \"" + target + "\".");
+      return 0;
+    }
+    
+    var count = 0;
+    var i;
+    
+    try {
+      app.beginUndoGroup("Translate Property Names");
+      var selectedLayers = app.project.activeItem.selectedLayers;
+      var props = [];
+      
+      if (target === "Shape Properties") {
+        var shapeLayers = shapeLayersFrom(selectedLayers);
+        if (shapeLayers.length === 0) {
+          showError("No Shape Layers", "None of the selected layers are shape layers.");
+          return 0;
+        }
+        var entries = collectShapeProps(shapeLayers, null);
+        for (i = 0; i < entries.length; i++) props.push(entries[i].prop);
+      } else {
+        var selected = collectSelectedProps(selectedLayers);
+        for (i = 0; i < selected.length; i++) {
+          if (canRenameProperty(selected[i])) props.push(selected[i]);
+        }
+        if (props.length === 0) {
+          showError("No Renameable Properties",
+                    "Select properties After Effects allows renaming - shape groups, masks or effects.");
+          return 0;
+        }
+      }
+      
+      for (i = 0; i < props.length; i++) {
+        var oldName = props[i].name;
+        var newName = translateName(oldName);
+        
+        if (newName === null || newName === oldName) continue;
+        
+        try {
+          props[i].name = newName;
+          count++;
+        } catch (e) {
+          dbg("translate prop.name", e);
+        }
+      }
+      
+      if (count === 0) {
+        showError("Nothing to Translate",
+                  "None of the " + props.length + " propert(ies) matched a known Japanese or Chinese name.",
+                  "Names already in English are left alone.");
+      } else {
+        updateStatus("Translated " + count + " of " + props.length + " propert(ies)");
+      }
+    } catch (e) {
+      updateStatus("Error: " + e.toString());
+    } finally {
+      app.endUndoGroup();
+    }
+    
     return count;
   }
   

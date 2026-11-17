@@ -40,6 +40,8 @@ function boot() {
     renameLayersSequential: renameLayersSequential, renameProjectItems: renameProjectItems,
     renameProperties: renameProperties, updateExpressions: updateExpressions,
     renameSourceComp: renameSourceComp, renameLayers: renameLayers, layerName: layerName,
+    translateName: translateName, translateProperties: translateProperties,
+    translationTable: translationTable,
     updatePreview: updatePreview, win: win,
     ui: { findText: findText, renameText: renameText, targetDropdown: targetDropdown,
           startNumber: startNumber, regexCheck: regexCheck, matchCaseCheck: matchCaseCheck,
@@ -490,6 +492,97 @@ Dp = boot(); cp = newComp();
 const dl = new M.Layer("PRE_name", cp); cp.addLayer(dl); dl.selected = true;
 Dp.renameLayers("PRE_", "");
 eq(dl.name, "name", "an empty replacement strips the match");
+
+// ================================================ 21. translate JP/CN -> EN
+section("Translate - Japanese and Chinese property names");
+D = boot();
+
+// whole-name matches, numbering preserved
+eq(D.translateName("\u30b0\u30eb\u30fc\u30d7 1"), "Group 1", "JA group keeps its number");
+eq(D.translateName("\u30d1\u30b9 2"), "Path 2", "JA path keeps its number");
+eq(D.translateName("\u5857\u308a 1"), "Fill 1", "JA fill");
+eq(D.translateName("\u7dda 1"), "Stroke 1", "JA stroke");
+eq(D.translateName("\u9577\u65b9\u5f62\u30d1\u30b9 1"), "Rectangle Path 1", "JA rectangle path");
+eq(D.translateName("\u30de\u30b9\u30af 1"), "Mask 1", "JA mask");
+eq(D.translateName("\u30c8\u30e9\u30f3\u30b9\u30d5\u30a9\u30fc\u30e0"), "Transform", "JA transform, no number");
+eq(D.translateName("\u7ec4 1"), "Group 1", "ZH group");
+eq(D.translateName("\u8def\u5f84 1"), "Path 1", "ZH path");
+eq(D.translateName("\u63cf\u8fb9 1"), "Stroke 1", "ZH stroke");
+eq(D.translateName("\u692d\u5706\u8def\u5f84 1"), "Ellipse Path 1", "ZH ellipse path");
+eq(D.translateName("\u7fa4\u7d44 1"), "Group 1", "TW group");
+
+// compound terms must beat the parts inside them
+eq(D.translateName("\u30b0\u30e9\u30c7\u30fc\u30b7\u30e7\u30f3\u306e\u5857\u308a 1"),
+   "Gradient Fill 1", "JA gradient fill beats plain fill");
+eq(D.translateName("\u6e10\u53d8\u63cf\u8fb9 1"), "Gradient Stroke 1", "ZH gradient stroke beats stroke");
+eq(D.translateName("\u7dda\u5e45"), "Stroke Width", "JA stroke width beats bare stroke");
+eq(D.translateName("\u951a\u70b9"), "Anchor Point", "ZH anchor point beats bare point");
+
+// a name the user customised: swap the term, keep the rest
+eq(D.translateName("\u8d64\u3044\u5857\u308a"), "\u8d64\u3044Fill", "a term inside a custom name is swapped");
+
+// nothing recognised -> null, so the caller leaves it alone
+eq(D.translateName("Group 1"), null, "already English returns null");
+eq(D.translateName("Hero Shape"), null, "unrelated English returns null");
+eq(D.translateName("123"), null, "a bare number returns null");
+
+// running it twice changes nothing the second time
+const once = D.translateName("\u30b0\u30eb\u30fc\u30d7 1");
+eq(D.translateName(once), null, "translate is idempotent");
+
+// table really is sorted longest-first
+const tbl = D.translationTable();
+let sortedOk = true;
+for (let i = 1; i < tbl.length; i++) if (tbl[i - 1][0].length < tbl[i][0].length) sortedOk = false;
+ok(sortedOk, "table is sorted longest term first");
+
+section("Translate - on the Shape Properties target");
+D = boot(); comp = newComp();
+const jl = new M.ShapeLayer("shapes", comp);
+const jc = jl.addGroup("Contents", M.PropertyType.INDEXED_GROUP);
+const jg = new M.Group("\u30b0\u30eb\u30fc\u30d7 1", M.PropertyType.NAMED_GROUP);
+jc.add(jg);
+const ji = new M.Group("Contents", M.PropertyType.INDEXED_GROUP);
+jg.add(ji);
+ji.add(new M.Group("\u30d1\u30b9 1", M.PropertyType.NAMED_GROUP));
+ji.add(new M.Group("\u7dda 1", M.PropertyType.NAMED_GROUP));
+ji.add(new M.Group("Already English", M.PropertyType.NAMED_GROUP));
+const jx = new M.Group("\u30c8\u30e9\u30f3\u30b9\u30d5\u30a9\u30fc\u30e0", M.PropertyType.NAMED_GROUP);
+jg.add(jx);  // parent is NAMED -> AE will not rename this one
+comp.addLayer(jl); jl.selected = true;
+pickTarget(D, "Shape Properties");
+M.LOG.alerts.length = 0;
+let n = D.translateProperties();
+eq(n, 3, "three properties translated");
+eq(jc.property(1).name, "Group 1", "the group");
+eq(ji.property(1).name, "Path 1", "the path");
+eq(ji.property(2).name, "Stroke 1", "the stroke");
+eq(ji.property(3).name, "Already English", "English name left alone");
+eq(jx.name, "\u30c8\u30e9\u30f3\u30b9\u30d5\u30a9\u30fc\u30e0", "Transform is not renameable, so untouched");
+eq(M.LOG.alerts.length, 0, "no complaint when it worked");
+
+// one undo group
+M.LOG.undo.length = 0;
+D.translateProperties();
+eq(M.LOG.undo.filter(u => u.op === "begin").length, 1, "one undo group");
+
+section("Translate - guards");
+D = boot(); comp = newComp();
+const gl = new M.Layer("plain", comp); comp.addLayer(gl); gl.selected = true;
+pickTarget(D, "Layers");
+M.LOG.alerts.length = 0;
+eq(D.translateProperties(), 0, "wrong target does nothing");
+ok(M.LOG.alerts.length > 0, "and says which targets it works on");
+
+D = boot(); comp = newComp();
+const el = new M.ShapeLayer("eng", comp);
+const ec = el.addGroup("Contents", M.PropertyType.INDEXED_GROUP);
+ec.add(new M.Group("Group 1", M.PropertyType.NAMED_GROUP));
+comp.addLayer(el); el.selected = true;
+pickTarget(D, "Shape Properties");
+M.LOG.alerts.length = 0;
+eq(D.translateProperties(), 0, "all-English tree translates nothing");
+ok(M.LOG.alerts.length > 0, "and says so rather than failing silently");
 
 // ------------------------------------------------------------------ summary
 console.log("\n" + "=".repeat(52));
