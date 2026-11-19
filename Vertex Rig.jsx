@@ -4632,7 +4632,6 @@
     // buttons, dropdowns - so a row reads as a row instead of as three
     // controls that happen to be next to each other.
     var UI_H = 32;
-    var ZOOM_PX = 18;
     var ICON_PX = UI_H;
     // The top row is the utility row - what the panel shows, what is picked,
     // and the things that act on whole layers. It runs smaller than the tabs,
@@ -4658,8 +4657,6 @@
         "all": [["r",0,9,9,3.6],["r",0,19,9,3.6],["r",0,9,19,3.6],["r",0,19,19,3.6]],
         "none": [["r",1.98,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",1.98,19,19,3.6]],
         "invert": [["r",0,9,9,3.6],["r",1.98,19,9,3.6],["r",1.98,9,19,3.6],["r",0,19,19,3.6]],
-        "zoomout": [["p",2.2,[17,8,10,14,17,20]]],
-        "zoomin": [["p",2.2,[11,8,18,14,11,20]]],
         "marquee": [["x",1.76,4,7,24,21],["r",0,9,12,2.4],["r",0,15,17,2.4],["r",0,20,11,2.4]],
         "lasso": [["b",1.98,[14,5,24,5,24,19,14,19]],["b",1.98,[14,19,5,19,5,5,14,5]],["p",1.98,[11.5,18.2,9,25]]],
         "snap": [["p",1.54,[14,2.5,14,25.5]],["r",0,14,9,3.2],["r",0,14,19,3.2],["r",1.98,23,14,3.0],["p",2.2,[21,11,17,14,21,17]]],
@@ -4889,6 +4886,12 @@
         viewManual: false,
         fitted: false,
         shown: null,
+        // The keys of the paths the timeline is pointing at, so the preview
+        // can light them up, or null while it points at nothing in
+        // particular. Worked out once in a refresh rather than asked again
+        // on every repaint: the question walks up the property tree, and a
+        // repaint happens on every move of the pointer.
+        pointed: null,
         // The selection of control layers the panel last acted on, so a
         // refresh can tell a new statement from After Effects apart from the
         // one the panel itself just made.
@@ -5061,24 +5064,10 @@
         state.viewManual = false;
     }
 
-    var ZOOM_MIN = 0.02, ZOOM_MAX = 64, ZOOM_STEPS = 1000;
+    var ZOOM_MIN = 0.02, ZOOM_MAX = 64;
 
     // How much of the room a fit is allowed to take, beyond the padding.
     var FIT_FILL = 0.85;
-
-    // The strip runs left to right, wider to closer, the way a horizontal
-    // zoom reads. Evenly in powers rather than in pixels, so a notch is the
-    // same proportion of a step whether the view sits at 5% or at 40x.
-    function zoomFromBar(v) {
-        var t = Math.max(0, Math.min(ZOOM_STEPS, v)) / ZOOM_STEPS;
-        return ZOOM_MIN * Math.pow(ZOOM_MAX / ZOOM_MIN, t);
-    }
-
-    function barFromZoom(s) {
-        var t = Math.log(s / ZOOM_MIN) / Math.log(ZOOM_MAX / ZOOM_MIN);
-        if (!isFinite(t)) { t = 0; }
-        return Math.max(0, Math.min(ZOOM_STEPS, Math.round(t * ZOOM_STEPS)));
-    }
 
     // Zoom about a point on the canvas, so whatever is under the pointer stays
     // under it. Without that the artwork slides away while you lean in on it.
@@ -5098,6 +5087,116 @@
         state.view.tx += dx;
         state.view.ty += dy;
         state.viewManual = true;
+    }
+
+    // Put a place in comp space in the middle of the canvas, at whatever zoom
+    // the view is already at. Going to something is not the same as framing
+    // it: the zoom is the user's, and a jump that changed it as well would
+    // lose the scale they were working at.
+    function centreOn(at, w, h) {
+        state.view.tx = (w / 2) - at[0] * state.view.s;
+        state.view.ty = (h / 2) - at[1] * state.view.s;
+        state.viewManual = true;
+    }
+
+    // What is picked, or what the timeline is pointing at, can sit off the
+    // canvas entirely - the view has been moved by hand, or the artwork is
+    // parked outside the frame. Nothing on screen would say so: the preview
+    // would simply look empty, with a selection the panel still acts on. A
+    // triangle at the border says which way it lies, and clicking it goes
+    // there.
+    //
+    // Worked out from the canvas size each time rather than kept in state,
+    // so the drawing and the click can never disagree about where a marker
+    // is. There are at most a handful of them and the sums are cheap.
+    var MARK_PAD = 9;
+    var MARK_GRAB = 10;
+
+    function inCanvas(p, w, h) {
+        return p[0] >= 0 && p[0] <= w && p[1] >= 0 && p[1] <= h;
+    }
+
+    // Where a line from the middle of the canvas out to an off-screen place
+    // crosses the border, and which way it was heading when it got there.
+    // Null when the place is on the canvas after all, which is the only
+    // answer that means "no marker".
+    function edgePoint(at, w, h) {
+        var cx = w / 2, cy = h / 2;
+        var dx = at[0] - cx, dy = at[1] - cy;
+        var len = Math.sqrt(dx * dx + dy * dy);
+        if (!(len > 1e-6)) { return null; }
+        var hx = Math.max(1, cx - MARK_PAD), hy = Math.max(1, cy - MARK_PAD);
+        var s = 1e9;
+        if (Math.abs(dx) > 1e-9) { s = Math.min(s, hx / Math.abs(dx)); }
+        if (Math.abs(dy) > 1e-9) { s = Math.min(s, hy / Math.abs(dy)); }
+        if (!(s < 1)) { return null; }
+        return { x: cx + dx * s, y: cy + dy * s, ux: dx / len, uy: dy / len };
+    }
+
+    // The absolute place of a picked handle tip, since a tangent is stored as
+    // a vector from its own vertex.
+    function tipPointOf(gm, name) {
+        var bits = String(name).split(":");
+        var idx = Number(bits[0]);
+        var v = gm.verts[idx], t = tipVec(gm, idx, bits[1]);
+        if (!v || !t) { return null; }
+        return [v[0] + t[0], v[1] + t[1]];
+    }
+
+    function edgeMarks(w, h) {
+        var out = [], i, k, p;
+        if (!(w > 20) || !(h > 20)) { return out; }
+
+        // One marker per lit path. A path the timeline is pointing at is a
+        // thing in its own right, and two of them lying different ways are
+        // worth saying separately.
+        for (i = 0; i < state.geom.length; i++) {
+            var it = state.items[i], gm = state.geom[i];
+            if (!it || !gm) { continue; }
+            if (!state.pointed || !state.pointed[it.key]) { continue; }
+            var seen = false, sx = 0, sy = 0, n = 0;
+            for (k = 0; k < gm.verts.length; k++) {
+                if (inCanvas(toCanvas(gm.verts[k]), w, h)) { seen = true; break; }
+                sx += gm.verts[k][0];
+                sy += gm.verts[k][1];
+                n++;
+            }
+            if (seen || !n) { continue; }
+            var at = [sx / n, sy / n];
+            var mk = edgePoint(toCanvas(at), w, h);
+            if (mk) { mk.at = at; mk.lit = true; out.push(mk); }
+        }
+
+        // What is picked here goes in one marker, points and handles alike. A
+        // swarm of them strung along the border says no more than a single
+        // one does, and the picks are one selection however many points it
+        // holds. Only when none of it is on screen: with some of it in view
+        // there is already something to look at.
+        var px = 0, py = 0, pn = 0, any = false;
+        for (i = 0; i < state.geom.length; i++) {
+            var g2 = state.geom[i], it2 = state.items[i];
+            if (!g2 || !it2) { continue; }
+            var pts = state.sel[it2.key] || [];
+            for (k = 0; k < pts.length; k++) {
+                var v = g2.verts[pts[k]];
+                if (!v) { continue; }
+                if (inCanvas(toCanvas(v), w, h)) { any = true; }
+                px += v[0]; py += v[1]; pn++;
+            }
+            var tips = state.selH[it2.key] || [];
+            for (k = 0; k < tips.length; k++) {
+                p = tipPointOf(g2, tips[k]);
+                if (!p) { continue; }
+                if (inCanvas(toCanvas(p), w, h)) { any = true; }
+                px += p[0]; py += p[1]; pn++;
+            }
+        }
+        if (pn && !any) {
+            var pat = [px / pn, py / pn];
+            var pmk = edgePoint(toCanvas(pat), w, h);
+            if (pmk) { pmk.at = pat; pmk.lit = false; out.push(pmk); }
+        }
+        return out;
     }
 
     // True while some part of the artwork still lands on the canvas. Nothing
@@ -5228,7 +5327,8 @@
         var scopeDd = cycler(head, 88, HEAD_PX, "Showing",
             "which paths the preview shows. Group narrows it to the shape group " +
             "or mask chosen in the timeline, and shows the whole layer while " +
-            "nothing in it is chosen",
+            "nothing in it is chosen. Layers and All keep everything on show " +
+            "and light up whatever the timeline points at instead",
             [{ v: 0, art: "scopelay", word: "Layers" },
              { v: 1, art: "scopegrp", word: "Group" },
              { v: 2, art: "scopeall", word: "All" }],
@@ -5308,52 +5408,28 @@
         cv.helpTip = "Click to pick, drag to move. Help lists every gesture.";
 
         // ScriptUI has no wheel event - a listener for one never fires in
-        // After Effects, on this canvas or on anything else. What a wheel
-        // does reach is a native control that scrolls: measured in the app, a
-        // scrollbar reports every notch as onChanging with a new value. So
-        // the strip down the side of the preview is what the wheel turns, and
-        // dragging it does the same thing.
-        var zoomRow = top.add("group");
-        zoomRow.orientation = "row";
-        zoomRow.alignment = ["fill", "top"];
-        zoomRow.alignChildren = ["fill", "center"];
-        zoomRow.spacing = 3;
-        zoomRow.margins = 0;
-
-        var bZoomOut = act(zoomRow, "zoomout", "", "Zoom out - one step wider",
-                           0, ZOOM_PX);
-        bZoomOut.alignment = ["left", "center"];
-
-        var zoomBar = zoomRow.add("scrollbar", undefined, 500, 0, 1000);
-        zoomBar.alignment = ["fill", "center"];
-        zoomBar.minimumSize = [80, 14];
-        zoomBar.preferredSize = [240, 14];
-        zoomBar.maximumSize = [4000, 16];
-        zoomBar.helpTip = "Zoom. Scroll the wheel here, or drag it. " +
-                          "Left is wider, right is closer.";
-
-        var bZoomIn = act(zoomRow, "zoomin", "", "Zoom in - one step closer",
-                          0, ZOOM_PX);
-        bZoomIn.alignment = ["right", "center"];
-
-        // Somewhere for the keyboard to be. A ScriptUI group cannot hold the
-        // focus, so the canvas can never be sent a key; a field that can
-        // holds it on the canvas's behalf, and a click on the canvas parks
-        // the focus here.
+        // After Effects, on this canvas or on anything else. Measured with a
+        // probe that listened for mousewheel, wheel, DOMMouseScroll, magnify
+        // and gesturechange, at the window in the capture phase as well as at
+        // a group with an onDraw - the same capture phase that turned out to
+        // be the only way the arrow keys arrive. Hundreds of mousemoves came
+        // through it and not one wheel, while a scrollbar in the same window
+        // counted every notch of the same gesture. So the scroll does reach
+        // After Effects; it is never put into the ScriptUI tree, and no
+        // listener anywhere can have it. A trackpad pinch is a magnification
+        // gesture rather than a scroll, and it arrives nowhere at all.
         //
-        // It was a sliver wide at first, on the grounds that there is nothing
-        // to type into it. That is exactly why the arrows did nothing: a
-        // control with no room to draw itself is not reliably given the
-        // focus, and a field without the focus is sent no keys. It is small
-        // now rather than invisible, and it can be clicked directly.
-        var keySink = zoomRow.add("edittext", undefined, "");
-        keySink.alignment = ["right", "center"];
-        keySink.minimumSize = [16, ZOOM_PX];
-        keySink.preferredSize = [16, ZOOM_PX];
-        keySink.maximumSize = [16, ZOOM_PX];
-        keySink.helpTip = "Where the preview's arrow keys are heard.\n" +
-                          "Click the canvas, or this box, then use the arrows\n" +
-                          "to nudge the picked points. Shift goes further.";
+        // A row of zoom controls used to sit here, under the preview: a
+        // scrollbar that stood in for the wheel on that strength alone - the
+        // one control a scroll could turn - and a button at each end to step
+        // it. All of it is gone. The right button zooms now, over the artwork
+        // itself and with the point under the pointer held still, which is
+        // what reaching for a wheel was ever for; Command-drag does what it
+        // always did, and a double click still frames everything.
+        //
+        // The one thing out of that row that had to be kept is the box that
+        // holds the keyboard, since a panel with nothing focusable in it is
+        // sent no keys at all. It moved to the end of the status line.
 
         // One line, right under the preview, and the only one. It used to
         // take three labels to say less: a fixed hint here, a second line of
@@ -5387,6 +5463,28 @@
         status.text = "Ready.";
         status.graphics.foregroundColor = status.graphics.newPen(
             status.graphics.PenType.SOLID_COLOR, [0.72, 0.72, 0.72, 1], 1);
+
+        // Somewhere for the keyboard to be. A ScriptUI group cannot hold the
+        // focus, so the canvas can never be sent a key; a field that can
+        // holds it on the canvas's behalf, and a click on the canvas parks
+        // the focus here. A panel with nothing focusable in it is sent no
+        // keys at all, so this box earns its place even though the keydown
+        // itself is now caught at the window - see the keyboard section.
+        //
+        // It was a sliver wide at first, on the grounds that there is nothing
+        // to type into it, and a control with no room to draw itself is not
+        // reliably given the focus. It is small now rather than invisible,
+        // and it can be clicked directly. The end of the status line is where
+        // it is least in the way: one line tall, at the edge, beside the only
+        // other thing in the panel that is always on screen.
+        var keySink = statusRow.add("edittext", undefined, "");
+        keySink.alignment = ["right", "center"];
+        keySink.minimumSize = [16, 14];
+        keySink.preferredSize = [16, 14];
+        keySink.maximumSize = [16, 14];
+        keySink.helpTip = "Where the panel keeps the keyboard.\n" +
+                          "Click anywhere in the panel, then use the arrows\n" +
+                          "to nudge the picked points. Shift goes further.";
 
         // An icon button where the picture loaded and the old text button
         // where it did not, so a temp folder the script cannot write to costs
@@ -5619,40 +5717,6 @@
             try { status.text = s; } catch (e) {}
         }
 
-        // Writing the strip's value must not read back as the user turning
-        // it, or a fit would fight the zoom it just set.
-        var barEcho = false;
-
-        function syncZoomBar() {
-            barEcho = true;
-            try { zoomBar.value = barFromZoom(state.view.s); } catch (e) {}
-            barEcho = false;
-        }
-
-        function zoomFromStrip() {
-            if (barEcho) { return; }
-            var want = zoomFromBar(zoomBar.value);
-            if (!(want > 0)) { return; }
-            // The pointer is on the strip, not on the artwork, so the middle
-            // of the canvas is what stays put.
-            var w = Math.max(60, cv.size.width), h = Math.max(60, cv.size.height);
-            if (zoomAt(w / 2, h / 2, want / state.view.s)) { redraw(); }
-        }
-
-        zoomBar.onChanging = zoomFromStrip;
-        zoomBar.onChange = zoomFromStrip;
-
-        // One step is a tenth of the strip, which is a little under 3x.
-        function stepZoom(by) {
-            barEcho = true;
-            try { zoomBar.value = Math.max(0, Math.min(ZOOM_STEPS, zoomBar.value + by)); }
-            catch (e) {}
-            barEcho = false;
-            zoomFromStrip();
-        }
-        bZoomOut.onClick = function () { stepZoom(-ZOOM_STEPS / 10); };
-        bZoomIn.onClick = function () { stepZoom(ZOOM_STEPS / 10); };
-
         function redraw() {
             try { cv.notify("onDraw"); } catch (e) {
                 try { win.layout.layout(true); } catch (e2) {}
@@ -5717,12 +5781,22 @@
             var ghostPen = g.newPen(g.PenType.SOLID_COLOR, [0.42, 0.46, 0.56, 1], 1);
             var dotPrim = g.newBrush(g.BrushType.SOLID_COLOR, [0.52, 0.57, 0.68, 1]);
 
+            // Whatever the timeline is pointing at is laid down twice: a
+            // broad amber stroke, then the path's own line over it. Under
+            // rather than instead of, so a keyframed path stays its colour
+            // and a parametric one stays dim - the light says which one is
+            // chosen, and takes nothing else away. Group has none of this:
+            // there, everything on show is the chosen one already.
+            var litPen = g.newPen(g.PenType.SOLID_COLOR, [0.95, 0.72, 0.25, 1], 3);
+
             for (i = 0; i < state.geom.length; i++) {
                 var gm = dispGeom(i);
                 if (!gm) { continue; }
                 var pen = gm.prim ? ghostPen
                         : (gm.foreign ? foreignPen
                         : (gm.keyed ? keyPen : pathPen));
+                var ikey = state.items[i].key;
+                var lit = !!(state.pointed && state.pointed[ikey]);
                 var per = FLATTEN + 1;
                 for (var seg = 0; seg * per < gm.poly.length; seg++) {
                     g.newPath();
@@ -5732,9 +5806,9 @@
                         p = toCanvas(gm.poly[at]);
                         if (k === 0) { g.moveTo(p[0], p[1]); } else { g.lineTo(p[0], p[1]); }
                     }
+                    if (lit) { g.strokePath(litPen); }
                     g.strokePath(pen);
                 }
-                var ikey = state.items[i].key;
                 var sel = state.sel[ikey] || [];
 
                 // Handles: every one, only the picked points', or none at
@@ -5866,6 +5940,26 @@
                     g.rectPath(knobs[k].x - KNOB, knobs[k].y - KNOB, KNOB * 2, KNOB * 2);
                     g.strokePath(boxPen);
                 }
+            }
+
+            // Anything picked or pointed at that is off the canvas gets a
+            // triangle at the border, pointing the way it lies. Amber for a
+            // path the timeline is on, the picked points' own yellow for the
+            // picks - the same two colours they would be drawn in if they
+            // were on screen, so a marker needs no explaining.
+            var marks = edgeMarks(w, h);
+            for (i = 0; i < marks.length; i++) {
+                var mk = marks[i];
+                var tipX = mk.x + mk.ux * 6, tipY = mk.y + mk.uy * 6;
+                var backX = mk.x - mk.ux * 4, backY = mk.y - mk.uy * 4;
+                g.newPath();
+                g.moveTo(tipX, tipY);
+                g.lineTo(backX - mk.uy * 5, backY + mk.ux * 5);
+                g.lineTo(backX + mk.uy * 5, backY - mk.ux * 5);
+                g.closePath();
+                g.fillPath(g.newBrush(g.BrushType.SOLID_COLOR,
+                    mk.lit ? [0.95, 0.72, 0.25, 1] : [1, 0.92, 0.25, 1]));
+                g.strokePath(edge);
             }
 
             // Last, so it sits over anything that reached the edge: the same
@@ -6164,12 +6258,21 @@
         }
 
         // -------------------------------------------------------- dragging
-        function wantsZoom(ev) { return !!ev.ctrlKey || !!ev.metaKey; }
+        // The right button zooms. After Effects does hand it to a ScriptUI
+        // canvas - measured: the press, every move of the drag and the
+        // release all arrive, reporting button 2, and no context menu comes
+        // up over the panel to interrupt them. It used to pan, along with the
+        // middle button, and nothing said so anywhere; a gesture nobody is
+        // told about is a gesture nobody uses, and zoom is what the preview
+        // was short of, now that no wheel can reach it.
+        function wantsZoom(ev) {
+            return !!ev.ctrlKey || !!ev.metaKey || ev.button === 2;
+        }
 
-        // Alt and the middle or right button all pan, because which of them
-        // a tablet or a trackpad can send is not something the panel can know.
+        // Alt and the middle button pan, because which of the two a tablet or
+        // a trackpad can send is not something the panel can know.
         function wantsPan(ev) {
-            return !!ev.altKey || ev.button === 1 || ev.button === 2;
+            return !!ev.altKey || ev.button === 1;
         }
 
         // Where the curve of one point sits now, as vectors in composition
@@ -6438,16 +6541,42 @@
             // Bring the keyboard with the pointer, so an arrow key nudges the
             // points that were just picked.
             try { keySink.active = true; } catch (eFocus) {}
+
+            // A marker at the border is the way back to whatever is picked or
+            // pointed at off screen. Answered before anything else on the
+            // canvas, since it sits where a stray click would otherwise land
+            // on empty space and let the selection go - but not while a
+            // modifier says the drag is a pan or a zoom.
+            if (!wantsZoom(ev) && !wantsPan(ev)) {
+                var mw = Math.max(60, cv.size.width), mh = Math.max(60, cv.size.height);
+                var mks = edgeMarks(mw, mh);
+                for (var mi = 0; mi < mks.length; mi++) {
+                    if (Math.abs(ev.clientX - mks[mi].x) <= MARK_GRAB &&
+                        Math.abs(ev.clientY - mks[mi].y) <= MARK_GRAB) {
+                        state.drag = null;
+                        state.edit = null;
+                        state.preview = null;
+                        centreOn(mks[mi].at, mw, mh);
+                        redraw();
+                        setStatus(mks[mi].lit
+                            ? "Moved to the path the timeline is on."
+                            : "Moved to what is picked.");
+                        return;
+                    }
+                }
+            }
             // A double click on empty canvas is the way back to a fit, now
             // that the view can be moved by hand. On a vertex it is left
             // alone, so two clicks there still just pick and unpick.
-            if (ev.detail >= 2 && !nearestVertex(ev.clientX, ev.clientY, 10) &&
+            // The left button only: the right one is a zoom now, and two
+            // quick zoom drags must not refit the view out from under them.
+            if (ev.detail >= 2 && ev.button !== 2 &&
+                !nearestVertex(ev.clientX, ev.clientY, 10) &&
                 !nearestTip(ev.clientX, ev.clientY, 8)) {
                 state.drag = null;
                 state.edit = null;
                 state.preview = null;
                 fitView(Math.max(60, cv.size.width), Math.max(60, cv.size.height));
-                syncZoomBar();
                 redraw();
                 setStatus("Framed everything in view.");
                 return;
@@ -6599,7 +6728,6 @@
                 state.view.tx = d0.x0 - d0.at[0] * sc;
                 state.view.ty = d0.y0 - d0.at[1] * sc;
                 state.viewManual = true;
-                syncZoomBar();
                 redraw();
                 return;
             }
@@ -6627,8 +6755,8 @@
         });
 
         // Kept because it costs nothing and some hosts do send it, but it is
-        // not what zoom rests on: After Effects does not deliver a wheel here,
-        // which is what Command-drag is for.
+        // not what zoom rests on: After Effects delivers no wheel here, which
+        // is what the right button is for.
         cv.addEventListener("mousewheel", function (ev) {
             var d = 0;
             if (typeof ev.wheelDelta === "number") { d = ev.wheelDelta; }
@@ -6758,15 +6886,35 @@
                             moveEdits(base, [kx * n, ky * n]), [kx * n, ky * n]);
         }
 
-        // Read by name and by code both: which of the two a host fills in
-        // for an arrow is not something the panel can count on.
+        // Read the press by every name a host might give it. ScriptUI's
+        // keyboard event is not the browser's: keyName is the documented
+        // property, keyIdentifier is what some builds fill in instead, and
+        // keyCode belongs to the DOM and is often missing altogether. Any one
+        // of the three naming an arrow is enough, and the long spelling is
+        // taken as readily as the short one.
+        var ARROW_DIR = {
+            "Left": [-1, 0], "ArrowLeft": [-1, 0],
+            "Right": [1, 0], "ArrowRight": [1, 0],
+            "Up": [0, -1], "ArrowUp": [0, -1],
+            "Down": [0, 1], "ArrowDown": [0, 1]
+        };
+
+        // Asked with hasOwnProperty, never by a bare lookup: a key named
+        // "toString" would otherwise come back with a function in its hand
+        // and be read as a direction.
+        function dirNamed(k) {
+            if (k && ARROW_DIR.hasOwnProperty(k)) { return ARROW_DIR[k]; }
+            return null;
+        }
+
         function arrowOf(ev) {
-            var k = "";
+            var d = null, k = "";
             try { k = String(ev.keyName || ""); } catch (eN) {}
-            if (k === "Left") { return [-1, 0]; }
-            if (k === "Right") { return [1, 0]; }
-            if (k === "Up") { return [0, -1]; }
-            if (k === "Down") { return [0, 1]; }
+            d = dirNamed(k);
+            if (d) { return d; }
+            try { k = String(ev.keyIdentifier || ""); } catch (eI) {}
+            d = dirNamed(k);
+            if (d) { return d; }
             var c = 0;
             try { c = Number(ev.keyCode || 0); } catch (eC) {}
             if (c === 37) { return [-1, 0]; }
@@ -6800,9 +6948,7 @@
         }
 
         function onKey(ev) {
-            if (ev.__vxrSeen) { return; }
             if (wantsUndo(ev)) {
-                try { ev.__vxrSeen = true; } catch (eU) {}
                 undoLast();
                 // The project has changed underneath the preview, and the
                 // watcher would not notice: an undo need not change which
@@ -6816,19 +6962,46 @@
             }
             var d = arrowOf(ev);
             if (!d) { return; }
-            try { ev.__vxrSeen = true; } catch (e0) {}
             nudgeBy(d[0], d[1], !!ev.shiftKey);
             try { ev.preventDefault(); } catch (e1) {}
             try { ev.stopPropagation(); } catch (e2) {}
         }
 
-        // One listener, on the one control whose whole job is to receive
-        // these keys. Listening on the window as well looks like belt and
-        // braces and is not: a key that bubbles arrives at both, and the
-        // points move twice as far as the press asked for. Whether ScriptUI
-        // bubbles, and whether it bubbles the same event object or a copy of
-        // it, differs by host - so the panel does not rely on either.
-        keySink.addEventListener("keydown", onKey);
+        // Where the keys are listened for. The field on its own was not
+        // enough, and that is why the arrows did nothing: a text field is
+        // handed the arrows by the operating system for its own caret, and on
+        // macOS it keeps them, so the keydown never reached the panel at all.
+        //
+        // So the window listens too, in the capture phase - before the press
+        // reaches whatever holds the focus. That also widens the arrows to
+        // the whole panel: clicking a button no longer puts the keyboard out
+        // of reach, because the window sees the key on its way down either
+        // way. The field stays, because something in a panel has to be able
+        // to hold the focus at all, and a group cannot.
+        //
+        // The two listeners cannot both act on one press. The capture one
+        // runs first, and the moment it does it says so, which stands the
+        // field's listener down for good. Marking the event itself was what
+        // this did before and it is not safe: a property added to ScriptUI's
+        // own event object does not always stick, and when it does not, the
+        // points move twice as far as the press asked for. A host that never
+        // fires the capture phase leaves the latch closed, and the field goes
+        // on doing the job it always did.
+        var captureWorks = false;
+
+        function onKeyCapture(ev) {
+            captureWorks = true;
+            onKey(ev);
+        }
+
+        try {
+            win.addEventListener("keydown", onKeyCapture, true);
+        } catch (eCap) {}
+
+        keySink.addEventListener("keydown", function (ev) {
+            if (captureWorks) { return; }
+            onKey(ev);
+        });
 
         // Say in the timeline what was just picked here. The signature is
         // written back at the same time, so the watcher reads this as the
@@ -6945,6 +7118,7 @@
             state.items = [];
             state.geom = [];
             state.prims = [];
+            state.pointed = null;
             if (!comp) {
                 clearSel();
                 setStatus("Open a composition to start.");
@@ -6962,13 +7136,19 @@
             var all = scanPaths(comp, layers);
             var prims = scanPrimitives(comp, layers);
             if (P.maskDirect) { all = onlyDirectMasks(all); }
+            // Both lists are answered at once. Asked of each on its own, a
+            // list with nothing chosen in it would fall back to showing all
+            // of itself, which is the opposite of the point.
+            var aim = pointedKeys([all, prims]);
             if (mode === 1) {
-                // Both lists are narrowed on one answer. Asked of each on its
-                // own, a list with nothing chosen in it would fall back to
-                // showing all of itself, which is the opposite of the point.
-                var aim = pointedKeys([all, prims]);
                 all = keepKeys(all, aim);
                 prims = keepKeys(prims, aim);
+            } else {
+                // Showing everything, the same answer is what the preview
+                // lights up instead of what it keeps. Not in Group, where
+                // every path on show is the chosen one and lighting them all
+                // would say nothing.
+                state.pointed = aim;
             }
             var cap = 120;
             for (var i = 0; i < all.length && state.items.length < cap; i++) {
@@ -7041,7 +7221,6 @@
                 fitView(cw, ch);
                 state.fitted = true;
             }
-            syncZoomBar();
             state.shown = shown;
             reportSel();
             redraw();
@@ -7246,21 +7425,19 @@
 
             // Which PROPERTY is chosen moves none of the above: clicking a
             // different shape group inside a layer that is already selected
-            // leaves the layer selection exactly as it was. That only matters
-            // where the preview is narrowed by it, so it is only asked there.
-            var mode = scopeAt;
-            if (mode === 1) {
-                out.push("|g");
-                // What is on show is enough to notice the change by: choosing
-                // another group lets the old one go, and that is a difference
-                // here whether or not the new one was being shown.
-                for (i = 0; i < state.items.length; i++) {
-                    try {
-                        if (isPointedAt(state.items[i].prop)) {
-                            out.push(state.items[i].key);
-                        }
-                    } catch (eG) {}
-                }
+            // leaves the layer selection exactly as it was. It is asked in
+            // every scope now - Group is narrowed by it, and the other two
+            // light it up, so either way the panel has to notice.
+            out.push("|g");
+            // What is on show is enough to notice the change by: choosing
+            // another group lets the old one go, and that is a difference
+            // here whether or not the new one was being shown.
+            for (i = 0; i < state.items.length; i++) {
+                try {
+                    if (isPointedAt(state.items[i].prop)) {
+                        out.push(state.items[i].key);
+                    }
+                } catch (eG) {}
             }
             if (P.maskDirect) {
                 // A mask held back is not in state.items at all, so choosing
@@ -7399,9 +7576,11 @@
         ["Relink", "Puts a rig back after AE edits the path, or switches it on"],
         ["Relink, controls picked", "Builds a lost rig again from those controls"],
         "View",
-        ["Alt-drag", "Pan"],
-        ["Command or Control drag", "Up to zoom in, down to zoom out"],
-        ["Wheel over the strip", "Zoom"]
+        ["Alt-drag, or the middle button", "Pan"],
+        ["Right-drag", "Up to zoom in, down to zoom out"],
+        ["Command or Control drag", "The same zoom, for one-button mice"],
+        ["Double click", "Frame everything in view"],
+        ["Triangle at the edge", "It is out of view - click to go there"]
     ];
 
     function helpDialog(parent) {

@@ -355,6 +355,7 @@ function uiNode(type) {
       }
       else { c.text = txt; }
       n._kids.push(c);
+      c._parent = n;
       return c;
     },
     // What a wheel notch or a drag does to one: move it, then tell the panel,
@@ -364,11 +365,46 @@ function uiNode(type) {
       if (this.onChanging) { this.onChanging.call(this); }
       return this.value;
     },
-    // listeners are kept so a test can fire one, the way a pointer would
-    addEventListener(type, fn) { (this._on[type] = this._on[type] || []).push(fn); },
+    // listeners are kept so a test can fire one, the way a pointer would.
+    // The third argument is ScriptUI's capture phase, and it is kept apart:
+    // a listener registered with it sees the event on its way down the tree,
+    // before whatever is being pressed or typed into.
+    addEventListener(type, fn, capture) {
+      const bag = capture ? (this._onCap = this._onCap || {}) : this._on;
+      (bag[type] = bag[type] || []).push(fn);
+    },
+    // One event object for the whole dispatch, as ScriptUI hands out, and the
+    // ancestors hear it first. A handler that stops it ends the dispatch
+    // there, so the control it was aimed at never sees it.
     fire(type, ev) {
+      const chain = [];
+      for (let p = this._parent; p; p = p._parent) { chain.unshift(p); }
+      let stopped = false, n = 0;
+      const e = Object.assign({ type }, ev || {});
+      e.preventDefault = function () {};
+      e.stopPropagation = function () { stopped = true; };
+      for (const node of chain) {
+        const caps = (node._onCap && node._onCap[type]) || [];
+        for (const fn of caps) {
+          fn.call(node, e); n++;
+          if (stopped) { return n; }
+        }
+      }
       const l = this._on[type] || [];
-      for (const fn of l) { fn.call(this, Object.assign({ type }, ev || {})); }
+      for (const fn of l) {
+        fn.call(this, e); n++;
+        if (stopped) { return n; }
+      }
+      return n;
+    },
+    // The same press delivered to this control alone, as a host that fires
+    // no capture phase at all would deliver it.
+    fireSelf(type, ev) {
+      const l = this._on[type] || [];
+      const e = Object.assign({ type }, ev || {});
+      e.preventDefault = function () {};
+      e.stopPropagation = function () {};
+      for (const fn of l) { fn.call(this, e); }
       return l.length;
     },
     notify(type) { this._repaints = (this._repaints || 0) + 1; return type; },

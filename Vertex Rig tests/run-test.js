@@ -25,7 +25,7 @@ src = src.replace(marker, marker + `
         allPathSignature, checkUnchanged, carriesData, childrenOf,
         scanPrimitives, actAddToPivot, nearestT,
         followPositionExpr, setupFollower, actShowPoints, ICON_ART, drawArt, paintIconButton,
-        ICON_PX, HEAD_PX, ZOOM_PX, ICON_UNITS, roundRectPath, buttonLook, artSize,
+        ICON_PX, HEAD_PX, ICON_UNITS, roundRectPath, buttonLook, artSize,
         paintLabelButton,
         applyEdits, editsFor, editReport, boundsOfPicks, tipVec, tipKind, xformPt,
         actKeyPaths, hasKeyAt, pointedPaths, isPointedAt, revealKeyed, actRevealPaths,
@@ -33,7 +33,7 @@ src = src.replace(marker, marker + `
         actMovePoints, actAlign, actTransform, actCurve,
         rawShape, cloneShape, geomFrom, snapAxis, inPolygon,
         layerMatrix, mInv, mVec, mPt, manEntry,
-        actRelink, relinkOne, heldAt };`);
+        actRelink, relinkOne, heldAt, edgeMarks, centreOn, inCanvas, toCanvas };`);
 
 const names = ["app", "CompItem", "Shape", "PropertyType", "PropertyValueType",
   "KeyframeInterpolationType", "MaskMode", "Window", "Panel", "ScriptUI", "$",
@@ -1167,7 +1167,9 @@ section("preview: panning and zooming by hand");
   ok(/arrow/i.test(helpSrc) && /lasso/i.test(helpSrc) && /align/i.test(helpSrc),
      "along with the keys, the lasso and the alignments");
   const helpRows = helpSrc.split("\n").filter(l => /^\s{8}\["/.test(l));
-  ok(helpRows.length >= 14 && helpRows.length <= 26,
+  // It grows a line as the panel grows a gesture; the ceiling is here to
+  // stop it turning into a manual, not to freeze it.
+  ok(helpRows.length >= 14 && helpRows.length <= 30,
      "a page of it, not a manual", helpRows.length);
   ok(helpRows.every(l => l.length <= 86),
      "every line kept short enough to read across",
@@ -1191,13 +1193,25 @@ section("preview: panning and zooming by hand");
   const pickedAfterPan = Object.keys(V.state.sel).length;
   ok(pickedAfterPan === 0, "panning selects nothing", pickedAfterPan);
 
-  // the middle and right buttons pan too, for the devices that send them
+  // the middle button pans too, for the devices that send one
   const beforeBtn = Object.assign({}, V.state.view);
+  cv.fire("mousedown", { clientX: 10, clientY: 10, button: 1, detail: 1 });
+  cv.fire("mousemove", { clientX: 25, clientY: 10, button: 1 });
+  cv.fire("mouseup",   { clientX: 25, clientY: 10, button: 1 });
+  ok(Math.abs(V.state.view.tx - beforeBtn.tx - 15) < 1e-9,
+     "the middle button pans as well", V.state.view.tx - beforeBtn.tx);
+
+  // but the right one does not: it is the zoom now, and a gesture cannot be
+  // both. After Effects hands all three events of a right-drag to a canvas -
+  // press, moves and release, reporting button 2 - which is what this rests on.
+  const beforeRight = Object.assign({}, V.state.view);
   cv.fire("mousedown", { clientX: 10, clientY: 10, button: 2, detail: 1 });
   cv.fire("mousemove", { clientX: 25, clientY: 10, button: 2 });
   cv.fire("mouseup",   { clientX: 25, clientY: 10, button: 2 });
-  ok(Math.abs(V.state.view.tx - beforeBtn.tx - 15) < 1e-9,
-     "the right button pans as well", V.state.view.tx - beforeBtn.tx);
+  ok(Math.abs(V.state.view.tx - beforeRight.tx) < 1e-9 &&
+     Math.abs(V.state.view.ty - beforeRight.ty) < 1e-9,
+     "the right button no longer pans",
+     [V.state.view.tx - beforeRight.tx, V.state.view.ty - beforeRight.ty].join(","));
 
   // --- zoom ---------------------------------------------------------------
   // After Effects does not hand a wheel to a custom-drawn canvas, so zoom is
@@ -1235,6 +1249,31 @@ section("preview: panning and zooming by hand");
   const sCtl = V.state.view.s;
   zoomDrag({ ctrlKey: true }, 40);
   ok(V.state.view.s > sCtl, "Control drags the same way");
+
+  // --- and the right button, with no modifier at all ----------------------
+  const underRight = toComp(AT);
+  const sRight = V.state.view.s;
+  zoomDrag({ button: 2 }, 60);
+  ok(V.state.view.s > sRight, "a right-drag up zooms in on its own",
+     V.state.view.s / sRight);
+  const underRightAfter = toComp(AT);
+  ok(Math.abs(underRightAfter[0] - underRight[0]) < 1e-9 &&
+     Math.abs(underRightAfter[1] - underRight[1]) < 1e-9,
+     "holding what it started on under the pointer, as Command-drag does");
+  const sRightIn = V.state.view.s;
+  zoomDrag({ button: 2 }, -60);
+  ok(V.state.view.s < sRightIn, "and down comes back out", V.state.view.s);
+  ok(Object.keys(V.state.sel).length === 0, "a right-drag picks nothing");
+
+  // Two quick right-drags land a double click on the canvas; it must not
+  // refit the view out from under the gesture that is going on.
+  const sTwice = V.state.view.s;
+  zoomDrag({ button: 2 }, 30);
+  cv.fire("mousedown", { clientX: AT[0], clientY: AT[1], button: 2, detail: 2 });
+  cv.fire("mousemove", { clientX: AT[0], clientY: AT[1] - 30, button: 2 });
+  cv.fire("mouseup",   { clientX: AT[0], clientY: AT[1] - 30, button: 2 });
+  ok(V.state.view.s > sTwice && V.state.viewManual === true,
+     "a second right-drag keeps zooming rather than refitting", V.state.view.s);
 
   // On macOS a Control-drag also arrives as the right button, which pans.
   // Zoom has to win, or that gesture would do the other thing.
@@ -1282,7 +1321,7 @@ section("preview: panning and zooming by hand");
      "landing back on the framing it had", JSON.stringify(fitted));
 }
 
-section("preview: the zoom strip is what a wheel can reach");
+section("preview: zoom with nothing to click");
 {
   const c = newComp();
   const L = addShapeLayer(c, "Art", "Group 1", star(5, 90), [0, 0]);
@@ -1290,93 +1329,70 @@ section("preview: the zoom strip is what a wheel can reach");
   V.UI.refresh();
 
   const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
-  const bar = M.NODES.filter(n => n.type === "scrollbar")[0];
-  ok(!!bar, "there is a strip beside the canvas");
-  ok(bar && bar.minimumSize[0] > bar.minimumSize[1],
-     "lying flat under the preview, wider than it is tall",
-     bar && bar.minimumSize.join("x"));
-  ok(!!(bar && bar.onChanging), "and it reports while it is being turned");
-  ok(!!(bar && bar.helpTip && /wheel/i.test(bar.helpTip)),
-     "saying the wheel works here", bar && bar.helpTip);
 
-  // Turning it zooms. Right is closer, left is wider, as a horizontal one reads.
+  // The strip was only ever there because a scrollbar is the one control a
+  // wheel can turn, and a wheel never reaches the canvas; the buttons beside
+  // it stepped that strip. The right button zooms over the artwork itself
+  // now, so the whole row is gone.
+  ok(M.NODES.filter(n => n.type === "scrollbar").length === 0,
+     "no scrollbar anywhere in the panel");
+  ok(!/scrollbar/.test(stripLiterals(raw)),
+     "and none is built, so nothing is left echoing a value back");
+  const zoomBtns = M.NODES.filter(n => /zoom (in|out)/i.test(n.helpTip || ""));
+  ok(zoomBtns.length === 0, "and no zoom buttons either", zoomBtns.length);
+  ok(!/ICON_ART\.zoom|"zoomin"|"zoomout"/.test(raw),
+     "with their artwork taken out rather than left to rot");
+
+  // What had to survive that row is the key box: a panel with nothing
+  // focusable in it is sent no keys at all, and the arrows ride on it.
+  const sinks = M.NODES.filter(n => n.type === "edittext" && n._on && n._on.keydown);
+  ok(sinks.length === 1, "the box that holds the keyboard is still there",
+     sinks.length);
+  const statusKids = sinks[0]._parent ? sinks[0]._parent._kids.map(k => k.type) : [];
+  ok(statusKids.indexOf("statictext") >= 0,
+     "rehomed onto the status line, which is always on screen",
+     statusKids.join(","));
+  ok(sinks[0].preferredSize[0] >= 12 && sinks[0].preferredSize[0] <= 24 &&
+     sinks[0].preferredSize[1] <= 16,
+     "one line tall, and still big enough to be given the focus",
+     sinks[0].preferredSize.join("x"));
+
+  // and it still does its job from there
+  const item0 = V.state.items[0];
+  V.state.sel = {};
+  V.state.sel[item0.key] = [0];
+  V.P.nudge = 1;
+  V.P.snap = false;
+  const wasX = V.state.geom[0].verts[0][0];
+  sinks[0].fireSelf("keydown", { keyName: "Right" });
+  V.UI.refresh();
+  ok(Math.abs(V.state.geom[0].verts[0][0] - wasX - 1) < 1e-6,
+     "an arrow still nudges from its new home",
+     V.state.geom[0].verts[0][0] - wasX);
+  V.state.sel = {};
+  V.UI.refresh();
+
+  // --- so zoom is the drag, and the drag alone --------------------------
   const fitted = V.state.view.s;
-  const mid = bar.value;
-  bar.turn(mid + 200);
-  ok(V.state.view.s > fitted, "turning it right zooms in", V.state.view.s / fitted);
-  bar.turn(mid - 200);
-  ok(V.state.view.s < fitted, "and left zooms out", V.state.view.s / fitted);
-
-  // the middle of the canvas is what stays put, since the pointer is on the
-  // strip rather than on the artwork
-  const CW = 320, CH = 260;
-  const toComp = p => [(p[0] - V.state.view.tx) / V.state.view.s,
-                       (p[1] - V.state.view.ty) / V.state.view.s];
-  const before = toComp([CW / 2, CH / 2]);
-  bar.turn(bar.value + 120);
-  const after = toComp([CW / 2, CH / 2]);
-  ok(Math.abs(before[0] - after[0]) < 1e-6 && Math.abs(before[1] - after[1]) < 1e-6,
-     "about the middle of the view", before.join(",") + " -> " + after.join(","));
-
-  // it cannot be turned past the ends
-  bar.turn(bar.maxvalue);
-  ok(V.state.view.s <= 64 + 1e-9 && V.state.view.s > 1,
-     "hard right is as far in as it goes", V.state.view.s);
-  bar.turn(bar.minvalue);
-  ok(V.state.view.s >= 0.02 - 1e-9 && V.state.view.s < 1,
-     "hard left as far out", V.state.view.s);
-
-  // --- the strip follows the view, as well as leading it -------------------
-  bar.turn(500);
-  const zoomDragTo = dy => {
-    cv.fire("mousedown", { clientX: 160, clientY: 130, metaKey: true, detail: 1 });
-    cv.fire("mousemove", { clientX: 160, clientY: 130 - dy, metaKey: true });
-    cv.fire("mouseup", { clientX: 160, clientY: 130 - dy, metaKey: true });
+  const zoomDrag = (keys, dy) => {
+    cv.fire("mousedown", Object.assign({ clientX: 180, clientY: 120, detail: 1 }, keys));
+    cv.fire("mousemove", Object.assign({ clientX: 180, clientY: 120 - dy }, keys));
+    cv.fire("mouseup", Object.assign({ clientX: 180, clientY: 120 - dy }, keys));
   };
-  const wasBar = bar.value;
-  zoomDragTo(70);
-  ok(bar.value > wasBar, "a Command-drag in slides the strip right with it",
-     wasBar + " -> " + bar.value);
-  zoomDragTo(-140);
-  ok(bar.value < wasBar, "and back left again", bar.value);
-
-  // a double click refits, and the strip lands on the fitted zoom
+  zoomDrag({ button: 2 }, 80);
+  ok(V.state.view.s > fitted, "a right-drag is the way in", V.state.view.s / fitted);
+  zoomDrag({ button: 2 }, -160);
+  ok(V.state.view.s < fitted, "and the way out", V.state.view.s / fitted);
   cv.fire("mousedown", { clientX: 3, clientY: 3, detail: 2 });
-  ok(Math.abs(V.state.view.s - fitted) < 1e-9, "a double click refits", V.state.view.s);
-  const expect = Math.round(Math.log(fitted / 0.02) / Math.log(64 / 0.02) * 1000);
-  ok(Math.abs(bar.value - expect) <= 1, "with the strip where that zoom puts it",
-     bar.value + " vs " + expect);
+  ok(Math.abs(V.state.view.s - fitted) < 1e-9 && V.state.viewManual === false,
+     "a double click frames everything again", V.state.view.s);
 
-  // --- the arrows at each end -----------------------------------------
-  const arrows = M.NODES.filter(n => n.type === "iconbutton" &&
-                                     /zoom (in|out)/i.test(n.helpTip || ""));
-  ok(arrows.length === 2, "an arrow at each end of the strip", arrows.length);
-  ok(arrows.every(b => b.preferredSize[0] === V.ZOOM_PX &&
-                       b.preferredSize[1] === V.ZOOM_PX),
-     "both sized for the strip's own row",
-     arrows.map(b => b.preferredSize.join("x")).join(" "));
-  const out = arrows.filter(b => /out/i.test(b.helpTip))[0];
-  const inn = arrows.filter(b => /in -/i.test(b.helpTip))[0];
-  ok(!!out && !!inn, "one out, one in");
-
-  bar.turn(500);
-  const atMid = V.state.view.s;
-  inn.onClick();
-  ok(V.state.view.s > atMid && bar.value > 500, "the right arrow steps closer",
-     bar.value + " / " + V.state.view.s.toFixed(3));
-  out.onClick();
-  ok(Math.abs(V.state.view.s - atMid) < 1e-6 && Math.abs(bar.value - 500) < 1,
-     "and the left arrow steps straight back", bar.value);
-  for (let i = 0; i < 30; i++) { out.onClick(); }
-  ok(bar.value === bar.minvalue && V.state.view.s >= 0.02 - 1e-9,
-     "stepping past the end stops at the end", bar.value);
-
-  // writing the strip must not read back as the user turning it
+  // nothing is echoed into a control any more, so a refresh cannot creep
   const settled = JSON.stringify(V.state.view);
   V.UI.refresh();
   V.UI.refresh();
   ok(JSON.stringify(V.state.view) === settled,
-     "and echoing it back does not creep the view", V.state.view.s);
+     "and a refresh leaves the view exactly where it was", V.state.view.s);
 }
 
 section("preview: a hand-set view is not thrown away by a refresh");
@@ -1565,7 +1581,12 @@ section("selection sync: the panel speaks to the timeline");
      "letting the points go lets the controls go");
 
   // All/None works the same way
-  const bPick = M.NODES.filter(n => n.type === "iconbutton" && /all|none/i.test(n.says || ""))[0];
+  // Anchored on the label the button gives itself, "All - ..." or
+  // "None - ...", rather than on the words appearing anywhere: the scope
+  // cycler names All among its modes, and clicking that one by mistake
+  // changes what the whole suite below is looking at.
+  const bPick = M.NODES.filter(n => n.type === "iconbutton" &&
+                                    /^(all|none)\b/i.test(n.says || ""))[0];
   if (bPick && bPick.onClick) {
     bPick.onClick();
     ok(ctrl0.selected === true && ctrl2.selected === true,
@@ -2000,12 +2021,10 @@ section("icons: drawn paths, not pictures");
     try { V.drawArt(g, V.ICON_ART[name], 0, 0, 28, [0.8, 0.8, 0.8], 1); }
     catch (e) { drawFails.push(name + ": " + e.message); continue; }
     const marks = g.log.filter(x => x === "fill" || x === "stroke").length;
-    const arrow = (name === "zoomout" || name === "zoomin");
-    if (marks < (arrow ? 1 : 2)) { thin.push(name + ":" + marks); }
+    if (marks < 2) { thin.push(name + ":" + marks); }
   }
   ok(drawFails.length === 0, "drawing every icon runs clean", drawFails.slice(0, 3).join("; "));
-  ok(thin.length === 0,
-     "and each one puts down a mark - more than one unless it is just an arrow",
+  ok(thin.length === 0, "and each one puts down more than one mark",
      thin.join(", "));
 
   // the whole button, chrome and all, including the pressed and hover states
@@ -3431,6 +3450,222 @@ section("the preview: Selected group narrows it to what the timeline points at")
   setScope("Layers");
 }
 
+section("the preview: what the timeline points at is lit up where everything shows");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Line", star(5, 100), [0, 0]);
+  const g2 = addGroup(L, "Fill", star(4, 60), [0, 0]);
+  const other = addShapeLayer(c, "Art B", "Line", star(3, 50), [200, 0]);
+  L.selected = true;
+  other.selected = true;
+
+  // Nothing chosen inside the layers: there is no one path to point at, and
+  // lighting all of them would say nothing.
+  setScope("Layers");
+  V.UI.refresh();
+  ok(V.state.items.length === 3, "all three paths are on show",
+     V.state.items.length);
+  ok(V.state.pointed === null,
+     "with nothing chosen in the timeline, nothing is lit",
+     JSON.stringify(V.state.pointed));
+
+  // Choosing a group lights that path and leaves the rest alone - it does
+  // not narrow what is shown, which is what Group is for.
+  g2.selected = true;
+  V.UI.refresh();
+  const litKeys = Object.keys(V.state.pointed || {});
+  ok(V.state.items.length === 3, "choosing a group hides nothing in Layers",
+     V.state.items.length);
+  ok(litKeys.length === 1, "and lights exactly one path", litKeys.length);
+  const litItem = V.state.items.filter(it => V.state.pointed[it.key])[0];
+  ok(!!litItem && litItem.chain.join("/") === "Fill",
+     "the one that was chosen",
+     litItem && litItem.chain.join("/"));
+
+  // the same when the preview is showing the whole composition
+  setScope("All");
+  V.UI.refresh();
+  ok(V.state.pointed && Object.keys(V.state.pointed).length === 1,
+     "All lights it too", JSON.stringify(V.state.pointed));
+  const litAll = V.state.items.filter(it => V.state.pointed[it.key])[0];
+  ok(!!litAll && litAll.chain.join("/") === "Fill",
+     "and still the chosen one", litAll && litAll.chain.join("/"));
+
+  // Group narrows instead of lighting: everything on show there is the
+  // chosen one, so a highlight would be on every path at once.
+  setScope("Group");
+  V.UI.refresh();
+  ok(V.state.items.length === 1, "Group narrows to it as it always did",
+     V.state.items.length);
+  ok(V.state.pointed === null, "and lights nothing, since all of it is chosen",
+     JSON.stringify(V.state.pointed));
+
+  // A different group lights instead, rather than as well.
+  setScope("Layers");
+  g2.selected = false;
+  const g1 = L.property("ADBE Root Vectors Group").property(1);
+  g1.selected = true;
+  V.UI.refresh();
+  const nowLit = V.state.items.filter(it => (V.state.pointed || {})[it.key]);
+  ok(nowLit.length === 1 && nowLit[0].chain.join("/") !== "Fill",
+     "choosing another group moves the light onto it",
+     nowLit.map(it => it.chain.join("/")).join(","));
+
+  // The watcher has to notice on its own, or the light would sit on the old
+  // path until something else happened to refresh the panel. Choosing a
+  // group moves no layer selection, so only the property question can tell -
+  // and until now it was only asked in Group. This drives the watcher itself,
+  // the way the scheduled task does, with no refresh of the test's own.
+  const watch = M.$.global.__vxrWatch;
+  ok(typeof watch === "function", "the watcher is hung off the global");
+  watch();
+  g1.selected = false;
+  g2.selected = true;
+  watch();
+  const afterWatch = V.state.items.filter(it => (V.state.pointed || {})[it.key]);
+  ok(afterWatch.length === 1 && afterWatch[0].chain.join("/") === "Fill",
+     "the watcher alone moves the light to the newly chosen group",
+     afterWatch.map(it => it.chain.join("/")).join(","));
+
+  g2.selected = false;
+  other.selected = false;
+  setScope("Layers");
+  V.UI.refresh();
+}
+
+section("the preview: a selection off the canvas says so at the edge");
+{
+  const CW = 320, CH = 260;
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Line", star(5, 100), [0, 0]);
+  const g2 = addGroup(L, "Fill", star(4, 60), [0, 0]);
+  L.selected = true;
+  setScope("Layers");
+  V.UI.refresh();
+
+  const key = V.state.items[0].key;
+  const inside = p => p[0] >= 0 && p[0] <= CW && p[1] >= 0 && p[1] <= CH;
+
+  // nothing picked and nothing chosen: nothing to point at
+  ok(V.edgeMarks(CW, CH).length === 0, "a fitted view with no selection has no markers",
+     V.edgeMarks(CW, CH).length);
+
+  // a pick that is on screen does not need one either
+  V.state.sel = {};
+  V.state.sel[key] = [0];
+  ok(V.edgeMarks(CW, CH).length === 0,
+     "nor does one you can already see", V.edgeMarks(CW, CH).length);
+
+  // shove the view until the picked point is off the canvas
+  V.state.view.tx += 4000;
+  V.state.viewManual = true;
+  const marks = V.edgeMarks(CW, CH);
+  ok(marks.length === 1, "pushing it off the canvas raises one marker", marks.length);
+  ok(marks[0].lit === false, "the picks' own, not a lit path's");
+  ok(inside([marks[0].x, marks[0].y]), "drawn inside the canvas",
+     marks[0].x + "," + marks[0].y);
+  ok(marks[0].x > CW - 20, "against the border it lies beyond", marks[0].x);
+  ok(marks[0].ux > 0.9, "pointing that way", marks[0].ux);
+
+  // one marker for the lot, however many points are picked
+  V.state.sel[key] = [0, 1, 2, 3];
+  ok(V.edgeMarks(CW, CH).length === 1,
+     "four picked points still make one marker", V.edgeMarks(CW, CH).length);
+
+  // with any of it back in view, the marker goes
+  V.state.view.tx -= 4000;
+  ok(V.edgeMarks(CW, CH).length === 0, "and it goes once any of it is in view",
+     V.edgeMarks(CW, CH).length);
+
+  // a picked handle counts as part of the selection, on a path that has one
+  // to pick - a star is all corners, and a corner has no tangent
+  const curved = addShapeLayer(c, "Curved", "Blob", curvy(80), [0, 0]);
+  curved.selected = true;
+  V.UI.refresh();
+  const cKey = V.state.items.filter(it => it.layer === curved)[0].key;
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.selH[cKey] = ["0:out"];
+  V.state.view.ty -= 4000;
+  V.state.viewManual = true;
+  const hMarks = V.edgeMarks(CW, CH);
+  ok(hMarks.length === 1 && hMarks[0].uy < -0.9,
+     "a handle on its own raises one too, pointing up",
+     hMarks.length + " / " + (hMarks[0] && hMarks[0].uy));
+  V.state.view.ty += 4000;
+  V.state.selH = {};
+  curved.selected = false;
+  V.UI.refresh();
+
+  // --- the path the timeline is on ---------------------------------------
+  g2.selected = true;
+  V.UI.refresh();
+  ok(V.state.pointed && Object.keys(V.state.pointed).length === 1, "one path is lit");
+  ok(V.edgeMarks(CW, CH).length === 0, "and in view it needs no marker");
+  V.state.view.tx -= 4000;
+  V.state.viewManual = true;
+  const litMarks = V.edgeMarks(CW, CH);
+  ok(litMarks.length === 1 && litMarks[0].lit === true,
+     "off the canvas it gets one of its own",
+     litMarks.map(m => m.lit).join(","));
+  ok(litMarks[0].ux < -0.9, "pointing the way it went", litMarks[0].ux);
+
+  // --- clicking one goes there -------------------------------------------
+  const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
+  const mk = V.edgeMarks(CW, CH)[0];
+  cv.fire("mousedown", { clientX: Math.round(mk.x), clientY: Math.round(mk.y), detail: 1 });
+  cv.fire("mouseup", { clientX: Math.round(mk.x), clientY: Math.round(mk.y) });
+  const back = [mk.at[0] * V.state.view.s + V.state.view.tx,
+                mk.at[1] * V.state.view.s + V.state.view.ty];
+  ok(Math.abs(back[0] - CW / 2) < 1 && Math.abs(back[1] - CH / 2) < 1,
+     "clicking it puts that place in the middle of the canvas", back.join(","));
+  ok(V.edgeMarks(CW, CH).length === 0, "so the marker has nothing left to say",
+     V.edgeMarks(CW, CH).length);
+
+  // the zoom is the user's: going somewhere must not reframe
+  const heldZoom = V.state.view.s;
+  V.state.view.tx += 4000;
+  const mk2 = V.edgeMarks(CW, CH)[0];
+  cv.fire("mousedown", { clientX: Math.round(mk2.x), clientY: Math.round(mk2.y), detail: 1 });
+  cv.fire("mouseup", { clientX: Math.round(mk2.x), clientY: Math.round(mk2.y) });
+  ok(Math.abs(V.state.view.s - heldZoom) < 1e-9,
+     "at the zoom it was already at", V.state.view.s);
+
+  // and a click on a marker is not a click on empty canvas: it must not let
+  // the picks go on the way
+  V.state.sel = {};
+  V.state.sel[key] = [0, 1];
+  V.state.view.tx += 4000;
+  const mk3 = V.edgeMarks(CW, CH).filter(m => !m.lit)[0];
+  cv.fire("mousedown", { clientX: Math.round(mk3.x), clientY: Math.round(mk3.y), detail: 1 });
+  cv.fire("mouseup", { clientX: Math.round(mk3.x), clientY: Math.round(mk3.y) });
+  ok((V.state.sel[key] || []).length === 2,
+     "the picks survive the trip", JSON.stringify(V.state.sel[key]));
+
+  // an Alt-drag that happens to start on one still pans
+  V.state.view.tx += 4000;
+  const mk4 = V.edgeMarks(CW, CH).filter(m => !m.lit)[0];
+  const wasTx = V.state.view.tx;
+  cv.fire("mousedown", { clientX: Math.round(mk4.x), clientY: Math.round(mk4.y),
+                         altKey: true, detail: 1 });
+  cv.fire("mousemove", { clientX: Math.round(mk4.x) - 30, clientY: Math.round(mk4.y),
+                         altKey: true });
+  cv.fire("mouseup", { clientX: Math.round(mk4.x) - 30, clientY: Math.round(mk4.y),
+                       altKey: true });
+  ok(Math.abs(V.state.view.tx - wasTx + 30) < 1e-9,
+     "a modifier still wins over the marker", V.state.view.tx - wasTx);
+
+  // a canvas too small to have a middle is left alone rather than divided by
+  ok(V.edgeMarks(0, 0).length === 0, "no markers on a canvas with no room");
+
+  g2.selected = false;
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.viewManual = false;
+  setScope("Layers");
+  V.UI.refresh();
+}
+
 section("the preview: a mask's points can wait until the mask is chosen");
 {
   const c = newComp();
@@ -3814,6 +4049,19 @@ section("the panel: the tab rows draw a smaller picture in the same button");
   ok(draw.lastIndexOf("roundRectPath") < draw.lastIndexOf("strokePath") &&
      draw.lastIndexOf("strokePath") > draw.lastIndexOf("fillPath"),
      "and its border is stroked last of all");
+
+  // the light goes under the path's own line, so a keyframed or parametric
+  // one keeps the colour that says what it is
+  const litAt = draw.indexOf("strokePath(litPen)");
+  const penAt = draw.indexOf("strokePath(pen)");
+  ok(litAt > 0 && penAt > litAt,
+     "a lit path is stroked under its own line, not instead of it",
+     litAt + " then " + penAt);
+  ok(/state\.pointed\s*&&\s*state\.pointed\[ikey\]/.test(draw),
+     "and it is the refresh's answer that says which, not a fresh lookup");
+  ok(!/isPointedAt/.test(draw),
+     "nothing walks the property tree inside a repaint",
+     (draw.match(/isPointedAt/g) || []).length);
 }
 
 // Reveal acts on the selected layers and opens every keyframed property on
@@ -4121,7 +4369,11 @@ section("editing: with fewer than two points, a move carries the handles too");
   gm = V.state.geom[0];
   const o3Was = V.tipVec(gm, 3, "out");
   const sink = M.NODES.filter(n => n.type === "edittext" && n._on && n._on.keydown)[0];
-  sink.fire("keydown", { keyName: "Right" });
+  // Delivered to the field and nowhere else, which is a host that fires no
+  // capture phase: there its own listener is the only one that can hear the
+  // press. This is the first key the suite sends, so it is the one press
+  // that reaches the panel that way.
+  sink.fireSelf("keydown", { keyName: "Right" });
   V.UI.refresh();
   const o3Now = V.tipVec(V.state.geom[0], 3, "out");
   ok(o3Now && Math.abs(o3Now[0] - o3Was[0] - 1) < 1e-6,
@@ -4349,6 +4601,10 @@ section("the preview: the keyboard has somewhere to live");
   V.state.sel[item.key] = [0];
   const was = V.state.geom[0].verts[0].slice();
 
+  // Down the tree, past the window's capture listener, as ScriptUI
+  // dispatches a press at the control that has the focus. The field on its
+  // own was tried further up, on a handle: both ways move the point by
+  // exactly one step, and neither moves it twice.
   sinks[0].fire("keydown", { keyName: "Right" });
   V.UI.refresh();
   ok(Math.abs(V.state.geom[0].verts[0][0] - was[0] - 1) < 1e-6,
@@ -4363,8 +4619,8 @@ section("the preview: the keyboard has somewhere to live");
   ok(Math.abs(V.state.geom[0].verts[0][1] - was2[1] + 8) < 1e-6,
      "and with shift by the longer step", V.state.geom[0].verts[0][1] - was2[1]);
 
-  // Which of keyName and keyCode a host fills in for an arrow is not
-  // something the panel can count on, so both are read.
+  // Which of keyName, keyIdentifier and keyCode a host fills in for an arrow
+  // is not something the panel can count on, so all three are read.
   V.state.sel = {};
   V.state.sel[item.key] = [0];
   const wasCode = V.state.geom[0].verts[0].slice();
@@ -4376,18 +4632,44 @@ section("the preview: the keyboard has somewhere to live");
 
   V.state.sel = {};
   V.state.sel[item.key] = [0];
+  const wasIdent = V.state.geom[0].verts[0].slice();
+  sinks[0].fire("keydown", { keyIdentifier: "ArrowLeft" });
+  V.UI.refresh();
+  ok(Math.abs(V.state.geom[0].verts[0][0] - wasIdent[0] + 1) < 1e-6,
+     "an arrow named only by keyIdentifier, in its long spelling, nudges too",
+     V.state.geom[0].verts[0][0] - wasIdent[0]);
+
+  V.state.sel = {};
+  V.state.sel[item.key] = [0];
   const was3 = V.state.geom[0].verts[0].slice();
   sinks[0].fire("keydown", { keyName: "Enter" });
   V.UI.refresh();
   ok(Math.abs(V.state.geom[0].verts[0][0] - was3[0]) < 1e-9,
      "a key that is not an arrow is left to the host");
 
-  // One press, one nudge: the handler is hung off the field alone. Listening
-  // on the window as well would double every press that bubbles.
-  const keyListeners = M.NODES.filter(n => n._on && n._on.keydown);
-  ok(keyListeners.length === 1,
-     "exactly one control listens for a key, so a press cannot count twice",
-     keyListeners.map(n => n.type).join(","));
+  // The names are looked up in a table, and a table is asked with
+  // hasOwnProperty or it answers for things every object has.
+  V.state.sel = {};
+  V.state.sel[item.key] = [0];
+  const wasOdd = V.state.geom[0].verts[0].slice();
+  sinks[0].fire("keydown", { keyName: "toString" });
+  V.UI.refresh();
+  ok(Math.abs(V.state.geom[0].verts[0][0] - wasOdd[0]) < 1e-9,
+     "a key named after something every object has is not read as a direction",
+     V.state.geom[0].verts[0][0] - wasOdd[0]);
+
+  // Two listeners, and that is the point of the fix: a text field is handed
+  // the arrows by the operating system for its own caret, and on macOS it
+  // keeps them, so a listener on the field alone never heard the press. The
+  // window hears it on the way down instead, whatever holds the focus.
+  const capKeys = M.NODES.filter(n => n._onCap && n._onCap.keydown);
+  ok(capKeys.length === 1 && capKeys[0].type === "window",
+     "the window hears a key on its way down, before the focus does",
+     capKeys.map(n => n.type).join(","));
+  const bubbleKeys = M.NODES.filter(n => n._on && n._on.keydown);
+  ok(bubbleKeys.length === 1 && bubbleKeys[0] === sinks[0],
+     "and the field keeps a listener, for a host that captures nothing",
+     bubbleKeys.map(n => n.type).join(","));
 
   // --- the undo shortcut --------------------------------------------------
   // The panel keeps no stack of its own: its edits are already groups on
@@ -4426,6 +4708,20 @@ section("the preview: the keyboard has somewhere to live");
   ok(Math.abs(V.state.geom[0].verts[0][0] - wasZ[0]) < 1e-9,
      "and undo is not mistaken for an arrow");
 
+  // One press, one nudge, on a host that fires both phases. The field's
+  // listener stands down for good the moment the window's capture one is
+  // heard from; marking the event instead was what this did before, and a
+  // property added to ScriptUI's own event object does not always stick -
+  // when it did not, the points moved twice as far as the press asked for.
+  V.state.sel = {};
+  V.state.sel[item.key] = [0];
+  const wasLatch = V.state.geom[0].verts[0].slice();
+  sinks[0].fireSelf("keydown", { keyName: "Right" });
+  V.UI.refresh();
+  ok(Math.abs(V.state.geom[0].verts[0][0] - wasLatch[0]) < 1e-9,
+     "the field stands down once the window has shown it hears keys",
+     V.state.geom[0].verts[0][0] - wasLatch[0]);
+
   // Hand the panel back the way it was found: the All/None button renames
   // itself from the selection, and the checks below read what it says.
   V.state.sel = {};
@@ -4453,13 +4749,17 @@ section("icons: four tabs, and hovering says what a picture does");
   ok(top.margins[0] === top.margins[2] && top.margins[0] > 0,
      "and the wrapper carries that inset, left and right alike",
      JSON.stringify(top.margins));
-  ok(top._kids.length === 3, "header, preview, zoom strip", top._kids.length);
+  ok(top._kids.length === 2, "header, then preview - the zoom row is gone",
+     top._kids.length);
 
   // the status line goes under everything, with a mark in front of it
   const statusRow = win._kids[2];
-  ok(statusRow._kids.length === 2 &&
+  ok(statusRow._kids.length === 3 &&
      statusRow._kids[1].type === "statictext",
      "the status line is last, and the mark comes before the words",
+     statusRow._kids.map(k => k.type).join(","));
+  ok(statusRow._kids[2].type === "edittext",
+     "with the key box tucked on the end of it",
      statusRow._kids.map(k => k.type).join(","));
   ok(typeof statusRow._kids[0].onDraw === "function",
      "the mark draws itself");
@@ -4528,14 +4828,9 @@ section("icons: four tabs, and hovering says what a picture does");
   ok(headKids.every(c => c.preferredSize[1] === V.HEAD_PX),
      "every control on the top row stands the same height",
      headKids.map(c => c.preferredSize[1]).join(","));
-  const zoomKids = M.NODES.filter(n => /zoom (in|out)/i.test(n.helpTip || ""));
-  ok(zoomKids.length === 2 &&
-     zoomKids.every(c => c.preferredSize[1] === V.ZOOM_PX),
-     "the zoom strip's own row stands at its own height",
-     zoomKids.map(c => c.preferredSize[1]).join(","));
   const tabKids = M.NODES.filter(n =>
     (n.type === "iconbutton" || n.type === "dropdownlist") &&
-    headKids.indexOf(n) < 0 && zoomKids.indexOf(n) < 0 &&
+    headKids.indexOf(n) < 0 &&
     n.preferredSize && n.preferredSize[1]);
   const offTab = tabKids.filter(n => n.preferredSize[1] !== V.ICON_PX);
   ok(offTab.length === 0, "and every control in a tab stands at the other",
