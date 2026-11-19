@@ -47,7 +47,13 @@
  *                       anything. After Effects has no command that opens one
  *                       named property, so a path with keyframes opens on its
  *                       own and one without brings the layer's other modified
- *                       properties with it; the message says which happened
+ *                       properties with it; the message says which happened.
+ *                       Aimed by points picked in the preview, it narrows the
+ *                       layer selection to those paths' layers and leaves the
+ *                       paths themselves as the chosen properties, so little
+ *                       else comes open beside them. Aimed from the timeline,
+ *                       it takes nothing away: that selection is already an
+ *                       answer to the question
  *
  *             A point the rig already holds moves whatever holds it: its own
  *             control layer, or its place in the Pivot that gathered it. A
@@ -4279,23 +4285,53 @@
     // that, so this shows the key that was made and little else.
     var CMD_REVEAL_KEYED = 2387;
 
-    function revealKeyed(items) {
-        var comp = activeComp();
-        if (!comp || !items || !items.length) { return false; }
-        var seen = {}, any = false, i;
+    // The reveal commands act on every selected layer, and open every
+    // keyframed - or modified - property on it. Neither can be told to open
+    // one named property: After Effects has no such command, which is why
+    // what is asked for has to be narrowed by the selection instead.
+    //
+    // So when the aim came from points picked in the preview, the selection
+    // is made exactly those layers rather than added to, and exactly those
+    // paths are left as the selected properties, so the rows asked for are
+    // the ones highlighted among whatever else came open. When the aim came
+    // from the timeline instead, nothing is taken away: the selection there
+    // is already the user's answer to the question.
+    function aimLayers(comp, items, only) {
+        var want = {}, any = false, i, n, L;
         for (i = 0; i < items.length; i++) {
-            var L = items[i] ? items[i].layer : null;
-            if (!L) { continue; }
+            if (items[i] && items[i].layer) { want[items[i].layer.id] = true; }
+        }
+        for (n = 1; n <= comp.numLayers; n++) {
             try {
-                if (seen[L.id]) { continue; }
-                seen[L.id] = true;
-                // Added to the selection, never swapped in for it: what else
-                // is selected is the user's, and a reveal only opens rows.
-                if (!L.selected) { L.selected = true; }
-                any = true;
+                L = comp.layer(n);
+                if (want[L.id]) {
+                    if (!L.selected) { L.selected = true; }
+                    any = true;
+                } else if (only && L.selected) {
+                    L.selected = false;
+                }
             } catch (e) {}
         }
-        if (!any) { return false; }
+        return any;
+    }
+
+    // Deselecting a layer lets its properties go with it, so the paths are
+    // chosen after the layers, never before.
+    function aimPaths(items) {
+        for (var i = 0; i < items.length; i++) {
+            try {
+                if (items[i] && items[i].prop && !items[i].prim) {
+                    items[i].prop.selected = true;
+                }
+            } catch (e) {}
+        }
+    }
+
+    function revealKeyed(items, only) {
+        var comp = activeComp();
+        if (!comp || !items || !items.length) { return false; }
+        if (!aimLayers(comp, items, only)) { return false; }
+        if (only) { aimPaths(items); }
         try { app.executeCommand(CMD_REVEAL_KEYED); } catch (e2) { return false; }
         return true;
     }
@@ -4352,7 +4388,7 @@
     // than leaving a timeline full of unexplained rows.
     var CMD_REVEAL_MODIFIED = 2771;
 
-    function actRevealPaths(items) {
+    function actRevealPaths(items, only) {
         if (!items || !items.length) {
             UI.say("Select a shape layer or a shape group first.");
             return false;
@@ -4368,16 +4404,11 @@
             paths++;
             try { if (it.prop.numKeys > 0) { keyed++; } } catch (e) {}
             try {
-                if (!seen[it.layer.id]) {
-                    seen[it.layer.id] = true;
-                    layers++;
-                    // Added to the selection rather than swapped in for it:
-                    // the reveal acts on selected layers, and what else is
-                    // selected is the user's business.
-                    if (!it.layer.selected) { it.layer.selected = true; }
-                }
+                if (!seen[it.layer.id]) { seen[it.layer.id] = true; layers++; }
             } catch (e1) {}
         }
+        aimLayers(comp, items, only);
+        if (only) { aimPaths(items); }
         if (!paths) {
             UI.say(prim
                 ? "A rectangle, ellipse or star has no path to open - press Create to make one."
@@ -4397,6 +4428,9 @@
             : ("Opened " + plural(paths, "path") + ", and everything else modified on " +
                plural(layers, "layer") +
                ": only a keyframed property can be opened on its own. Press Keyframe first for just the path.");
+        if (only) {
+            msg += " " + plural(layers, "layer") + " is selected, and those paths with it.";
+        }
         if (prim) { msg += " " + plural(prim, "shape") + " has no path to open."; }
         UI.say(msg);
         return true;
@@ -7039,12 +7073,16 @@
             return list;
         }
 
+        // Whether what is aimed at came from points picked here, rather than
+        // from what the timeline happens to be pointing at.
+        function aimedHere() { return currentPicks().length > 0; }
+
         bKey.onClick = function () {
-            var list = aimedPaths();
-            if (actKeyPaths(list) && P.revealKeyed) { revealKeyed(list); }
+            var list = aimedPaths(), mine = aimedHere();
+            if (actKeyPaths(list) && P.revealKeyed) { revealKeyed(list, mine); }
         };
 
-        bReveal.onClick = function () { actRevealPaths(aimedPaths()); };
+        bReveal.onClick = function () { actRevealPaths(aimedPaths(), aimedHere()); };
 
         bRelink.onClick = function () { actRelink(aimedPaths(), sel()); };
 

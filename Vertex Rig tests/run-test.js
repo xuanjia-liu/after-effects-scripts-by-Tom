@@ -3816,6 +3816,86 @@ section("the panel: the tab rows draw a smaller picture in the same button");
      "and its border is stroked last of all");
 }
 
+// Reveal acts on the selected layers and opens every keyframed property on
+// them: After Effects has no command that opens one named property. So when
+// the aim comes from points picked here, the selection is narrowed to match.
+section("reveal: picking in the preview narrows what the timeline opens");
+{
+  const c = newComp();
+  const a = addShapeLayer(c, "Art A", "Line", star(5, 100), [0, 0]);
+  const b = addShapeLayer(c, "Art B", "Line", star(4, 80), [0, 0]);
+  a.selected = true;
+  b.selected = true;
+  setScope("Layers");
+  V.UI.refresh();
+  ok(V.state.items.length === 2, "both layers' paths are in view", V.state.items.length);
+
+  const mine = V.state.items.filter(it => it.layer === a)[0];
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.sel[mine.key] = [0];
+
+  const btn = M.NODES.filter(n => /Open those paths/.test(n.says || ""))[0];
+  ok(!!btn, "the Reveal button is there");
+  M.app._commands.length = 0;
+  const said = sayOf(() => btn.onClick.call(btn));
+
+  ok(a.selected === true && b.selected === false,
+     "the layer the picked path is on is selected, and the other is not",
+     a.selected + " / " + b.selected);
+  ok(mine.prop.selected === true,
+     "and the path itself is the chosen property");
+  ok(M.app._commands.length === 1, "one reveal command went out",
+     M.app._commands.join(","));
+  ok(/selected/.test(said), "and it says the selection was narrowed", said);
+}
+
+section("reveal: aimed from the timeline, it takes nothing away");
+{
+  const c = newComp();
+  const a = addShapeLayer(c, "Art A", "Line", star(5, 100), [0, 0]);
+  const b = addShapeLayer(c, "Art B", "Line", star(4, 80), [0, 0]);
+  a.selected = true;
+  b.selected = true;
+  setScope("Layers");
+  V.UI.refresh();
+  V.state.sel = {};
+  V.state.selH = {};
+
+  const btn = M.NODES.filter(n => /Open those paths/.test(n.says || ""))[0];
+  M.app._commands.length = 0;
+  btn.onClick.call(btn);
+  ok(a.selected === true && b.selected === true,
+     "with nothing picked here, the timeline's own selection stands",
+     a.selected + " / " + b.selected);
+}
+
+section("keyframe: the reveal after it narrows the same way");
+{
+  const c = newComp();
+  const a = addShapeLayer(c, "Art A", "Line", star(5, 100), [0, 0]);
+  const b = addShapeLayer(c, "Art B", "Line", star(4, 80), [0, 0]);
+  a.selected = true;
+  b.selected = true;
+  setScope("Layers");
+  V.P.revealKeyed = true;
+  V.UI.refresh();
+  const mine = V.state.items.filter(it => it.layer === a)[0];
+  const other = V.state.items.filter(it => it.layer === b)[0];
+  V.state.sel = {};
+  V.state.selH = {};
+  V.state.sel[mine.key] = [0];
+
+  const btn = M.NODES.filter(n => /A path keyframe here/.test(n.says || ""))[0];
+  btn.onClick.call(btn);
+  ok(mine.prop.numKeys === 1 && other.prop.numKeys === 0,
+     "only the picked path is keyed",
+     mine.prop.numKeys + " / " + other.prop.numKeys);
+  ok(a.selected === true && b.selected === false,
+     "and the reveal that follows narrows to it too",
+     a.selected + " / " + b.selected);
+}
+
 section("the preview: the turn arcs are drawn where a turn is taken hold of");
 {
   const c = newComp();
