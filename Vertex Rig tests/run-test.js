@@ -25,7 +25,8 @@ src = src.replace(marker, marker + `
         allPathSignature, checkUnchanged, carriesData, childrenOf,
         scanPrimitives, actAddToPivot, nearestT,
         followPositionExpr, setupFollower, actShowPoints, ICON_ART, drawArt, paintIconButton,
-        ICON_PX, HEAD_PX, ZOOM_PX, ICON_UNITS, roundRectPath,
+        ICON_PX, HEAD_PX, ZOOM_PX, ICON_UNITS, roundRectPath, buttonLook, artSize,
+        paintLabelButton,
         applyEdits, editsFor, editReport, boundsOfPicks, tipVec, tipKind, xformPt,
         actKeyPaths, hasKeyAt, pointedPaths, isPointedAt, revealKeyed, actRevealPaths,
         run, touched, countSel, countSelH, tipPicked, tipName, currentPicks,
@@ -1127,11 +1128,13 @@ section("Handles is set in one place, not two");
   const writes = raw.split("\n")
     .filter(l => /P\.handleMode\s*=[^=]/.test(l));
   ok(writes.length === 1, "one control writes the setting", writes.length);
-  ok(/modeDd/.test(writes[0]), "and it is the one on the panel", writes.join(" | "));
   ok(raw.indexOf("Masks inside the point control") < 0,
      "the Preferences copy is gone");
-  ok(/dropdownlist", undefined, \["Handles: masks"/.test(raw),
-     "the panel still offers both modes");
+  // it used to be a dropdown; it is a cycling button now, so that After
+  // Effects is not the one drawing its corners
+  ok(/"Handle style"/.test(raw) && /art: "handmask"/.test(raw) &&
+     /art: "handlayer"/.test(raw),
+     "the panel still offers both ways of keeping a handle");
 }
 
 // ======================================= the preview pans and zooms by hand
@@ -1604,13 +1607,16 @@ section("no Refresh button; the bulk repair is behind Preferences");
 
   // the row still fits, with more room than before
   const win = M.NODES.filter(n => n.type === "window")[0];
-  const head = win._kids[0];
+  const head = win._kids[0]._kids[0];
   const w = head._kids.reduce((n, c) => n + c.preferredSize[0], 0) +
             4 * (head._kids.length - 1);
-  ok(w <= 368, "the top row fits", w + " of 368");
-  ok(head._kids.filter(c => c.type === "iconbutton").length === 8,
-     "eight icons on it now, Help among them",
+  ok(w <= 400, "the top row fits", w + " of 400");
+  // nine square ones plus the Showing setting, which is a button too now
+  ok(head._kids.filter(c => c.type === "iconbutton").length === 10,
+     "ten buttons on it, the pick mode and the Showing setting among them",
      head._kids.filter(c => c.type === "iconbutton").length);
+  ok(head._kids.filter(c => c.type === "dropdownlist").length === 0,
+     "and no dropdown left for After Effects to draw the corners of");
 }
 
 // ===================== showing a path's own points in the composition
@@ -1681,7 +1687,7 @@ section("the pick toggle offers the opposite of what you have");
   L.selected = true;
   V.UI.refresh();
   const win = M.NODES.filter(n => n.type === "window")[0];
-  const toggle = win._kids[0]._kids.filter(
+  const toggle = win._kids[0]._kids[0]._kids.filter(
     c2 => /Pick every point|Let every picked point go/.test(c2.helpTip || ""))[0];
   ok(!!toggle, "there is one button for both");
 
@@ -2033,6 +2039,11 @@ section("icons: drawn paths, not pictures");
   while ((m = re.exec(raw)) !== null) { used.push(m[1]); }
   ok(used.length >= 12, "and a button for each", used.length);
   // one more is reached by name, for the button that shows two pictures
+  // and the cycling settings name theirs in a table of states
+  const byTable = /\bart:\s*"([a-z]+)"/g;
+  while ((m = byTable.exec(raw)) !== null) {
+    if (used.indexOf(m[1]) < 0) { used.push(m[1]); }
+  }
   const byName = /ICON_ART\.([a-z]+)/g;
   while ((m = byName.exec(raw)) !== null) {
     if (used.indexOf(m[1]) < 0) { used.push(m[1]); }
@@ -3361,6 +3372,450 @@ section("relink: a rigged vertex that was deleted is reported, not swapped");
      ctrl.transform.position.value.join(",") + " was " + was.join(","));
 }
 
+function scopeControl() {
+  return M.NODES.filter(n => /^Showing: /.test(n.says || ""))[0];
+}
+
+// It cycles rather than drops down, so getting to a state means clicking
+// until it says it is there.
+function setScope(word) {
+  const b = scopeControl();
+  for (let i = 0; i <= 3; i++) {
+    if (new RegExp("^Showing: " + word + "\\b").test(b.says || "")) { return b; }
+    b.onClick.call(b);
+  }
+  throw new Error("scope would not reach " + word + ": " + b.says);
+}
+
+section("the preview: Selected group narrows it to what the timeline points at");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Line", star(5, 100), [0, 0]);
+  const g2 = addGroup(L, "Fill", star(4, 60), [0, 0]);
+  L.selected = true;
+  const scope = scopeControl();
+  ok(!!scope, "the scope control is there");
+  const words = [];
+  for (let i = 0; i < 3; i++) {
+    words.push(String(scope.says).replace(/^Showing: /, "").split(" -")[0]);
+    scope.onClick.call(scope);
+  }
+  ok(words.join(" / ") === "Layers / Group / All",
+     "it offers three, and the new one sits in the middle", words.join(" / "));
+
+  setScope("Layers");
+  V.UI.refresh();
+  ok(V.state.items.length === 2, "selected layers shows both paths",
+     V.state.items.length);
+
+  setScope("Group");
+  V.UI.refresh();
+  ok(V.state.items.length === 2,
+     "with nothing chosen inside it, the whole layer is still shown",
+     V.state.items.length);
+
+  // choosing a shape group in the timeline is what narrows it
+  g2.selected = true;
+  V.UI.refresh();
+  // sname is the shape inside the group ("Path 1" for both); the chain is
+  // what says which group it came out of.
+  ok(V.state.items.length === 1 && V.state.items[0].chain.join("/") === "Fill",
+     "and choosing a group leaves that path on its own",
+     V.state.items.map(it => it.chain.join("/")).join(","));
+
+  setScope("Layers");
+  V.UI.refresh();
+  ok(V.state.items.length === 2, "back on selected layers both return",
+     V.state.items.length);
+  g2.selected = false;
+  setScope("Layers");
+}
+
+section("the preview: a mask's points can wait until the mask is chosen");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Line", star(5, 100), [0, 0]);
+  const mask = L.property("ADBE Mask Parade").addProperty("ADBE Mask Atom");
+  mask.name = "Window";
+  mask.property("ADBE Mask Shape").setValue(star(4, 70));
+  L.selected = true;
+  setScope("Layers");
+
+  ok(V.P.maskDirect === false, "the setting is off to begin with", V.P.maskDirect);
+  V.UI.refresh();
+  ok(V.state.items.length === 2, "so the mask shows beside the shape",
+     V.state.items.length);
+
+  V.P.maskDirect = true;
+  V.UI.refresh();
+  ok(V.state.items.length === 1 && !V.state.items[0].mask,
+     "with it on, a mask nothing points at is left out",
+     V.state.items.map(it => it.sname).join(","));
+
+  // the mask itself, not the layer it sits on
+  mask.selected = true;
+  V.UI.refresh();
+  ok(V.state.items.length === 2, "choosing the mask brings its points back",
+     V.state.items.length);
+
+  mask.selected = false;
+  V.P.maskDirect = false;
+  V.UI.refresh();
+}
+
+section("the preview: a path with keyframes is drawn in a colour of its own");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Line", star(5, 100), [0, 0]);
+  addGroup(L, "Fill", star(4, 60), [0, 0]);
+  L.selected = true;
+  setScope("Layers");
+  V.UI.refresh();
+  ok(V.state.geom.length === 2 && V.state.geom.every(g => g.keyed === false),
+     "neither path is keyed to begin with",
+     V.state.geom.map(g => g.keyed).join(","));
+
+  const two = V.state.items[1];
+  two.prop.setValueAtTime(0, star(4, 60));
+  V.UI.refresh();
+  ok(V.state.geom.map(g => (g.keyed ? 1 : 0)).join(",") === "0,1",
+     "keying one of them tells the two apart",
+     V.state.geom.map(g => g.keyed).join(","));
+
+  // a drag rebuilds the geometry in hand; it must not lose the distinction
+  const again = V.geomFrom(V.state.geom[1], V.rawShape(c, two.prop));
+  ok(again.keyed === true, "and a drag carries it across", again.keyed);
+
+  ok(V.P.colKeyed && V.P.colKeyed.length === 3,
+     "there is a colour to draw it in", JSON.stringify(V.P.colKeyed));
+  ok(V.P.colKeyed.join(",") !== "0.62,0.62,0.62",
+     "and it is not the grey every other path gets, or nothing would show");
+  ok(/gm\.keyed \? keyPen/.test(raw) && /P\.colKeyed\[0\]/.test(raw),
+     "the path is actually stroked with it");
+
+  // the swatch that sets it lives on the Edit tab, beside Keyframe
+  const sw = M.NODES.filter(n => /Keyframed paths/.test(n.says || ""))[0];
+  ok(!!sw, "the swatch is there and says what it is for", sw ? sw.says : "missing");
+  const tabs = M.NODES.filter(n => n.type === "tab");
+  const editRows = tabs[0]._kids.filter(k => k.type === "group");
+  ok(editRows[0]._kids.indexOf(sw) >= 0,
+     "on the first row of the Edit tab, beside Keyframe and Reveal");
+  editRows.forEach((r, n) => {
+    const w = r._kids.reduce((a, k) => a + k.preferredSize[0], 0) +
+              6 * (r._kids.length - 1);
+    ok(w <= 380, "Edit row " + (n + 1) + " fits the panel", w + " of 380");
+  });
+}
+
+section("relink: choosing the group is how a rebuild is aimed at one path");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Line", star(5, 100), [0, 0]);
+  const g2 = addGroup(L, "Fill", star(5, 100), [0, 0]);
+  L.selected = true;
+  setScope("Layers");
+  V.UI.refresh();
+  V.actCreate(pickAll(V.state.items[1], [0, 1, 2]), false);
+  V.UI.refresh();
+  V.state.items[1].prop.expression = "";
+  V.UI.refresh();
+  ok(rigCount() === 0, "both paths on the layer now carry no rig", rigCount());
+
+  const wide = sayOf(() => V.actRelink(V.state.items, []));
+  ok(/More than one path/.test(wide),
+     "with both in scope it refuses rather than guessing which", wide);
+
+  // the refusal says to choose the one group, so choose it
+  setScope("Group");
+  g2.selected = true;
+  V.UI.refresh();
+  ok(V.state.items.length === 1 && V.state.items[0].chain.join("/") === "Fill",
+     "which narrows the preview to that one path",
+     V.state.items.map(it => it.chain.join("/")).join(","));
+
+  const said = sayOf(() => V.actRelink(V.state.items, []));
+  ok(/rebuilt the rig on 3 points/.test(said),
+     "and the rebuild goes ahead, exactly as the refusal said it would", said);
+
+  g2.selected = false;
+  setScope("Layers");
+  V.UI.refresh();
+}
+
+// Choosing a property moves no LAYER selection, so the watcher's signature
+// has to ask about it directly wherever the preview is narrowed by it.
+section("the preview: the watcher follows the group chosen in the timeline");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Line", star(5, 100), [0, 0]);
+  const g2 = addGroup(L, "Fill", star(4, 60), [0, 0]);
+  L.selected = true;
+  const scope = scopeControl();
+  setScope("Group");
+  const watch = M.$.global.__vxrWatch;
+  ok(typeof watch === "function", "the watcher is reachable");
+  watch();
+  ok(V.state.items.length === 2,
+     "with nothing chosen inside the layer, both paths show",
+     V.state.items.length);
+
+  g2.selected = true;
+  watch();
+  ok(V.state.items.length === 1 && V.state.items[0].chain.join("/") === "Fill",
+     "choosing a group narrows it, with no layer selection having moved",
+     V.state.items.map(it => it.chain.join("/")).join(","));
+
+  // now to a group it is not currently showing: the old one letting go is
+  // what the signature notices
+  g2.selected = false;
+  const g1 = L.property("ADBE Root Vectors Group").property(1);
+  g1.selected = true;
+  watch();
+  ok(V.state.items.length === 1 && V.state.items[0].chain.join("/") === "Line",
+     "and swapping to one it was not showing works the same",
+     V.state.items.map(it => it.chain.join("/")).join(","));
+
+  g1.selected = false;
+  setScope("Layers");
+  watch();
+}
+
+section("the preview: the watcher notices a mask chosen while it is held back");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Line", star(5, 100), [0, 0]);
+  const mask = L.property("ADBE Mask Parade").addProperty("ADBE Mask Atom");
+  mask.name = "Window";
+  mask.property("ADBE Mask Shape").setValue(star(4, 70));
+  L.selected = true;
+  setScope("Layers");
+  V.P.maskDirect = true;
+  const watch = M.$.global.__vxrWatch;
+  watch();
+  ok(V.state.items.length === 1, "the mask is held back to begin with",
+     V.state.items.length);
+
+  // a mask that is not on show is in no list the watcher could compare
+  mask.selected = true;
+  watch();
+  ok(V.state.items.length === 2,
+     "choosing it brings its points back on the next tick",
+     V.state.items.length);
+
+  mask.selected = false;
+  V.P.maskDirect = false;
+  watch();
+}
+
+section("the preview: picking whole paths instead of points");
+{
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "Line", star(4, 120), [0, 0]);
+  L.selected = true;
+  V.P.snap = false;
+  V.P.pickPath = false;
+  V.P.showBox = true;           // the box round a picked path must not swallow
+                                // the clicks that pick a path
+  setScope("Layers");
+  V.UI.refresh();
+  V.state.view = { s: 1, tx: 0, ty: 0 };
+  V.state.viewManual = true;
+  const cv = M.NODES.filter(n => n._on && n._on.mousewheel)[0];
+  const verts = V.state.geom[0].verts.map(p => p.slice());
+
+  // halfway along an edge: on the curve, a long way from any vertex
+  const mid = [(verts[0][0] + verts[1][0]) / 2, (verts[0][1] + verts[1][1]) / 2];
+  const near = Math.min.apply(null, verts.map(p =>
+    Math.sqrt((p[0] - mid[0]) ** 2 + (p[1] - mid[1]) ** 2)));
+  ok(near > 20, "the spot clicked is well clear of every vertex", Math.round(near));
+
+  const click = (x, y, shift) => {
+    cv.fire("mousedown", { clientX: x, clientY: y, detail: 1, shiftKey: !!shift });
+    cv.fire("mouseup", { clientX: x, clientY: y, shiftKey: !!shift });
+  };
+
+  V.state.sel = {};
+  V.state.selH = {};
+  click(mid[0], mid[1]);
+  ok(V.countSel() === 0,
+     "picking points, a click on bare curve takes nothing", V.countSel());
+
+  const btn = M.NODES.filter(n => /^Pick (points|paths)\b/.test(n.says || ""))[0];
+  ok(!!btn, "there is a button for the other mode");
+  btn.onClick.call(btn);
+  ok(V.P.pickPath === true && btn.on === true,
+     "which turns it on and looks pressed", V.P.pickPath + "/" + btn.on);
+
+  click(mid[0], mid[1]);
+  ok(V.countSel() === 4, "now the same click takes the path entire", V.countSel());
+  ok(V.countSelH() === 0, "and no handle with it", V.countSelH());
+
+  click(mid[0], mid[1], true);
+  ok(V.countSel() === 0, "shift-clicking a picked path lets it go", V.countSel());
+
+  // a marquee that crosses a path but catches none of its vertices
+  V.state.sel = {};
+  V.state.selH = {};
+  cv.fire("mousedown", { clientX: 1100, clientY: 400, detail: 1 });
+  cv.fire("mousemove", { clientX: 1010, clientY: 490 });
+  cv.fire("mouseup", { clientX: 1010, clientY: 490 });
+  ok(V.countSel() === 4,
+     "a marquee across a span between two points still takes the path whole",
+     V.countSel());
+
+  // dragging from the curve carries all of it
+  V.state.sel = {};
+  V.state.selH = {};
+  cv.fire("mousedown", { clientX: mid[0], clientY: mid[1], detail: 1 });
+  ok(!!V.state.edit && V.state.edit.kind === "move",
+     "pressing on a path arms a move", V.state.edit ? V.state.edit.kind : "nothing");
+  cv.fire("mousemove", { clientX: mid[0] + 20, clientY: mid[1] + 11 });
+  cv.fire("mouseup", { clientX: mid[0] + 20, clientY: mid[1] + 11 });
+  V.UI.refresh();
+  const now = V.state.geom[0].verts;
+  ok(now.every((p, n) => Math.abs(p[0] - verts[n][0] - 20) < 1e-6 &&
+                         Math.abs(p[1] - verts[n][1] - 11) < 1e-6),
+     "and every point of it travels together",
+     [now[0][0] - verts[0][0], now[0][1] - verts[0][1]].join(","));
+
+  btn.onClick.call(btn);
+  ok(V.P.pickPath === false && V.countSel() === 0,
+     "turning it back lets the selection go, since the two do not mix",
+     V.P.pickPath + " / " + V.countSel());
+}
+
+// A toggle that is on used to borrow the pressed fill, so there was no
+// telling Snap being on from a button being clicked.
+section("the panel: a toggle that is on does not look like a button pressed");
+{
+  const look = V.buttonLook;
+  const btn  = look({});
+  const btnHot = look({ hot: true });
+  const btnDown = look({ down: true });
+  const togOff = look({ on: false });
+  const togOn = look({ on: true });
+  const togOnHot = look({ on: true, hot: true });
+  const togOnDown = look({ on: true, down: true });
+
+  const same = (a, b) => a.fill.join(",") === b.fill.join(",");
+  ok(same(btn, togOff), "a toggle that is off is an ordinary button");
+  ok(!same(togOn, btnDown),
+     "a toggle that is on is not the pressed fill any more",
+     togOn.fill.join(",") + " vs " + btnDown.fill.join(","));
+  ok(!same(togOn, btn) && !same(togOn, btnHot),
+     "nor the idle or hover fill");
+  ok(togOn.fill.every(v => v >= 0.85), "it is white", togOn.fill.join(","));
+  ok(togOnHot.fill.every(v => v >= togOn.fill[0]),
+     "and brighter still under the pointer");
+
+  // white forces a dark icon, or the light grey one would vanish on it
+  ok(togOn.ink.every(v => v <= 0.3), "the icon on it goes dark", togOn.ink.join(","));
+  ok(btn.ink.every(v => v >= 0.7),
+     "while an ordinary button keeps the light one", btn.ink.join(","));
+
+  // pressing a toggle that is on still reads as a press, so there is
+  // feedback under the finger either way
+  ok(same(togOnDown, btnDown),
+     "pressing one reads as a press while the finger is down");
+
+  ok(/TOG_ON\b/.test(raw), "the painter has a colour of its own for it");
+  ok(!/TOG_BAR/.test(raw), "and the bar under it is gone, not just unused");
+
+  // rounder than it was, and a radius bigger than the box cannot invert it
+  const rad = Number((raw.match(/BTN_RADIUS = (\d+)/) || [])[1]);
+  ok(rad >= 6, "the buttons are rounder than they were", rad);
+  const pts = [];
+  const stub = {
+    newPath() {}, closePath() {},
+    moveTo(x, y) { pts.push([x, y]); },
+    lineTo(x, y) { pts.push([x, y]); }
+  };
+  V.roundRectPath(stub, 0, 0, 20, 20, 999);
+  const stray = pts.filter(p => p[0] < -0.01 || p[0] > 20.01 ||
+                                p[1] < -0.01 || p[1] > 20.01);
+  ok(pts.length > 8 && stray.length === 0,
+     "an outsized radius is clamped to the box rather than turning it inside out",
+     stray.length + " points outside of " + pts.length);
+}
+
+section("the panel: the Handles setting cycles through its three states");
+{
+  const hand = M.NODES.filter(b => /^Handles: /.test(b.says || ""))[0];
+  ok(!!hand, "the button is there");
+  const was = V.P.handleView;
+
+  V.P.handleView = "selected";
+  const seen = [];
+  for (let i = 0; i < 4; i++) {
+    seen.push(V.P.handleView);
+    hand.onClick.call(hand);
+  }
+  ok(seen.join(",") === "selected,all,none,selected",
+     "picked, then all, then none, then round again", seen.join(","));
+  ok(/^Handles: (Picked|All|None)\b/.test(hand.says),
+     "and it says which one it is on", hand.says);
+
+  // a setting read back from an older preferences file need not be one of
+  // the three; the next click has to land somewhere sensible rather than
+  // on undefined
+  V.P.handleView = "something else";
+  hand.onClick.call(hand);
+  ok(V.P.handleView === "selected",
+     "an unknown setting comes back to the first of them", V.P.handleView);
+
+  ok(typeof V.paintLabelButton === "function",
+     "and it is painted, not left to After Effects to draw");
+  V.P.handleView = was;
+}
+
+// After Effects draws a dropdown itself, corners and all, so one can never
+// carry the radius the buttons have. The panel has none left. Preferences is
+// a dialog of its own and keeps its two.
+section("the panel: no dropdown on the panel, two left in Preferences");
+{
+  const cut = raw.indexOf("function prefsDialog");
+  ok(cut > 0, "Preferences is a section of its own");
+  const panelSrc = raw.slice(0, cut), prefsSrc = raw.slice(cut);
+  ok(panelSrc.indexOf('add("dropdownlist"') < 0,
+     "nothing on the panel is left for After Effects to draw the corners of");
+  ok((prefsSrc.match(/add\("dropdownlist"/g) || []).length === 2,
+     "and Preferences keeps its two",
+     (prefsSrc.match(/add\("dropdownlist"/g) || []).length);
+
+  // every one that went became a cycling button with a word on it
+  const settings = M.NODES.filter(n => n.type === "iconbutton" &&
+                                  /^[A-Z][A-Za-z ]+: \S/.test(n.says || ""));
+  const names = settings.map(b => String(b.says).split(":")[0]).sort();
+  ok(names.join(", ") === "Handle style, Handles, Pivot makes, Showing",
+     "the four of them, each saying what it is", names.join(", "));
+  ok(settings.every(b => typeof b.onClick === "function" &&
+                         typeof b.onDraw === "function"),
+     "each cycles and paints itself");
+}
+
+section("the panel: the tab rows draw a smaller picture in the same button");
+{
+  const head = V.artSize(V.HEAD_PX);
+  const tab = V.artSize(32);
+  ok(head === V.HEAD_PX - 6,
+     "a top-row button draws its picture as it always did", head);
+  ok(tab === Math.round((32 - 6) * 0.75),
+     "a tab button's comes down to three quarters", tab);
+  ok(tab === head,
+     "which lands both rows on the same drawn size", tab + " and " + head);
+  ok(tab < 32 - 6, "and smaller than the button holding it", tab);
+
+  // the preview carries the buttons' corners now, and its border goes on
+  // last so anything that reached the edge is drawn under it
+  const draw = raw.slice(raw.indexOf("cv.onDraw = function"),
+                         raw.indexOf("point picking"));
+  ok(/roundRectPath\(g, 0\.5, 0\.5, w - 1, h - 1, BTN_RADIUS\)/.test(draw),
+     "the preview is drawn with the same corner radius as the buttons");
+  ok(draw.lastIndexOf("roundRectPath") < draw.lastIndexOf("strokePath") &&
+     draw.lastIndexOf("strokePath") > draw.lastIndexOf("fillPath"),
+     "and its border is stroked last of all");
+}
+
 section("the preview: the turn arcs are drawn where a turn is taken hold of");
 {
   const c = newComp();
@@ -3657,15 +4112,22 @@ section("the preview: the lasso, the snap and the box are flicked on from the Ed
   const rows = edit._kids;
   ok(rows.length === 2, "two rows of it", rows.length);
   const icons = rows[0]._kids.filter(k => k.type === "iconbutton");
-  ok(icons.length === 5, "five buttons on the first", icons.length);
+  ok(icons.length === 6, "six buttons on the first", icons.length);
+  // lasso/marquee, snap, transform box; the pick mode lives on the top row
   ok(icons.filter(b => typeof b.on === "boolean").length === 3,
      "three of them hold a setting rather than do a thing",
      icons.filter(b => typeof b.on === "boolean").length);
-  const dd = rows[0]._kids.filter(k => k.type === "dropdownlist");
-  ok(dd.length === 1 && dd[0].items.length === 3,
-     "and the handle setting beside them, with three ways to go");
+  // the handle setting used to be a dropdown, which could not be given the
+  // corner radius the rest of the row has
+  ok(rows[0]._kids.filter(k => k.type === "dropdownlist").length === 0,
+     "no dropdown left on the row");
+  const hand = rows[0]._kids.filter(b => /^Handles: /.test(b.says || ""))[0];
+  ok(!!hand && hand.preferredSize[0] > hand.preferredSize[1],
+     "the handle setting is a button wide enough to say what it is set to",
+     hand ? hand.preferredSize.join("x") : "missing");
   ok(rows[1]._kids.filter(k => k.type === "iconbutton").length === 6,
      "six alignments on the second");
+
 
   // a toggle has to look like what it is set to, or it is only a guess
   const lassoBtn = icons.filter(b => /freehand|Lasso/.test(b.says || ""))[0];
@@ -3816,13 +4278,33 @@ section("icons: four tabs, and hovering says what a picture does");
 
   // the first row: scope, then six icons, settings among them
   const win = M.NODES.filter(n => n.type === "window")[0];
-  const head = win._kids[0];
-  ok(win._kids.length === 5, "header, preview, zoom strip, status, tabs",
+  // everything above the tabs is wrapped, so it can be given the inset a
+  // tabbed panel gives its own pages
+  ok(win._kids.length === 3, "the top section, the tabs, then the status line",
      win._kids.length);
-  ok(head._kids[0].type === "dropdownlist", "scope first", head._kids[0].type);
+  const top = win._kids[0];
+  ok(top.margins[0] === top.margins[2] && top.margins[0] > 0,
+     "and the wrapper carries that inset, left and right alike",
+     JSON.stringify(top.margins));
+  ok(top._kids.length === 3, "header, preview, zoom strip", top._kids.length);
+
+  // the status line goes under everything, with a mark in front of it
+  const statusRow = win._kids[2];
+  ok(statusRow._kids.length === 2 &&
+     statusRow._kids[1].type === "statictext",
+     "the status line is last, and the mark comes before the words",
+     statusRow._kids.map(k => k.type).join(","));
+  ok(typeof statusRow._kids[0].onDraw === "function",
+     "the mark draws itself");
+  ok(statusRow.margins[0] === top.margins[0],
+     "and lines up with everything above it",
+     statusRow.margins[0] + " vs " + top.margins[0]);
+  const head = top._kids[0];
+  ok(/^Showing: /.test(head._kids[0].says || ""), "scope first",
+     head._kids[0].says);
   const headIcons = head._kids.filter(c => c.type === "iconbutton");
-  ok(headIcons.length === head._kids.length - 1 - rulesInHead(head),
-     "then icons and rules, no text buttons", headIcons.length);
+  ok(headIcons.length === head._kids.length - rulesInHead(head),
+     "then icons and rules, no text buttons and no dropdown", headIcons.length);
   ok(head._kids.filter(c => c.type === "button").length === 0, "none of them text");
   const prefs = head._kids.filter(c => /Colours, sizes/.test(c.helpTip || ""));
   ok(prefs.length === 1, "with the settings among them", prefs.length);
@@ -3839,24 +4321,40 @@ section("icons: four tabs, and hovering says what a picture does");
   ok(picks.every(Boolean), "the All/None toggle and Invert are there");
   ok(at(rules[0]) < at(picks[0]) && at(picks[1]) < at(rules[1]),
      "with both rules outside them", picks.map(at).join(","));
-  ok(at(picks[0]) === at(rules[0]) + 1 && at(picks[1]) === at(rules[1]) - 1,
+  // What picking means leads the group that does the picking. Matched on
+  // the label, since pressing the toggle rewrites the rest of what it says.
+  const pickMode = head._kids.filter(c =>
+    /^Pick (points|paths)\b/.test(c.says || ""))[0];
+  ok(!!pickMode, "the points/paths toggle is on the top row too");
+  ok(at(pickMode) === at(rules[0]) + 1, "at the head of that group", at(pickMode));
+  ok(at(picks[0]) === at(rules[0]) + 2 && at(picks[1]) === at(rules[1]) - 1,
      "and nothing else inside");
   ok(!/act\([^)]*"fit"/.test(raw),
      "Fit is gone - Refresh already reframes, and repairs older rigs");
 
   const headW = head._kids.reduce((n, c) => n + c.preferredSize[0], 0) +
                 4 * (head._kids.length - 1);
-  ok(headW <= 368, "and the row fits the panel", headW + " of 368");
+  ok(headW <= 400, "and the row fits the panel", headW + " of 400");
 
   const icons = M.NODES.filter(n => n.type === "iconbutton");
   // one button per act() call in the source, however many that is
   const actCalls = (raw.match(/\bact\(\s*\w+\s*,\s*"[a-z]+"/g) || []).length;
-  ok(icons.length === actCalls, "one icon button per act() call",
-     icons.length + " vs " + actCalls);
+  // a cycling setting is a button too; it reaches act() with its first state
+  const cyclerCalls = (raw.match(/\bcycler\(/g) || []).length - 1;
+  ok(cyclerCalls >= 3, "the cycling settings are built the same way", cyclerCalls);
+  ok(icons.length === actCalls + cyclerCalls,
+     "one icon button per act() or cycler() call",
+     icons.length + " vs " + (actCalls + cyclerCalls));
   ok(icons.every(b => typeof b.onDraw === "function"),
      "each draws itself, so it stays sharp on a retina display");
-  ok(icons.every(b => b.preferredSize[0] === b.preferredSize[1]),
-     "all square");
+  // square, except the settings that carry a word beside their picture
+  const wide = icons.filter(b => b.preferredSize[0] !== b.preferredSize[1]);
+  ok(wide.length === cyclerCalls,
+     "all square but the cycling settings, which say what they are set to",
+     wide.length + " of " + cyclerCalls);
+  ok(wide.every(b => /^[A-Z][A-Za-z ]+: \S/.test(b.says || "")),
+     "and each of those names its setting and its state",
+     wide.map(b => String(b.says).split(" -")[0]).join(" | "));
   // one height per row, rather than one height for the whole panel: the top
   // row runs smaller than the tabs so all four of its sections fit on a line
   const headKids = head._kids.filter(c => c.type !== "panel");

@@ -174,6 +174,74 @@ def relink(i):
     i.s(14,3.8, 2.6, 0)
     i.p([(11.4,8.2),(14,11.2),(16.6,8.2)], W*0.9)
 
+# The two halves of one toggle, and they have to read as a pair: the same
+# closed path either way, with one corner taken or the whole outline taken.
+# Deliberately not the Show points curve - that is a different button, and an
+# open S-curve with hollow squares is its silhouette, not this one's.
+PICK_POLY = [(5,20),(10,6),(21,9),(23,20)]
+
+def _pickloop(i, w):
+    i.p(PICK_POLY + [PICK_POLY[0]], w)
+
+def pickpt(i):
+    _pickloop(i, W*0.75)
+    i.s(21, 9, 3.4, 0)
+
+def pickpath(i):
+    _pickloop(i, W*0.75)
+    for (x, y) in PICK_POLY:
+        i.s(x, y, 3.0, 0)
+
+# The Handles setting, as three pictures of the same point: its two tips
+# filled when every handle is on show, one filled when only the picked
+# points' are, and neither when none is. Built from the Handles icon so the
+# three read as that setting rather than as three new things.
+def _hand(i, lead, tail):
+    i.p([(5,19),(23,9)], W*0.8)
+    # filled means on show, an outline means there but not drawn - at this
+    # size the ring only reads if its stroke is thin
+    i.c(5, 19, 3.3, 0 if lead else W*0.55)
+    i.c(23, 9, 3.3, 0 if tail else W*0.55)
+    i.s(14, 14, 4.6, 0)
+
+def handall(i):  _hand(i, True, True)
+def handpick(i): _hand(i, False, True)
+def handnone(i): _hand(i, False, False)
+
+# What the preview is showing: the composition frame with what is in scope
+# inside it. One block, the one group picked out of a block, or all of them.
+def _frame(i): i.box(3,6,25,22, W*0.7)
+def scopelay(i):
+    _frame(i); i.s(14,14, 4.0, 0)
+def scopegrp(i):
+    _frame(i); i.s(14,14, 5.4, W*0.7); i.s(14,14, 2.2, 0)
+def scopeall(i):
+    _frame(i)
+    for x in (8, 14, 20): i.s(x,14, 2.6, 0)
+
+# Which shape a point's handle is kept as: a mask on the control, or a
+# control layer of its own.
+def _tip(i, shape):
+    i.p([(7,18),(21,10)], W*0.8)
+    i.c(7,18, 3.4, 0)
+    shape(21, 10)
+def handmask(i):  _tip(i, lambda x,y: i.d(x,y, 4.4, 0))
+def handlayer(i): _tip(i, lambda x,y: i.s(x,y, 3.8, 0))
+
+# Whether a Pivot gathers the points to itself alone, or gives each one a
+# control of its own hung off it.
+def _piv(i, pts):
+    i.c(14,14, 4.6, W*0.9); i.c(14,14, 1.5, 0)
+    for (x, y) in ((6,6),(22,6),(14,23)): pts(x, y)
+def pivonly(i): _piv(i, lambda x,y: i.c(x,y, 1.8, W*0.6))
+def pivpts(i):  _piv(i, lambda x,y: i.s(x,y, 2.6, 0))
+
+# Small, for the status line: a ring with an i in it.
+def infomark(i):
+    i.c(14,14, 10.5, W*0.85)
+    i.c(14, 8.8, 1.6, 0)
+    i.p([(14,12.8),(14,20.2)], W*1.05)
+
 ORDER = [("create",create),("handles",handles),("delete",delete),("bake",bake),
          ("apply",apply),("pivot",pivot),("addpivot",addpivot),("release",release),
          ("follower",follower),("average",average),("extract",extract),("merge",merge),
@@ -184,7 +252,11 @@ ORDER = [("create",create),("handles",handles),("delete",delete),("bake",bake),
          ("alignleft",alignleft),("aligncx",aligncx),("alignright",alignright),
          ("aligntop",aligntop),("aligncy",aligncy),("alignbottom",alignbottom),
          ("help",helpmark),("key",keypath),("reveal",reveal),
-         ("relink",relink)]
+         ("relink",relink),("pickpt",pickpt),("pickpath",pickpath),
+         ("handpick",handpick),("handall",handall),("handnone",handnone),
+         ("scopelay",scopelay),("scopegrp",scopegrp),("scopeall",scopeall),
+         ("handmask",handmask),("handlayer",handlayer),
+         ("pivonly",pivonly),("pivpts",pivpts),("info",infomark)]
 
 art = {}
 for name, fn in ORDER:

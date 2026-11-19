@@ -13,10 +13,20 @@
  *
  * HOW IT WORKS
  *   Pick vertices in the panel's preview (click, shift-click, drag a marquee
- *   or draw a lasso), then move them there, or press a button. Everything
+ *   or draw a lasso), or turn the second toggle over and pick whole paths
+ *   instead, clicking the curve itself rather than any point on it. Then
+ *   move what is picked there, or press a button. Everything
  *   else reads the After Effects selection: Follower attaches the selected
  *   layers, Merge folds the selected shape layers together, Delete
  *   understands a selected Pivot or follower.
+ *
+ *   What the preview shows is the control at the top left: the selected
+ *   layers, the one shape group or mask chosen inside them, or every layer in
+ *   the composition. A path carrying keyframes is drawn in a colour of its
+ *   own, set by the swatch beside the Keyframe button, and Preferences can
+ *   hold a mask's points back until that mask is chosen in the timeline -
+ *   a shape layer that also carries masks otherwise shows two sets of points
+ *   over one piece of artwork.
  *
  *   Edit      drag a point and the path follows; drag a handle and the curve
  *             does. Arrow keys nudge. Snapping lines a point up with the
@@ -367,9 +377,11 @@
                     var mk = masks.property(m);
                     var mp = mk.property(MN_MASKSHAPE);
                     if (mp) {
-                        out.push(makeItem(L, mp, [], mk.name,
+                        var mi = makeItem(L, mp, [], mk.name,
                                           "mask(" + estr(mk.name) + ").maskPath",
-                                          L.name + " / " + mk.name));
+                                          L.name + " / " + mk.name);
+                        mi.mask = true;
+                        out.push(mi);
                     }
                 }
             }
@@ -667,18 +679,21 @@
         colHandle: [1.00, 0.76, 0.24],
         colPivot: [0.47, 0.93, 0.45],
         colFollow: [1.00, 0.42, 0.78],
+        colKeyed: [0.70, 0.56, 0.98],
         bakeWorkArea: true,
         // The preview's own editing settings. handleView, lasso and showBox
         // are set from the panel rather than the dialog, the way handleMode
         // and pivotMode already are; they are kept here to be remembered.
         handleView: "selected",   // selected | all | none
         lasso: false,
+        pickPath: false,          // pick whole paths rather than points
         showBox: true,
         nudge: 1,                 // composition pixels per arrow key
         nudgeBig: 8,              // and with shift held
         snap: true,
         snapPx: 6,                // how near, on screen, before it takes hold
-        revealKeyed: true         // open the keyed path in the timeline after
+        revealKeyed: true,        // open the keyed path in the timeline after
+        maskDirect: false         // hide a mask's points unless it is chosen
     };
 
     function prefGet(key, def) {
@@ -4205,6 +4220,47 @@
         return false;
     }
 
+    // The same question across several lists at once, answered as a set of
+    // keys - or null when the timeline is pointing at no property in
+    // particular, which is what selecting the bare layer means and leaves
+    // the whole of it on show.
+    function pointedKeys(lists) {
+        var keys = {}, any = false, i, k, items;
+        for (i = 0; i < lists.length; i++) {
+            items = lists[i] || [];
+            for (k = 0; k < items.length; k++) {
+                if (items[k] && isPointedAt(items[k].prop)) {
+                    keys[items[k].key] = true;
+                    any = true;
+                }
+            }
+        }
+        return any ? keys : null;
+    }
+
+    function keepKeys(items, keys) {
+        if (!keys) { return items; }
+        var out = [], i;
+        for (i = 0; i < items.length; i++) {
+            if (keys[items[i].key]) { out.push(items[i]); }
+        }
+        return out;
+    }
+
+    // A shape layer can carry masks as well as shapes, and then the preview
+    // shows two sets of points over one piece of artwork with nothing to say
+    // which is which. This leaves out any mask the timeline is not pointing
+    // at - the mask itself, not the layer it is on, which is what makes it
+    // worth having.
+    function onlyDirectMasks(items) {
+        var out = [], i;
+        for (i = 0; i < items.length; i++) {
+            if (items[i].mask && !isPointedAt(items[i].prop)) { continue; }
+            out.push(items[i]);
+        }
+        return out;
+    }
+
     // Whichever of these the timeline is pointing at; all of them if it is
     // pointing at none, which is what selecting the bare layer means.
     function pointedPaths(items) {
@@ -4373,6 +4429,24 @@
         return best || { d: d, at: null };
     }
 
+    // How far a point lies off a line segment, squared. Picking a whole path
+    // means asking about the curve itself rather than its vertices, and a
+    // flattened path is a run of these.
+    function segDist2(a, b, px, py) {
+        var dx = b[0] - a[0], dy = b[1] - a[1];
+        var len = dx * dx + dy * dy;
+        var t = len > 0 ? (((px - a[0]) * dx + (py - a[1]) * dy) / len) : 0;
+        if (t < 0) { t = 0; } else if (t > 1) { t = 1; }
+        var qx = a[0] + t * dx - px, qy = a[1] + t * dy - py;
+        return qx * qx + qy * qy;
+    }
+
+    function allIdxOf(gm) {
+        var out = [], k;
+        for (k = 0; gm && k < gm.verts.length; k++) { out.push(k); }
+        return out;
+    }
+
     // Even-odd, so a lasso that doubles back on itself still selects what it
     // drew round rather than everything it touched.
     function inPolygon(poly, x, y) {
@@ -4457,7 +4531,20 @@
         "help": [["c",1.76,14,14,10.5],["b",1.98,[10,10.5,10.5,6.3,18.2,6.6,17.6,11.0]],["p",1.98,[17.6,11.0,14,13.6,14,16.4]],["c",0,14,20.4,1.5]],
         "key": [["b",1.65,[2.5,16,8,17,14,8,20,8.5]],["d",0,11.1,12.4,3.1],["p",2.2,[20,19,20,27]],["p",2.2,[16,23,24,23]]],
         "reveal": [["p",1.98,[3.5,8.5,11,8.5,7.2,14.5,3.5,8.5]],["p",1.98,[14.5,8.5,25,8.5]],["p",3.6,[14.5,15,25,15]],["p",1.98,[14.5,21.5,21.5,21.5]]],
-        "relink": [["b",1.65,[3,20,10,23,18,7,25,10]],["r",1.98,14,15,2.9],["r",0,14,3.8,2.6],["p",1.98,[11.4,8.2,14,11.2,16.6,8.2]]]
+        "relink": [["b",1.65,[3,20,10,23,18,7,25,10]],["r",1.98,14,15,2.9],["r",0,14,3.8,2.6],["p",1.98,[11.4,8.2,14,11.2,16.6,8.2]]],
+        "pickpt": [["p",1.65,[5,20,10,6,21,9,23,20,5,20]],["r",0,21,9,3.4]],
+        "pickpath": [["p",1.65,[5,20,10,6,21,9,23,20,5,20]],["r",0,5,20,3.0],["r",0,10,6,3.0],["r",0,21,9,3.0],["r",0,23,20,3.0]],
+        "handpick": [["p",1.76,[5,19,23,9]],["c",1.21,5,19,3.3],["c",0,23,9,3.3],["r",0,14,14,4.6]],
+        "handall": [["p",1.76,[5,19,23,9]],["c",0,5,19,3.3],["c",0,23,9,3.3],["r",0,14,14,4.6]],
+        "handnone": [["p",1.76,[5,19,23,9]],["c",1.21,5,19,3.3],["c",1.21,23,9,3.3],["r",0,14,14,4.6]],
+        "scopelay": [["x",1.54,3,6,25,22],["r",0,14,14,4.0]],
+        "scopegrp": [["x",1.54,3,6,25,22],["r",1.54,14,14,5.4],["r",0,14,14,2.2]],
+        "scopeall": [["x",1.54,3,6,25,22],["r",0,8,14,2.6],["r",0,14,14,2.6],["r",0,20,14,2.6]],
+        "handmask": [["p",1.76,[7,18,21,10]],["c",0,7,18,3.4],["d",0,21,10,4.4]],
+        "handlayer": [["p",1.76,[7,18,21,10]],["c",0,7,18,3.4],["r",0,21,10,3.8]],
+        "pivonly": [["c",1.98,14,14,4.6],["c",0,14,14,1.5],["c",1.32,6,6,1.8],["c",1.32,22,6,1.8],["c",1.32,14,23,1.8]],
+        "pivpts": [["c",1.98,14,14,4.6],["c",0,14,14,1.5],["r",0,6,6,2.6],["r",0,22,6,2.6],["r",0,14,23,2.6]],
+        "info": [["c",1.87,14,14,10.5],["c",0,14,8.8,1.6],["p",2.31,[14,12.8,14,20.2]]]
     };
 
     // After Effects' own buttons: a flat dark fill, a lighter hairline and a
@@ -4470,12 +4557,39 @@
     // not enough to draw a box around every icon.
     var BTN_LINE = [0.26, 0.26, 0.26];
     var BTN_LINE_HOT = [0.38, 0.38, 0.38];
-    var BTN_RADIUS = 4;
+    // Round the preview. Quieter than a button's edge: that one has to read
+    // against the button's own fill, while this sits between two darks and
+    // only has to say where the preview stops.
+    var CV_LINE = [0.22, 0.22, 0.23];
+    var BTN_RADIUS = 8;
+    // A tab row's buttons are taller than the top row's, and taking the same
+    // margin off both left their pictures looking heavy beside it. The button
+    // keeps its size; what is drawn inside it comes down to three quarters,
+    // which lands the two rows on the same drawn size.
+    function artSize(h) {
+        var box = h - 6;
+        return (h >= UI_H) ? Math.round(box * 0.75) : box;
+    }
     var ICON_COL = [0.82, 0.82, 0.82];
+
+    // A button that holds a setting, while that setting is on. It used to
+    // borrow the pressed fill, which made a toggle that was on and a button
+    // being pressed the same picture - there was no telling Snap was on
+    // without turning it off. White can be mistaken for neither, and it
+    // forces a dark icon: the ordinary light grey would vanish on it.
+    var TOG_ON = [0.92, 0.92, 0.92];
+    var TOG_ON_HOT = [1.00, 1.00, 1.00];
+    var TOG_ON_LINE = [0.72, 0.72, 0.72];
+    var TOG_ON_INK = [0.12, 0.12, 0.12];
 
     // ScriptUI draws lines and rectangles but has no rounded rectangle, so the
     // corners are stepped round in short segments.
     function roundRectPath(g, x, y, w, h, r) {
+        // Past half the shorter side the corners would cross and the path
+        // would come out inside out, so the radius is a wish, not an order.
+        var lim = Math.min(w, h) / 2;
+        if (r > lim) { r = lim; }
+        if (r < 0) { r = 0; }
         var corner = [[x + w - r, y + r, -90], [x + w - r, y + h - r, 0],
                       [x + r, y + h - r, 90], [x + r, y + r, 180]];
         var pts = [], c, i, a;
@@ -4552,21 +4666,66 @@
     // The draw state is only as current as the last repaint After Effects
     // decided to do, which is exactly what went wrong, so hover and press are
     // tracked on the control and the paint reads those.
-    function paintIconButton(ctrl, ops, st) {
+    // What a button is painted in, given what it is and what is happening to
+    // it. Only a button that holds a setting carries "on" at all, so that is
+    // what tells the two kinds apart. Kept out of the drawing so it can be
+    // checked without a screen to look at.
+    function buttonLook(ctrl) {
+        var hot = (ctrl.hot === true);
+        var down = (ctrl.down === true);
+        // A press reads as a press whatever the setting is, so there is
+        // always feedback under the finger.
+        var on = (ctrl.on === true) && !down;
+        if (on) {
+            return { fill: hot ? TOG_ON_HOT : TOG_ON, edge: TOG_ON_LINE,
+                     ink: TOG_ON_INK };
+        }
+        return { fill: down ? BTN_FILL_DOWN : (hot ? BTN_FILL_HOT : BTN_FILL),
+                 edge: hot ? BTN_LINE_HOT : BTN_LINE,
+                 ink: ICON_COL };
+    }
+
+    // A button wide enough to say what it is set to. After Effects draws a
+    // dropdown itself, corners and all, so a setting that wants the same
+    // rounded rectangle as everything else has to be a button we paint.
+    var LABEL_FONT;
+    function labelFont() {
+        if (LABEL_FONT === undefined) {
+            try { LABEL_FONT = ScriptUI.newFont("dialog", "REGULAR", 11); }
+            catch (eF) { LABEL_FONT = null; }
+        }
+        return LABEL_FONT;
+    }
+
+    function paintLabelButton(ctrl, ops, label) {
         var g = ctrl.graphics;
         var w = ctrl.size.width, h = ctrl.size.height;
-        var hot = (ctrl.hot === true);
-        // "on" is for the buttons that hold a setting rather than do a thing:
-        // they go on looking pressed for as long as the setting is on.
-        var down = (ctrl.down === true || ctrl.on === true);
-        var fill = down ? BTN_FILL_DOWN : (hot ? BTN_FILL_HOT : BTN_FILL);
-        var edge = hot ? BTN_LINE_HOT : BTN_LINE;
+        var look = buttonLook(ctrl);
+        var fill = look.fill, edge = look.edge, ink = look.ink;
         roundRectPath(g, 0.5, 0.5, w - 1, h - 1, BTN_RADIUS);
         g.fillPath(g.newBrush(g.BrushType.SOLID_COLOR, [fill[0], fill[1], fill[2], 1]));
         roundRectPath(g, 0.5, 0.5, w - 1, h - 1, BTN_RADIUS);
         g.strokePath(g.newPen(g.PenType.SOLID_COLOR, [edge[0], edge[1], edge[2], 1], 1));
-        var size = Math.min(w, h) - 6;
-        drawArt(g, ops, (w - size) / 2, (h - size) / 2, size, ICON_COL,
+        var size = artSize(h);
+        drawArt(g, ops, 8, (h - size) / 2, size, ink, ctrl.enabled ? 1 : 0.4);
+        try {
+            g.drawString(String(label),
+                         g.newPen(g.PenType.SOLID_COLOR, [ink[0], ink[1], ink[2], 1], 1),
+                         size + 14, (h - 13) / 2, labelFont());
+        } catch (eS) {}
+    }
+
+    function paintIconButton(ctrl, ops, st) {
+        var g = ctrl.graphics;
+        var w = ctrl.size.width, h = ctrl.size.height;
+        var look = buttonLook(ctrl);
+        var fill = look.fill, edge = look.edge;
+        roundRectPath(g, 0.5, 0.5, w - 1, h - 1, BTN_RADIUS);
+        g.fillPath(g.newBrush(g.BrushType.SOLID_COLOR, [fill[0], fill[1], fill[2], 1]));
+        roundRectPath(g, 0.5, 0.5, w - 1, h - 1, BTN_RADIUS);
+        g.strokePath(g.newPen(g.PenType.SOLID_COLOR, [edge[0], edge[1], edge[2], 1], 1));
+        var size = artSize(Math.min(w, h));
+        drawArt(g, ops, (w - size) / 2, (h - size) / 2, size, look.ink,
                 ctrl.enabled ? 1 : 0.4);
     }
 
@@ -4684,8 +4843,16 @@
             addTip(tips, verts, sh, m, i, "in", e);
             addTip(tips, verts, sh, m, i, "out", e);
         }
+        // A path that carries keyframes is drawn in a colour of its own, so
+        // which paths are animated can be seen rather than remembered. A
+        // parametric shape keeps its animation on its own numbers rather
+        // than on a path, so there is nothing here to read.
+        var keyed = false;
+        if (!item.prim) {
+            try { keyed = item.prop.numKeys > 0; } catch (eK) { keyed = false; }
+        }
         return { verts: verts, poly: poly, rigged: rigged, tips: tips,
-                 closed: sh.closed, prim: !!item.prim,
+                 closed: sh.closed, prim: !!item.prim, keyed: keyed,
                  foreign: !item.prim && isForeignRig(item.prop),
                  m: m, minv: mInv(m), raw: sh, man: man,
                  skew: chainSkewed(item, t) };
@@ -4694,6 +4861,9 @@
     // The same thing again for a shape held in hand during a drag: no project
     // reads at all, so a move costs nothing but arithmetic.
     function geomFrom(gm, sh) {
+        // Everything geomFor worked out that a drag cannot change is carried
+        // across below; keyed is one of them.
+
         var verts = [], i, n = sh.vertices.length;
         for (i = 0; i < n; i++) { verts.push(mPt(gm.m, sh.vertices[i])); }
         var tips = [];
@@ -4703,7 +4873,8 @@
             addTip(tips, verts, sh, gm.m, i, "out", e);
         }
         return { verts: verts, poly: flattenPath(sh, gm.m), rigged: gm.rigged,
-                 tips: tips, closed: gm.closed, prim: gm.prim, foreign: gm.foreign,
+                 tips: tips, closed: gm.closed, prim: gm.prim, keyed: gm.keyed,
+                 foreign: gm.foreign,
                  m: gm.m, minv: gm.minv, raw: sh, man: gm.man, skew: gm.skew };
     }
 
@@ -4893,20 +5064,42 @@
         win.margins = 6;
 
         // -------------------------------------------------------- preview
-        var head = win.add("group");
+        // A tabbed panel insets its own pages, so a row sitting at the window
+        // margin starts further out than the rows below it - measured at 8
+        // points in the panel. Everything above the tabs goes in here, with
+        // that difference as its margin, and the two line up.
+        var TOP_PAD = 8;
+        var top = win.add("group");
+        top.orientation = "column";
+        top.alignChildren = ["fill", "top"];
+        top.alignment = ["fill", "fill"];
+        top.spacing = 4;
+        top.margins = [TOP_PAD, 0, TOP_PAD, 0];
+
+        var head = top.add("group");
         head.alignChildren = ["left", "center"];
         head.spacing = 4;
         // Shortened from "Selected layers": the row has seven icons and two
         // rules to fit beside it now, and 96 points is what it can spare.
-        var scopeDd = head.add("dropdownlist", undefined,
-                               ["Selected layers", "All layers"]);
-        scopeDd.selection = 0;
-        scopeDd.preferredSize = [104, HEAD_PX];
+        // 0 the selected layers, 1 the group chosen inside them, 2 the lot.
+        var scopeAt = 0;
+        var scopeDd = cycler(head, 88, HEAD_PX, "Showing",
+            "which paths the preview shows. Group narrows it to the shape group " +
+            "or mask chosen in the timeline, and shows the whole layer while " +
+            "nothing in it is chosen",
+            [{ v: 0, art: "scopelay", word: "Layers" },
+             { v: 1, art: "scopegrp", word: "Group" },
+             { v: 2, art: "scopeall", word: "All" }],
+            function () { return scopeAt; },
+            function (v) { scopeAt = v; state.fitted = false; refresh(); });
 
         // A hairline between the groups of the row: what it shows, what is
-        // picked, what moves shapes between layers, and what the panel does to
-        // the rig. 104 + 7*26 + 3 + 10*4 = 329 of the 368 points inside the
-        // panel's margins.
+        // picked, what moves shapes between layers, and what the panel does
+        // to the rig. 104 + 9*26 + 3 + 12*4 = 389. The budget is 400, which
+        // is what fits inside the width the preview asks for (460 less the
+        // window's margins) with room to spare; the 368 it used to be came
+        // from a 380-wide panel that has not existed since the preview was
+        // given a size you can aim in.
         function headRule() {
             var sep = head.add("panel");
             sep.alignment = ["left", "center"];
@@ -4919,6 +5112,17 @@
         var bPoints = act(head, "points", "Show points",
                           "Show the path's own points in the composition", 76, HEAD_PX);
         headRule();
+        // What picking means, before the buttons that do it. Its art is a
+        // closed path either way - one corner taken, or the whole outline -
+        // which is deliberately not the Show points S-curve beside it.
+        var bPathPick = act(head, "pickpt", "Pick points",
+                            "Pick points one at a time, or a whole path at a time",
+                            40, HEAD_PX);
+        bPathPick.onDraw = function (st) {
+            paintIconButton(this, P.pickPath ? ICON_ART.pickpath : ICON_ART.pickpt, st);
+        };
+        bPathPick.on = !!P.pickPath;
+
         // One button for both: it offers All while nothing is picked and None
         // once something is, so the picture always shows what pressing it does.
         var bPick = act(head, "all", "All", "Pick every point in view", 40, HEAD_PX);
@@ -4947,7 +5151,7 @@
                        "Remove the picked points, or the selected handles, pivot or follower",
                        58, HEAD_PX);
 
-        var cv = win.add("group");
+        var cv = top.add("group");
         cv.alignment = ["fill", "fill"];
         // Points are dragged here now, not only picked, so the preview opens
         // at a size you can aim in. A docked panel keeps whatever size it was
@@ -4967,7 +5171,7 @@
         // scrollbar reports every notch as onChanging with a new value. So
         // the strip down the side of the preview is what the wheel turns, and
         // dragging it does the same thing.
-        var zoomRow = win.add("group");
+        var zoomRow = top.add("group");
         zoomRow.orientation = "row";
         zoomRow.alignment = ["fill", "top"];
         zoomRow.alignChildren = ["fill", "center"];
@@ -5014,19 +5218,33 @@
         // status at the foot of the panel, and a note drawn across the canvas
         // that still asked for a Refresh the panel now does by itself - all
         // three on screen at once, two of them wrong as often as not.
-        var status = win.add("statictext", undefined,
-            "                                                                      ");
-        status.alignment = ["fill", "top"];
-        status.preferredSize.height = 18;
-        status.text = "Ready.";
-        status.graphics.foregroundColor = status.graphics.newPen(
-            status.graphics.PenType.SOLID_COLOR, [0.72, 0.72, 0.72, 1], 1);
-
         // ------------------------------------------------------- full rows
         var full = win.add("group");
         full.orientation = "column";
         full.alignChildren = ["fill", "top"];
         full.spacing = 3;
+
+        // The status line goes under everything, where a status line goes. It
+        // used to sit between the preview and the tabs, where it read as a
+        // caption on the row below it rather than as the panel talking. The
+        // mark in front of it says which it is.
+        var statusRow = win.add("group");
+        statusRow.orientation = "row";
+        statusRow.alignChildren = ["left", "center"];
+        statusRow.spacing = 5;
+        statusRow.margins = [TOP_PAD, 0, TOP_PAD, 2];
+        var statusMark = statusRow.add("group");
+        statusMark.preferredSize = [13, 13];
+        statusMark.onDraw = function () {
+            drawArt(this.graphics, ICON_ART.info, 0, 0, 13, [0.56, 0.56, 0.58], 1);
+        };
+        var status = statusRow.add("statictext", undefined,
+            "                                                                      ");
+        status.alignment = ["fill", "center"];
+        status.preferredSize.height = 18;
+        status.text = "Ready.";
+        status.graphics.foregroundColor = status.graphics.newPen(
+            status.graphics.PenType.SOLID_COLOR, [0.72, 0.72, 0.72, 1], 1);
 
         // An icon button where the picture loaded and the old text button
         // where it did not, so a temp folder the script cannot write to costs
@@ -5080,7 +5298,10 @@
             t.orientation = "column";
             t.alignChildren = ["left", "top"];
             t.spacing = 6;
-            t.margins = 8;
+            // Less underneath than round the rest: the status line sits
+            // directly below, and the page's own padding was most of the
+            // gap between the last row of buttons and it.
+            t.margins = [8, 8, 8, 2];
             return t;
         }
         function tabRow(page) {
@@ -5088,6 +5309,41 @@
             g.alignChildren = ["left", "center"];
             g.spacing = 6;
             return g;
+        }
+
+        // One button that holds a setting of two or three states, drawn
+        // rather than left to a dropdown. After Effects draws a dropdown
+        // itself, corners and all, so one can never match the rest of a row
+        // - and at the width the top row could spare, "Selected layers" did
+        // not even fit in it. The states are shown as well as said.
+        function cycler(parent, w, h, name, tip, states, read, write) {
+            var b = act(parent, states[0].art, name, tip);
+            b.preferredSize = [w, h];
+            // -1 for a setting this build does not know, which an older
+            // preferences file can hand us: the next click then starts again
+            // at the first state rather than landing on nothing.
+            function at() {
+                var v = read(), i;
+                for (i = 0; i < states.length; i++) {
+                    if (states[i].v === v) { return i; }
+                }
+                return -1;
+            }
+            function now() { var i = at(); return states[i < 0 ? 0 : i]; }
+            function tell() {
+                b.says = name + ": " + now().word + " - " + tip;
+                b.helpTip = b.says;
+            }
+            b.onDraw = function () {
+                paintLabelButton(this, ICON_ART[now().art], now().word);
+            };
+            b.onClick = function () {
+                write(states[(at() + 1) % states.length].v);
+                tell();
+                repaint(this);
+            };
+            tell();
+            return b;
         }
 
         var tabs = full.add("tabbedpanel");
@@ -5109,17 +5365,43 @@
                         "Line a dragged point up with the others, and with their bounds");
         var bBox = act(er1, "box", "Transform box",
                        "Turn and scale two or more picked points together");
-        var handDd = er1.add("dropdownlist", undefined,
-                             ["Handles: picked", "Handles: all", "Handles: none"]);
-        handDd.preferredSize = [150, UI_H];
-        handDd.selection = (P.handleView === "all") ? 1
-                         : ((P.handleView === "none") ? 2 : 0);
-        handDd.helpTip = "Which bezier handles the preview draws. " +
-                         "A handle on show can be dragged.";
+        // Three states on one button, the way the Lasso toggle works, with
+        // the state drawn and said both. It was a dropdown, which could not
+        // be given the corner radius the rest of the row has.
+        var bHand2 = cycler(er1, 92, UI_H, "Handles",
+            "which bezier handles the preview draws, and a handle on show can be dragged",
+            [{ v: "selected", art: "handpick", word: "Picked" },
+             { v: "all", art: "handall", word: "All" },
+             { v: "none", art: "handnone", word: "None" }],
+            function () { return P.handleView; },
+            function (v) {
+                P.handleView = v;
+                savePrefs();
+                redraw();
+                setStatus(v === "none"
+                    ? "Handles hidden."
+                    : (v === "all"
+                        ? "Every handle on show, and every one of them draggable."
+                        : "The picked points' handles are on show."));
+            });
         var bKey = act(er1, "key", "Keyframe",
                        "A path keyframe here, on the picked paths or on every one in view");
         var bReveal = act(er1, "reveal", "Reveal",
                           "Open those paths in the timeline, without keying anything");
+        // What a path that carries keyframes is drawn in, beside the two
+        // buttons that make and open them: that is when it matters which
+        // paths already have some. Set it to the grey the others use and the
+        // distinction goes away, which is the off switch.
+        var swKey = swatch(er1, function () { return P.colKeyed; },
+                           function (c) {
+                               P.colKeyed = c;
+                               savePrefs();
+                               redraw();
+                           });
+        swKey.says = "Keyframed paths - the colour a path with keyframes is drawn in";
+        swKey.helpTip = swKey.says;
+        swKey.addEventListener("mouseover", function () { setStatus(this.says); });
+        swKey.addEventListener("mouseout", function () { reportSel(); });
 
         bLasso.on = !!P.lasso;
         bSnap.on = !!P.snap;
@@ -5142,6 +5424,7 @@
         var bAlnB = act(er2, "alignbottom", "Align bottom",
                         "Bring the picked points to their bottom edge");
 
+
         var tPts = tabPage("Points");
         var pr1 = tabRow(tPts);
         var bCreate = act(pr1, "create", "Create", "Put a control on every picked point");
@@ -5155,9 +5438,13 @@
         var bBake = act(pr1, "bake", "Bake", "Keep the animation as path keyframes, drop the rig");
         // All on one row: four icons, the handle style and the button that
         // applies it come to about 324 of the panel's 380 points.
-        var modeDd = pr1.add("dropdownlist", undefined, ["Handles: masks", "Handles: layers"]);
-        modeDd.preferredSize = [134, UI_H];
-        modeDd.selection = (P.handleMode === "layers") ? 1 : 0;
+        var modeDd = cycler(pr1, 88, UI_H, "Handle style",
+            "whether a point's handles are kept as masks on its own control, or " +
+            "as control layers of their own. Apply converts the picked points",
+            [{ v: "masks", art: "handmask", word: "Masks" },
+             { v: "layers", art: "handlayer", word: "Layers" }],
+            function () { return P.handleMode; },
+            function (v) { P.handleMode = v; savePrefs(); });
         var bSwap = act(pr1, "apply", "Apply",
                         "Convert the picked points' handles to that style", 54);
 
@@ -5168,13 +5455,14 @@
         var bAddPiv = act(gPiv, "addpivot", "Add to Pivot",
                           "Select the Pivot too, then add more points to it", 84);
         var bRel = act(gPiv, "release", "Release", "Detach controls from their Pivot");
-        var pivDd = gPiv.add("dropdownlist", undefined,
-                             ["Pivot only", "Pivot + point controls"]);
-        pivDd.preferredSize = [164, UI_H];
-        pivDd.selection = (P.pivotMode === "points") ? 1 : 0;
-        pivDd.helpTip = "Pivot only moves the points from one layer. " +
-                        "Pivot + point controls gives each point its own, " +
-                        "parented to the Pivot, so they can still be moved apart.";
+        var pivDd = cycler(gPiv, 122, UI_H, "Pivot makes",
+            "Pivot only moves the points from the one layer. With points gives " +
+            "each point a control of its own as well, parented to the Pivot, so " +
+            "they can still be moved apart",
+            [{ v: "pivot", art: "pivonly", word: "Pivot only" },
+             { v: "points", art: "pivpts", word: "With points" }],
+            function () { return P.pivotMode; },
+            function (v) { P.pivotMode = v; savePrefs(); });
 
         var tFol = tabPage("Follow");
         var gFol = tabRow(tFol);
@@ -5233,13 +5521,20 @@
         cv.onDraw = function () {
             var g = this.graphics;
             var w = this.size.width, h = this.size.height;
-            // Outside the composition is darker than inside it. A line round
-            // the frame alone left the two reading as one flat field, so
-            // there was no telling at a glance whether a point had wandered
-            // off the comp or was simply near its edge.
+            // Outside the composition is darker than inside it, and the step
+            // between the two is the whole of how the frame is shown. There
+            // was a line round it as well, which read as a second border
+            // inside the preview's own; the tones alone still say whether a
+            // point has wandered off the comp or is simply near its edge.
             var outside = g.newBrush(g.BrushType.SOLID_COLOR, [0.095, 0.095, 0.1, 1]);
+            // Square underneath, so nothing is left unpainted whatever the
+            // host would otherwise show there, and rounded over it. The two
+            // greys are close enough that the corners left behind do not
+            // read; the border drawn last is what the eye follows.
             g.newPath();
             g.rectPath(0, 0, w, h);
+            g.fillPath(outside);
+            roundRectPath(g, 0.5, 0.5, w - 1, h - 1, BTN_RADIUS);
             g.fillPath(outside);
 
             var comp = activeComp();
@@ -5251,13 +5546,14 @@
                 g.newPath();
                 g.rectPath(cx, cy, cw, chh);
                 g.fillPath(inside);
-                var framePen = g.newPen(g.PenType.SOLID_COLOR, [0.34, 0.34, 0.35, 1], 1);
-                g.newPath();
-                g.rectPath(cx, cy, cw, chh);
-                g.strokePath(framePen);
             }
 
             var pathPen = g.newPen(g.PenType.SOLID_COLOR, [0.62, 0.62, 0.62, 1], 1);
+            // A path with keyframes on it, in whatever colour the Edit tab
+            // was given. Set it to the grey above and the distinction goes
+            // away, which is the off switch.
+            var keyPen = g.newPen(g.PenType.SOLID_COLOR,
+                [P.colKeyed[0], P.colKeyed[1], P.colKeyed[2], 1], 1);
             var leashPen = g.newPen(g.PenType.SOLID_COLOR,
                 [P.colHandle[0], P.colHandle[1], P.colHandle[2], 1], 1);
             var handBrush = g.newBrush(g.BrushType.SOLID_COLOR,
@@ -5282,7 +5578,9 @@
             for (i = 0; i < state.geom.length; i++) {
                 var gm = dispGeom(i);
                 if (!gm) { continue; }
-                var pen = gm.prim ? ghostPen : (gm.foreign ? foreignPen : pathPen);
+                var pen = gm.prim ? ghostPen
+                        : (gm.foreign ? foreignPen
+                        : (gm.keyed ? keyPen : pathPen));
                 var per = FLATTEN + 1;
                 for (var seg = 0; seg * per < gm.poly.length; seg++) {
                     g.newPath();
@@ -5428,6 +5726,12 @@
                 }
             }
 
+            // Last, so it sits over anything that reached the edge: the same
+            // rounded rectangle the buttons are drawn with, round the whole
+            // preview.
+            roundRectPath(g, 0.5, 0.5, w - 1, h - 1, BTN_RADIUS);
+            g.strokePath(g.newPen(g.PenType.SOLID_COLOR,
+                [CV_LINE[0], CV_LINE[1], CV_LINE[2], 1], 1));
         };
 
         // --------------------------------------------------- point picking
@@ -5443,6 +5747,54 @@
                 }
             }
             return best;
+        }
+
+        // The nearest path to the pointer, measured against the curve the
+        // panel actually drew rather than its vertices - in whole-path mode
+        // you aim at the line, not at a point on it. The flattened path is
+        // stored one bezier segment at a time, so the joins between chunks
+        // are not treated as line segments of their own.
+        function pathDist2(gm, cx, cy) {
+            var per = FLATTEN + 1, best = -1, seg, k, at, d;
+            for (seg = 0; seg * per < gm.poly.length; seg++) {
+                for (k = 0; k + 1 < per; k++) {
+                    at = seg * per + k;
+                    if (at + 1 >= gm.poly.length) { break; }
+                    d = segDist2(toCanvas(gm.poly[at]), toCanvas(gm.poly[at + 1]), cx, cy);
+                    if (best < 0 || d < best) { best = d; }
+                }
+            }
+            return best;
+        }
+
+        function nearestPath(cx, cy, maxDist) {
+            var best = null, bestD = maxDist * maxDist, i, gm, d;
+            for (i = 0; i < state.geom.length; i++) {
+                gm = dispGeom(i);
+                if (!gm || !gm.poly || !gm.poly.length) { continue; }
+                d = pathDist2(gm, cx, cy);
+                if (d >= 0 && d <= bestD) { bestD = d; best = { key: state.items[i].key, i: i }; }
+            }
+            return best;
+        }
+
+        // A path is either wholly picked or not picked at all, so there is
+        // never a half-picked path to reason about anywhere downstream.
+        function wholePicked(key, gm) {
+            var cur = state.sel[key] || [];
+            return gm && gm.verts.length > 0 && cur.length === gm.verts.length;
+        }
+
+        function pickWholePath(hit, additive) {
+            var gm = state.geom[hit.i];
+            var full = wholePicked(hit.key, gm);
+            if (!additive) { clearSel(); }
+            if (additive && full) {
+                delete state.sel[hit.key];
+                delete state.selH[hit.key];
+                return;
+            }
+            state.sel[hit.key] = allIdxOf(gm);
         }
 
         // What is on screen: the preview while a drag is in hand, otherwise
@@ -5969,7 +6321,10 @@
 
                 // Shift on a handle adds it or lets it go, and starts no
                 // drag; that is settled on the way up, the way a point is.
-                var hitTip = ev.shiftKey ? null : nearestTip(ev.clientX, ev.clientY, 8);
+                // Handles belong to a point, and whole-path picking has no
+                // notion of one, so they are not in play while it is on.
+                var hitTip = (ev.shiftKey || P.pickPath)
+                    ? null : nearestTip(ev.clientX, ev.clientY, 8);
                 if (hitTip) {
                     var tgm = state.geom[hitTip.gi];
                     var tI = hitTip.tip.i, tS = hitTip.tip.side;
@@ -6009,7 +6364,23 @@
                     }
                 }
 
-                if (!ed) {
+                if (!ed && P.pickPath) {
+                    // Aim at the curve rather than at a vertex: in this mode
+                    // there is no vertex to aim at, and a long path can run
+                    // a long way between two of them.
+                    var hitP = nearestPath(ev.clientX, ev.clientY, 7);
+                    if (hitP && !ev.shiftKey) {
+                        if (!wholePicked(hitP.key, state.geom[hitP.i])) {
+                            pickWholePath(hitP, false);
+                            pushPicks();
+                            reportSel();
+                        }
+                        ed = startEdit("move", ev);
+                        ed.title = "Move path";
+                    }
+                }
+
+                if (!ed && !P.pickPath) {
                     var hit = nearestVertex(ev.clientX, ev.clientY, 10);
                     // Shift on a point still means pick-and-unpick, and
                     // starts no drag; that is settled on the way up.
@@ -6166,6 +6537,21 @@
                     var gm = state.geom[i];
                     if (!gm) { continue; }
                     var mk = state.items[i].key;
+                    if (P.pickPath) {
+                        // Anything the marquee caught any part of comes in
+                        // entire. The curve counts as well as the vertices,
+                        // so a box drawn across a long span between two
+                        // points still takes the path it crossed.
+                        var got = false, w;
+                        for (w = 0; w < gm.verts.length && !got; w++) {
+                            if (inBox(toCanvas(gm.verts[w]))) { got = true; }
+                        }
+                        for (w = 0; w < gm.poly.length && !got; w++) {
+                            if (inBox(toCanvas(gm.poly[w]))) { got = true; }
+                        }
+                        if (got) { state.sel[mk] = allIdxOf(gm); }
+                        continue;
+                    }
                     for (var k = 0; k < gm.verts.length; k++) {
                         if (!inBox(toCanvas(gm.verts[k]))) { continue; }
                         var a = selOf(mk);
@@ -6182,6 +6568,15 @@
                     }
                 }
             } else {
+                if (P.pickPath) {
+                    var hitW = nearestPath(d.x1, d.y1, 7);
+                    if (hitW) { pickWholePath(hitW, d.shift); }
+                    else if (!d.shift) { clearSel(); }
+                    pushPicks();
+                    reportSel();
+                    redraw();
+                    return;
+                }
                 // A handle tip sits further from the curve than its point,
                 // so when both are under the pointer the tip is the one that
                 // was meant.
@@ -6388,7 +6783,9 @@
                 // waiting to be clicked.
                 setStatus(countOf(state.items.length, "path") + " in view. " +
                           (note ? note
-                                : "Click a point, shift-click to add, drag to marquee."));
+                                : (P.pickPath
+                                    ? "Click a path to take it whole, shift-click to add."
+                                    : "Click a point, shift-click to add, drag to marquee.")));
                 return;
             }
             setStatus(note ? ("Nothing to pick yet. " + note)
@@ -6411,12 +6808,25 @@
                 redraw();
                 return;
             }
+            // 0 the selected layers, 1 the shape group chosen inside them,
+            // 2 every layer in the composition.
+            var mode = scopeAt;
             var layers = null;
-            if (scopeDd.selection && scopeDd.selection.index === 0) {
+            if (mode !== 2) {
                 layers = selectedLayers(comp);
                 layers = layers.length ? widenScope(comp, layers) : null;
             }
             var all = scanPaths(comp, layers);
+            var prims = scanPrimitives(comp, layers);
+            if (P.maskDirect) { all = onlyDirectMasks(all); }
+            if (mode === 1) {
+                // Both lists are narrowed on one answer. Asked of each on its
+                // own, a list with nothing chosen in it would fall back to
+                // showing all of itself, which is the opposite of the point.
+                var aim = pointedKeys([all, prims]);
+                all = keepKeys(all, aim);
+                prims = keepKeys(prims, aim);
+            }
             var cap = 120;
             for (var i = 0; i < all.length && state.items.length < cap; i++) {
                 var g = geomFor(all[i], comp.time);
@@ -6426,7 +6836,6 @@
             }
             // Primitives join the same list, so they are framed, drawn and
             // picked by the same code that handles real paths.
-            var prims = scanPrimitives(comp, layers);
             for (i = 0; i < prims.length && state.items.length < cap * 2; i++) {
                 var gp = geomFor(prims[i], comp.time);
                 if (!gp) { continue; }
@@ -6554,7 +6963,6 @@
             reportSel();
             redraw();
         };
-        scopeDd.onChange = function () { state.fitted = false; refresh(); };
 
         bCreate.onClick = function () { actCreate(picks(), false, sel()); };
         bHand.onClick = function () { actCreate(picks(), true, sel()); };
@@ -6567,14 +6975,6 @@
         bAvg.onClick = function () { actAverageFollower(picks(), sel()); };
         bExtract.onClick = function () { actExtract(picks(), sel()); };
         bMerge.onClick = function () { actMerge(sel()); };
-        modeDd.onChange = function () {
-            P.handleMode = (modeDd.selection.index === 1) ? "layers" : "masks";
-            savePrefs();
-        };
-        pivDd.onChange = function () {
-            P.pivotMode = (pivDd.selection.index === 1) ? "points" : "pivot";
-            savePrefs();
-        };
         bSwap.onClick = function () { actSwitchHandleMode(picks(), P.handleMode); };
 
         // ----------------------------------------------------- preferences
@@ -6588,6 +6988,23 @@
             savePrefs();
             repaint(this);
             setStatus(this.says);
+        };
+
+        bPathPick.onClick = function () {
+            P.pickPath = !P.pickPath;
+            this.on = P.pickPath;
+            this.says = P.pickPath
+                ? "Pick paths - click a path to take it whole, points and all"
+                : "Pick points - click a point to take just that one";
+            this.helpTip = this.says;
+            // The two kinds of selection do not mix: a path half picked is
+            // not something either mode knows how to show or act on.
+            clearSel();
+            pushPicks();
+            savePrefs();
+            repaint(this);
+            setStatus(this.says);
+            redraw();
         };
 
         bSnap.onClick = function () {
@@ -6609,18 +7026,6 @@
             setStatus(P.showBox
                 ? "Transform box on - pick two or more points to turn or scale them."
                 : "Transform box off.");
-        };
-
-        handDd.onChange = function () {
-            var at = this.selection ? this.selection.index : 0;
-            P.handleView = (at === 1) ? "all" : ((at === 2) ? "none" : "selected");
-            savePrefs();
-            redraw();
-            setStatus(P.handleView === "none"
-                ? "Handles hidden."
-                : (P.handleView === "all"
-                    ? "Every handle on show, and every one of them draggable."
-                    : "The picked points' handles are on show."));
         };
 
         // Picked points name the paths. With nothing picked it is whatever
@@ -6689,8 +7094,44 @@
             var comp = activeComp();
             if (!comp) { return "none"; }
             var out = [String(comp.id), String(comp.numLayers)];
-            var sel = comp.selectedLayers;
-            for (var i = 0; i < sel.length; i++) { out.push(String(sel[i].index)); }
+            var sel = comp.selectedLayers, i;
+            for (i = 0; i < sel.length; i++) { out.push(String(sel[i].index)); }
+
+            // Which PROPERTY is chosen moves none of the above: clicking a
+            // different shape group inside a layer that is already selected
+            // leaves the layer selection exactly as it was. That only matters
+            // where the preview is narrowed by it, so it is only asked there.
+            var mode = scopeAt;
+            if (mode === 1) {
+                out.push("|g");
+                // What is on show is enough to notice the change by: choosing
+                // another group lets the old one go, and that is a difference
+                // here whether or not the new one was being shown.
+                for (i = 0; i < state.items.length; i++) {
+                    try {
+                        if (isPointedAt(state.items[i].prop)) {
+                            out.push(state.items[i].key);
+                        }
+                    } catch (eG) {}
+                }
+            }
+            if (P.maskDirect) {
+                // A mask held back is not in state.items at all, so choosing
+                // one would otherwise go unnoticed. There are only ever a
+                // handful of masks on a layer to ask about.
+                out.push("|m");
+                for (i = 0; i < sel.length; i++) {
+                    var masks = null;
+                    try { masks = sel[i].property(MN_MASKS); } catch (eM) { masks = null; }
+                    for (var k = 1; masks && k <= masks.numProperties; k++) {
+                        try {
+                            if (isPointedAt(masks.property(k))) {
+                                out.push("m" + sel[i].index + ":" + k);
+                            }
+                        } catch (eM2) {}
+                    }
+                }
+            }
             return out.join(",");
         }
 
@@ -6785,6 +7226,7 @@
         ["Click, or drag a box", "Pick a point, or several"],
         ["Shift-click", "Add one, or let it go"],
         ["Lasso", "Draw freehand round them instead"],
+        ["Pick paths", "The top row's toggle takes a whole path - click the curve"],
         ["Double-click empty", "Frame everything again"],
         "Move",
         ["Drag a picked point", "Takes every picked point with it"],
@@ -6941,6 +7383,14 @@
         cbReveal.helpTip = "Reveals the keyframed properties of the layers that " +
                            "were keyed, the way pressing U does.";
 
+        var gMask = line("Masks");
+        var cbMask = gMask.add("checkbox", undefined, "Only when chosen in the timeline");
+        cbMask.value = !!P.maskDirect;
+        cbMask.helpTip = "A shape layer that also carries masks otherwise shows " +
+                         "two sets of points over one piece of artwork. With this " +
+                         "on, a mask has to be chosen in the timeline before its " +
+                         "points appear - the mask itself, not the layer it is on.";
+
         var gBox = line("Transform box");
         var cbBox = gBox.add("checkbox", undefined, "Show round two or more points");
         cbBox.value = !!P.showBox;
@@ -6979,6 +7429,7 @@
             P.snapPx = numIn(snapTxt.text, P.snapPx, 1, 40);
             P.showBox = cbBox.value;
             P.revealKeyed = cbReveal.value;
+            P.maskDirect = cbMask.value;
             savePrefs();
             saved = true;
             d.close();
