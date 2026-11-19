@@ -55,6 +55,12 @@
  *                       it takes nothing away: that selection is already an
  *                       answer to the question
  *
+ *             Preferences can let a whole path moved take its shape group's
+ *             anchor point with it. The group's position is put back by the
+ *             same step, so nothing shifts and the anchor keeps its place on
+ *             the artwork; reshaping a path leaves it alone, since nothing
+ *             has gone anywhere for the anchor to follow.
+ *
  *             A point the rig already holds moves whatever holds it: its own
  *             control layer, or its place in the Pivot that gathered it. A
  *             point nothing holds is written into the path itself.
@@ -699,7 +705,8 @@
         snap: true,
         snapPx: 6,                // how near, on screen, before it takes hold
         revealKeyed: true,        // open the keyed path in the timeline after
-        maskDirect: false         // hide a mask's points unless it is chosen
+        maskDirect: false,        // hide a mask's points unless it is chosen
+        anchorFollows: false      // a whole path moved takes its group's anchor
     };
 
     function prefGet(key, def) {
@@ -4128,12 +4135,113 @@
         return { edits: edits, made: turned.made };
     }
 
-    function runEdits(title, picks, edits) {
+    // The shape group a path sits in, and the two spaces either side of its
+    // own transform. A group is drawn as position + R*S*(content - anchor),
+    // so the vertices and the anchor share one space and the position lives
+    // in the space outside it.
+    function groupOf(item) {
+        var holder, g = null, i;
+        try { holder = item.layer.property(MN_CONTENTS); } catch (e0) { return null; }
+        for (i = 0; i < item.chain.length; i++) {
+            g = holder ? holder.property(item.chain[i]) : null;
+            if (!g) { return null; }
+            holder = g.property(MN_VECTORS);
+        }
+        return g;
+    }
+
+    function chainUpTo(item, t, upto) {
+        return mMul(layerMatrix(item.layer, t),
+                    chainMatrix({ layer: item.layer, chain: item.chain.slice(0, upto) }, t));
+    }
+
+    function ownedByExpression(prop) {
+        try {
+            return !!(prop.expressionEnabled && trim(String(prop.expression || "")) !== "");
+        } catch (e) { return false; }
+    }
+
+    function addTo(comp, prop, d) {
+        var v;
+        try { v = prop.valueAtTime(comp.time, false); } catch (e0) { return false; }
+        var want = [Number(v[0]) + d[0], Number(v[1]) + d[1]];
+        try {
+            if (prop.numKeys > 0) { prop.setValueAtTime(comp.time, want); }
+            else { prop.setValue(want); }
+        } catch (e1) { return false; }
+        touched();
+        return true;
+    }
+
+    // Moving the anchor on its own slides the artwork, because everything in
+    // the group is drawn relative to it. So the position moves by the same
+    // step in its own space, which cancels that exactly and leaves the move
+    // looking as it would have - with the anchor having kept its place on
+    // the artwork rather than staying behind.
+    //
+    // Only the group nearest the path is touched, and only when the whole of
+    // what that group holds is moving: a path being reshaped has not gone
+    // anywhere for the anchor to follow it to.
+    function anchorsFollow(comp, picks, dComp, r) {
+        if (!P.anchorFollows || !dComp || (!dComp[0] && !dComp[1])) { return; }
+        var t = comp.time, whole = {}, i, k;
+        for (i = 0; i < picks.length; i++) {
+            var it = picks[i].item;
+            if (!it || it.prim || !it.chain.length) { continue; }
+            var sh = rawShape(comp, it.prop);
+            if (!sh || picks[i].idx.length !== sh.vertices.length) { continue; }
+            whole[it.key] = it;
+        }
+        var done = {};
+        for (k in whole) {
+            if (!whole.hasOwnProperty(k)) { continue; }
+            var item = whole[k];
+            var key = String(item.layer.id) + "/" + item.chain.join("\u0001");
+            if (done[key]) { continue; }
+            done[key] = true;
+            // every path that group holds has to be moving, or the group is
+            // changing shape rather than travelling
+            var all = scanPaths(comp, [item.layer]), every = true;
+            for (i = 0; i < all.length; i++) {
+                if (all[i].chain.join("\u0001") !== item.chain.join("\u0001")) { continue; }
+                if (!whole[all[i].key]) { every = false; break; }
+            }
+            if (!every) { continue; }
+            var g = groupOf(item);
+            var tr = g ? g.property(MN_GXFORM) : null;
+            var aP = tr ? tr.property("ADBE Vector Anchor") : null;
+            var pP = tr ? tr.property("ADBE Vector Position") : null;
+            if (!aP || !pP) { continue; }
+            // Keyframed or driven, the pair cannot be stepped by a constant
+            // without breaking what it does at every other time.
+            if (aP.numKeys > 0 || pP.numKeys > 0 ||
+                ownedByExpression(aP) || ownedByExpression(pP)) {
+                r.anchorHeld++;
+                continue;
+            }
+            var dLocal = mVec(mInv(itemMatrix(item, t)), dComp);
+            var dParent = mVec(mInv(chainUpTo(item, t, item.chain.length - 1)), dComp);
+            if (addTo(comp, aP, dLocal) && addTo(comp, pP, dParent)) { r.anchors++; }
+            else { r.anchorHeld++; }
+        }
+    }
+
+    function runEdits(title, picks, edits, dMove) {
         if (!edits || !edits.length) { UI.say("Pick some points first."); return false; }
         return run(title, function (comp) {
             var over = overPrimitives(comp, picks, edits);
             var r = applyEdits(comp, over.edits);
+            r.anchors = 0;
+            r.anchorHeld = 0;
+            anchorsFollow(comp, picks, dMove, r);
             var msg = editReport(r);
+            if (r.anchors) {
+                msg += " " + plural(r.anchors, "group") + " took its anchor point along.";
+            }
+            if (r.anchorHeld) {
+                msg += " " + plural(r.anchorHeld, "group") +
+                       " kept its anchor: it is keyframed or driven.";
+            }
             if (over.made) {
                 msg += " " + plural(over.made, "shape") + " became a path.";
             }
@@ -4141,14 +4249,14 @@
         }, true);
     }
 
-    function editRun(title, picks, geom, fn) {
-        return runEdits(title, picks, editsFor(picks, geom, fn));
+    function editRun(title, picks, geom, fn, dMove) {
+        return runEdits(title, picks, editsFor(picks, geom, fn), dMove);
     }
 
     function actMovePoints(picks, geom, d, title) {
         return editRun(title || "Move points", picks, geom, function (at) {
             return { pt: [at[0] + d[0], at[1] + d[1]] };
-        });
+        }, d);
     }
 
     // Alignment moves the points and nothing else. A tangent is stored as a
@@ -6322,7 +6430,8 @@
             if (ed.kind === "move" && !ed.d[0] && !ed.d[1]) { return; }
             var edits = ed.edits || editsOf(ed);
             if (!edits.length) { return; }
-            runEdits(ed.title || "Move points", ed.picks, edits);
+            runEdits(ed.title || "Move points", ed.picks, edits,
+                     (ed.kind === "move") ? ed.d : null);
         }
 
         cv.addEventListener("mousedown", function (ev) {
@@ -6646,7 +6755,7 @@
             if (!(n > 0)) { n = 1; }
             var base = geomMap();
             return runEdits("Nudge points", currentPicks(),
-                            moveEdits(base, [kx * n, ky * n]));
+                            moveEdits(base, [kx * n, ky * n]), [kx * n, ky * n]);
         }
 
         // Read by name and by code both: which of the two a host fills in
@@ -7429,6 +7538,15 @@
                          "on, a mask has to be chosen in the timeline before its " +
                          "points appear - the mask itself, not the layer it is on.";
 
+        var gAnchor = line("Anchor point");
+        var cbAnchor = gAnchor.add("checkbox", undefined, "Move it with a whole path");
+        cbAnchor.value = !!P.anchorFollows;
+        cbAnchor.helpTip = "When every point of a shape group's path moves together, " +
+                           "the group's anchor point moves with it and its position is " +
+                           "put back by the same step, so nothing shifts and the anchor " +
+                           "keeps its place on the artwork. Reshaping leaves it alone, " +
+                           "and so does a group whose anchor or position is keyframed.";
+
         var gBox = line("Transform box");
         var cbBox = gBox.add("checkbox", undefined, "Show round two or more points");
         cbBox.value = !!P.showBox;
@@ -7468,6 +7586,7 @@
             P.showBox = cbBox.value;
             P.revealKeyed = cbReveal.value;
             P.maskDirect = cbMask.value;
+            P.anchorFollows = cbAnchor.value;
             savePrefs();
             saved = true;
             d.close();

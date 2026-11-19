@@ -3896,6 +3896,93 @@ section("keyframe: the reveal after it narrows the same way");
      a.selected + " / " + b.selected);
 }
 
+// A group is drawn as position + R*S*(content - anchor), so moving the anchor
+// alone slides everything in it. The position has to be put back by the same
+// step, in its own space, for the move to look like the move.
+function anchorFixture(rot, scl) {
+  const c = newComp();
+  const L = addShapeLayer(c, "Art", "G", star(4, 100), [0, 0], rot, scl);
+  L.selected = true;
+  V.P.snap = false;
+  setScope("Layers");
+  V.UI.refresh();
+  const item = V.state.items[0];
+  const g = L.property("ADBE Root Vectors Group").property("G")
+             .property("ADBE Vector Transform Group");
+  return { c, L, item,
+           a: g.property("ADBE Vector Anchor"),
+           p: g.property("ADBE Vector Position") };
+}
+
+section("anchor: a whole path moved takes its group's anchor with it");
+{
+  const was = V.P.anchorFollows;
+  const { c, L, item, a, p } = anchorFixture(30, [200, 50]);
+  const all = V.state.geom[0].verts.map((_, i) => i);
+  const d = [24, -13];
+
+  // a point of the group that is NOT moving, to prove nothing else shifts
+  const probe = [37, -22];
+  const stood = V.mPt(V.itemMatrix(item, c.time), probe);
+  const aWas = a.value.slice(), pWas = p.value.slice();
+  const wantA = V.mVec(V.mInv(V.itemMatrix(item, c.time)), d);
+  const wantP = V.mVec(V.mInv(V.layerMatrix(L, c.time)), d);
+
+  V.P.anchorFollows = false;
+  V.actMovePoints([{ item, idx: all }], geomMapOf(), d);
+  ok(a.value[0] === aWas[0] && a.value[1] === aWas[1],
+     "off by default, the anchor stays where it was", a.value.join(","));
+
+  V.P.anchorFollows = true;
+  V.UI.refresh();
+  const item2 = V.state.items[0];
+  const probe2 = V.mPt(V.itemMatrix(item2, c.time), probe);
+  const a2 = a.value.slice(), p2 = p.value.slice();
+  const wantA2 = V.mVec(V.mInv(V.itemMatrix(item2, c.time)), d);
+  const wantP2 = V.mVec(V.mInv(V.layerMatrix(L, c.time)), d);
+  V.actMovePoints([{ item: item2, idx: all }], geomMapOf(), d);
+
+  ok(Math.abs(a.value[0] - a2[0] - wantA2[0]) < 1e-6 &&
+     Math.abs(a.value[1] - a2[1] - wantA2[1]) < 1e-6,
+     "on, it moves by the step in the space it lives in",
+     [a.value[0] - a2[0], a.value[1] - a2[1]].join(",") + " wanted " + wantA2.join(","));
+  ok(Math.abs(p.value[0] - p2[0] - wantP2[0]) < 1e-6 &&
+     Math.abs(p.value[1] - p2[1] - wantP2[1]) < 1e-6,
+     "and the position is put back by the same step in its own",
+     [p.value[0] - p2[0], p.value[1] - p2[1]].join(","));
+
+  const now = V.mPt(V.itemMatrix(V.state.items[0], c.time), probe);
+  ok(Math.abs(now[0] - probe2[0]) < 1e-6 && Math.abs(now[1] - probe2[1]) < 1e-6,
+     "so anything else in the group is exactly where it was",
+     now.join(",") + " was " + probe2.join(","));
+  V.P.anchorFollows = was;
+}
+
+section("anchor: reshaping leaves it alone, and so does a keyframed one");
+{
+  const was = V.P.anchorFollows;
+  V.P.anchorFollows = true;
+
+  const one = anchorFixture(0, [100, 100]);
+  const aWas = one.a.value.slice();
+  V.actMovePoints([{ item: one.item, idx: [0, 1] }], geomMapOf(), [12, 9]);
+  ok(one.a.value[0] === aWas[0] && one.a.value[1] === aWas[1],
+     "moving some of a path is reshaping, and the anchor stays",
+     one.a.value.join(","));
+
+  const two = anchorFixture(0, [100, 100]);
+  two.p.setValueAtTime(0, two.p.value.slice());
+  const aWas2 = two.a.value.slice();
+  const all2 = V.state.geom[0].verts.map((_, i) => i);
+  const said = sayOf(() =>
+    V.actMovePoints([{ item: V.state.items[0], idx: all2 }], geomMapOf(), [12, 9]));
+  ok(two.a.value[0] === aWas2[0] && two.a.value[1] === aWas2[1],
+     "a keyframed position cannot be stepped by a constant, so it is left",
+     two.a.value.join(","));
+  ok(/kept its anchor/.test(said), "and it says so rather than going quiet", said);
+  V.P.anchorFollows = was;
+}
+
 section("the preview: the turn arcs are drawn where a turn is taken hold of");
 {
   const c = newComp();
